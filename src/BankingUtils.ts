@@ -3,16 +3,18 @@
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  */
-function applyMathToSelection(operation, value) {
+function applyMathToSelection(operation: string, value: number) {
   if (!operation || !value) throw new Error("You must have an operation and a value");
 
   let sheet = SpreadsheetApp.getActiveSpreadsheet();
 
   let activeRange = sheet.getActiveRange();
 
+  if (!activeRange) throw new Error("You must select a cell.");
+
   let values = activeRange.getValues();
 
-  if (!values) throw new Error("You must select a cell.");
+  if (operation === "DIVIDE" && value === 0) throw new Error("You cannot divide by zero.");
 
   for (let r = 0; r < values.length; r++) {
     for (let c = 0; c < values[r].length; c++) {
@@ -26,7 +28,7 @@ function applyMathToSelection(operation, value) {
   activeRange.setValues(values);
 }
 
-function moveToCell(amount, initialCell, finalCell) {
+function moveToCell(amount: number, finalCell: GoogleAppsScript.Spreadsheet.Range, initialCell: GoogleAppsScript.Spreadsheet.Range) {
   
 }
 
