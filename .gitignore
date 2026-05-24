@@ -1,0 +1,26 @@
+# --- Google Apps Script / Clasp ---
+.clasprc.json
+
+# Local clasp configuration (contains the Script ID and root directory)
+.clasp.json
+
+# --- Dependencies & Package Managers ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Environment & Secrets ---
+.env
+.env.local
+.env.*.local
+
+# --- Build & Transpilation Output ---
+dist/
+build/
+
+# --- Logs and System Files ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db

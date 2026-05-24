@@ -1,0 +1,24 @@
+{
+  "name": "b-bucks-economy-scripts",
+  "version": "1.0.0",
+  "description": "A central location for my Google Sheets App Scripts code for a classroom economic system.",
+  "main": "index.js",
+  "scripts": {
+    "ncu": "npx npm-check-updates -u && npm install --force"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enVId-tech/B-Bucks-Economy-Scripts.git"
+  },
+  "keywords": [],
+  "author": "enVId-tech",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/enVId-tech/B-Bucks-Economy-Scripts/issues"
+  },
+  "homepage": "https://github.com/enVId-tech/B-Bucks-Economy-Scripts#readme",
+  "devDependencies": {
+    "@types/google-apps-script": "^2.0.9"
+  }
+}

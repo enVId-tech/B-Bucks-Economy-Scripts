@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "es2019",
+    "module": "commonjs",
+    "lib": ["es2019"],
+    "experimentalDecorators": true,
+    "noImplicitAny": false,
+    "types": ["google-apps-script"]
+  }
+}

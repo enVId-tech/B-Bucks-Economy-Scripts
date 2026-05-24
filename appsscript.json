@@ -1,0 +1,52 @@
+{
+  "timeZone": "America/Los_Angeles",
+  "dependencies": {
+    "enabledAdvancedServices": [{
+      "userSymbol": "Sheets",
+      "serviceId": "sheets",
+      "version": "v4"
+    }]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [{
+      "menuName": "Sample",
+      "functionName": "Sample"
+    }, {
+      "menuName": "CellsAddTwo",
+      "functionName": "CellsAddTwo"
+    }, {
+      "menuName": "CellsAddFive",
+      "functionName": "CellsAddFive"
+    }, {
+      "menuName": "CellsAddOne",
+      "functionName": "CellsAddOne"
+    }, {
+      "menuName": "CellsAddTen",
+      "functionName": "CellsAddTen"
+    }, {
+      "menuName": "CellsAddThree",
+      "functionName": "CellsAddThree"
+    }, {
+      "menuName": "CellsSubtractFive",
+      "functionName": "CellsSubtractFive"
+    }, {
+      "menuName": "CellsSubtractOne",
+      "functionName": "CellsSubtractOne"
+    }, {
+      "menuName": "CellsSubtractTen",
+      "functionName": "CellsSubtractTen"
+    }, {
+      "menuName": "CellsSubtractThree",
+      "functionName": "CellsSubtractThree"
+    }, {
+      "menuName": "CellsSubtractTwo",
+      "functionName": "CellsSubtractTwo"
+    }, {
+      "menuName": "quickApplyCustomValue",
+      "functionName": "quickApplyCustomValue",
+      "defaultShortcut": "Ctrl+Alt+Shift+1"
+    }]
+  }
+}

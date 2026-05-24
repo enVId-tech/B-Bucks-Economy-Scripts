@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <style>
+    * {
+      font-family: Arial, sans-serif;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      user-select: text;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f0f2f5;
+      overflow: hidden;
+    }
+
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .controls {
+      width: 45%;
+      padding: 15px;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .log-panel {
+      width: 55%;
+      padding: 10px;
+      background: #fff;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-header {
+      font-weight: bold;
+      font-size: 14px;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+
+    .log-item {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 8px;
+      border-left: 6px solid #eee;
+      font-size: 13px;
+    }
+
+    .student-name {
+      font-weight: bold;
+      font-size: 14px;
+      display: block;
+      color: #2c3e50;
+    }
+
+    .section-name {
+      font-size: 11px;
+      color: #95a5a6;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .log-math {
+      font-weight: bold;
+      font-size: 15px;
+      text-align: right;
+      margin-top: 5px;
+    }
+
+    .neg {
+      color: #e74c3c !important;
+    }
+
+    .pos {
+      color: #27ae60 !important;
+    }
+
+    .zero {
+      color: #000000 !important;
+    }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      width: 100%;
+    }
+
+    .btn {
+      color: white;
+      border: none;
+      padding: 8px 3px;
+      width: 70px;
+      margin: 0;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 13px;
+      transition: 0.2s;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #95a5a6 !important;
+    }
+
+    .btn-add {
+      background: #2ecc71;
+    }
+
+    .btn-remove {
+      background: #e74c3c;
+    }
+
+    .btn-math {
+      background: #3498db;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .guide {
+      font-size: 10px;
+      color: #7f8c8d;
+      margin-top: 5px;
+      line-height: 1.5;
+      background: #fdfdfd;
+      padding: 5px;
+      border: 1px solid #eee;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      margin-top: 5px;
+      color: #34495e;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="main-content">
+    <div class="controls" id="button-group">
+      <div class="btn-group">
+        <button class="btn btn-add" data-input="1">+1</button>
+        <button class="btn btn-remove" data-input="-1">-1</button>
+        <button class="btn btn-add" data-input="2">+2</button>
+        <button class="btn btn-remove" data-input="-2">-2</button>
+      </div>
+
+      <div style="font-size: 12px; font-weight:bold; color:#333; margin-top:5px;">Multi / Div</div>
+      <div class="btn-group">
+        <button class="btn btn-math" data-input="*2">×2</button>
+        <button class="btn btn-math" data-input="/2">÷2</button>
+      </div>
+
+      <div style="margin-top:  10px;">
+        <input type="text" id="customInput" placeholder="Enter amount... ">
+        <div class="toggle-container">
+          <input type="checkbox" id="enterToggle" checked>
+          <label for="enterToggle">Auto-Submit on Sheet Enter</label>
+        </div>
+        <button class="btn btn-add" id="customBtn" style="width:100%; margin-top:8px;">Add Custom Amount</button>
+
+        <div class="guide">
+          <b>Examples:</b><br>
+          Type <b>10</b> to add $10<br>
+          Type <b>-5</b> to subtract $5<br>
+          Type <b>*2</b> to double amount<br>
+          Type <b>/4</b> to charge 25% tax<br>
+          <b style="color:#3498db;">Quick Apply: </b> Use <b>Banderas Tools > Quick Apply</b> menu or assign a keyboard
+          shortcut in Google Sheets (Tools > Macros > Manage macros)
+        </div>
+      </div>
+
+      <div style="margin-top: auto; font-size:11px;">
+        History: <input type="number" id="logLimit" value="25" style="width:50px; padding: 4px;">
+      </div>
+    </div>
+
+    <div class="log-panel">
+      <div class="log-header">Activity Log</div>
+      <div id="log-container"></div>
+    </div>
+  </div>
+
+  <script>
+    const DB_TIMER_WAIT = 350;
+  let buttonsDisabled = false;
+
+  // 1. IMPROVED: Handle the logic for the log
+  function sendAdjust(val) {
+    if (!val || buttonsDisabled) return;
+    
+    disableButtonsTemporarily();
+    const id = "log-" + Date.now();
+    
+    // Create a temporary "Loading" item
+    addPlaceholderLog(id, val);
+    
+    google.script.run
+      .withSuccessHandler(function(response) {
+        // Remove the placeholder
+        const placeholder = document.getElementById(id);
+        if (placeholder) placeholder.remove();
+
+        // Check if response is an array (Batch) or single object
+        if (Array.isArray(response)) {
+          response.forEach((item, index) => {
+            renderFinalLog(id + index, item);
+          });
+        } else {
+          renderFinalLog(id, response);
+        }
+      })
+      .withFailureHandler(function(err) {
+        const item = document.getElementById(id);
+        if (item) item.innerHTML = `<span style="color:red">Error: ${err.message}</span>`;
+      })
+      .adjustAmount(val);
+  }
+
+  // 2. Placeholder UI (The "Optimistic" part)
+  function addPlaceholderLog(id, input) {
+    const container = document.getElementById('log-container');
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = "log-item";
+    div.style.opacity = "0.7";
+    div.innerHTML = `<strong>Processing ${input}...</strong>`;
+    container.insertBefore(div, container.firstChild);
+  }
+
+  function renderFinalLog(id, data) {
+    const container = document.getElementById('log-container');
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = "log-item";
+
+    const isRemoving = (data.operator === '-' || data.operator === '/' || data.operand < 0);
+    const oldValClass = data.oldVal < 0 ? 'neg' : (data.oldVal === 0 ? 'zero' : 'pos');
+    const mathOpClass = isRemoving ? 'neg' : 'pos';
+    const resultClass = data.newVal < 0 ? 'neg' : (data.newVal === 0 ? 'zero' : 'pos');
+
+    div.innerHTML = `
+      <div class="log-info">
+        <span class="student-name">${data.name || 'Unknown'}</span>
+        <span class="section-name">${data.section || 'Section'}</span>
+      </div>
+      <div class="log-math">
+        <span class="${oldValClass}">${data.oldVal}</span> 
+        <span class="${mathOpClass}">${data.operator} ${Math.abs(data.operand)}</span> = 
+        <span class="${resultClass}">${Number(data.newVal).toLocaleString()}</span>
+      </div>
+    `;
+    container.insertBefore(div, container.firstChild);
+  }
+
+    function disableButtonsTemporarily() {
+      if (buttonsDisabled) return;
+      buttonsDisabled = true;
+      const allButtons = document.querySelectorAll('.btn');
+      // Use opacity for smoother visual than just 'disabled'
+      allButtons.forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      });
+      
+      setTimeout(() => {
+        allButtons.forEach(btn => {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+        });
+        buttonsDisabled = false;
+      }, DB_TIMER_WAIT);
+    }
+
+  document.getElementById('button-group').addEventListener('click', (e) => {
+    const amt = e.target.getAttribute('data-input');
+    if (amt) sendAdjust(amt);
+  });
+
+  document.getElementById('customBtn').onclick = () => sendAdjust(document.getElementById('customInput').value);
+
+  // Keybind for Enter in input
+  document.getElementById('customInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') sendAdjust(this.value);
+  });
+  </script>
+</body>
+
+</html>
