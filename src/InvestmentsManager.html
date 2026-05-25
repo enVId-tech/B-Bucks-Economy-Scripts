@@ -30,6 +30,41 @@
       color: #24292e;
     }
 
+    .nav-header {
+      background: #fff;
+      border-bottom: 1px solid #e1e4e8;
+      display: flex;
+      gap: 0;
+      padding: 0;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .nav-link {
+      padding: 10px 14px;
+      border: none;
+      background: #fff;
+      color: #6a737d;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .nav-link:hover {
+      color: #24292e;
+      background: #f6f8fa;
+    }
+
+    .nav-link.active {
+      color: #0366d6;
+      border-bottom-color: #0366d6;
+    }
+
     .main-content {
       display: flex;
       width: 100%;
@@ -354,6 +389,15 @@
 </head>
 
 <body>
+  <!-- Navigation Header -->
+  <div class="nav-header">
+    <button class="nav-link" onclick="switchToAccountingManager();">💰 Manual B-Bucks Modifier</button>
+    <button class="nav-link active">💸 Income / Consumables</button>
+    <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment Banking</button>
+    <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction Records</button>
+    <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
+  </div>
+  
   <div class="main-content">
     <!-- Left Panel: Controls -->
     <div class="left-panel">

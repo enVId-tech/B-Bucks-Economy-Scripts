@@ -1,554 +1,618 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transactions Records</title>
-  <style>
-    * {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-sizing: border-box;
-      user-select: none;
-    }
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions Records</title>
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-sizing: border-box;
+            user-select: none;
+        }
 
-    input[type="text"],
-    input[type="date"],
-    select {
-      user-select: text;
-    }
+        input[type="text"],
+        input[type="date"],
+        select {
+            user-select: text;
+        }
 
-    body {
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: #fafbfc;
-      overflow: hidden;
-      font-size: 12px;
-      color: #24292e;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #fafbfc;
+            overflow: hidden;
+            font-size: 12px;
+            color: #24292e;
+        }
 
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-    }
+        .nav-header {
+            background: #fff;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            gap: 0;
+            padding: 0;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
 
-    .header {
-      background: #fff;
-      border-bottom: 2px solid #0366d6;
-      padding: 12px;
-    }
+        .nav-link {
+            padding: 10px 14px;
+            border: none;
+            background: #fff;
+            color: #6a737d;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
-    .header-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #24292e;
-      margin: 0;
-    }
+        .nav-link:hover {
+            color: #24292e;
+            background: #f6f8fa;
+        }
 
-    .header-subtitle {
-      font-size: 11px;
-      color: #6a737d;
-      margin: 2px 0 0 0;
-    }
+        .nav-link.active {
+            color: #0366d6;
+            border-bottom-color: #0366d6;
+        }
 
-    .controls {
-      background: #fff;
-      padding: 10px;
-      border-bottom: 1px solid #e1e4e8;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: flex-end;
-    }
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
 
-    .control-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+        .header {
+            background: #fff;
+            border-bottom: 2px solid #0366d6;
+            padding: 12px;
+        }
 
-    .control-group label {
-      font-size: 9px;
-      color: #586069;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+        .header-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #24292e;
+            margin: 0;
+        }
 
-    .control-group input,
-    .control-group select {
-      padding: 5px 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-      font-size: 11px;
-      transition: border 0.1s;
-    }
+        .header-subtitle {
+            font-size: 11px;
+            color: #6a737d;
+            margin: 2px 0 0 0;
+        }
 
-    .control-group input:focus,
-    .control-group select:focus {
-      border-color: #0366d6;
-      outline: none;
-      box-shadow: inset 0 0 0 1px #0366d6;
-    }
+        .controls {
+            background: #fff;
+            padding: 10px;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
 
-    .btn-filter {
-      padding: 5px 10px;
-      background: #0366d6;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      height: 26px;
-    }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
 
-    .btn-filter:hover {
-      background: #0256c7;
-      transform: translateY(-1px);
-    }
+        .control-group label {
+            font-size: 9px;
+            color: #586069;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
 
-    .btn-filter:active {
-      transform: translateY(0);
-    }
+        .control-group input,
+        .control-group select {
+            padding: 5px 6px;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            font-size: 11px;
+            transition: border 0.1s;
+        }
 
-    .btn-clear {
-      padding: 5px 10px;
-      background: #6a737d;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      height: 26px;
-    }
+        .control-group input:focus,
+        .control-group select:focus {
+            border-color: #0366d6;
+            outline: none;
+            box-shadow: inset 0 0 0 1px #0366d6;
+        }
 
-    .btn-clear:hover {
-      background: #586069;
-    }
+        .btn-filter {
+            padding: 5px 10px;
+            background: #0366d6;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            height: 26px;
+        }
 
-    .records-container {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px;
-    }
+        .btn-filter:hover {
+            background: #0256c7;
+            transform: translateY(-1px);
+        }
 
-    .record-item {
-      background: #fff;
-      border: 1px solid #e1e4e8;
-      border-radius: 4px;
-      padding: 8px;
-      margin-bottom: 6px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      display: flex;
-      gap: 6px;
-      align-items: flex-start;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
+        .btn-filter:active {
+            transform: translateY(0);
+        }
 
-    .record-item:hover {
-      background: #f6f8fa;
-      border-color: #d1d5da;
-    }
+        .btn-clear {
+            padding: 5px 10px;
+            background: #6a737d;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            height: 26px;
+        }
 
-    .record-item.selected {
-      background: #2d3748;
-      color: white;
-      border-color: #1a202c;
-    }
+        .btn-clear:hover {
+            background: #586069;
+        }
 
-    .record-item.selected .record-student,
-    .record-item.selected .record-details {
-      color: white;
-    }
+        .records-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
 
-    .record-item.selected .record-detail-label {
-      color: #cbd5e0;
-    }
+        .record-item {
+            background: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 6px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 6px;
+            align-items: flex-start;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
 
-    .record-item.selected .record-detail-value {
-      color: white;
-    }
+        .record-item:hover {
+            background: #f6f8fa;
+            border-color: #d1d5da;
+        }
 
-    .record-item.selected .record-amount.positive {
-      color: #68d391;
-    }
+        .record-item.selected {
+            background: #2d3748;
+            color: white;
+            border-color: #1a202c;
+        }
 
-    .record-item.selected .record-amount.negative {
-      color: #fc8181;
-    }
+        .record-item.selected .record-student,
+        .record-item.selected .record-details {
+            color: white;
+        }
 
-    .record-item-content {
-      flex: 1;
-    }
+        .record-item.selected .record-detail-label {
+            color: #cbd5e0;
+        }
 
-    .record-item-checkbox {
-      display: none;
-    }
+        .record-item.selected .record-detail-value {
+            color: white;
+        }
 
-    .log-action-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-      padding: 8px;
-      background: #fff;
-      border-radius: 4px;
-      border: 1px solid #e1e4e8;
-    }
+        .record-item.selected .record-amount.positive {
+            color: #68d391;
+        }
 
-    .btn-undo-selected {
-      padding: 6px 10px;
-      background: #d73a49;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      white-space: nowrap;
-    }
+        .record-item.selected .record-amount.negative {
+            color: #fc8181;
+        }
 
-    .btn-undo-selected:hover:not(:disabled) {
-      background: #cb2431;
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        .record-item-content {
+            flex: 1;
+        }
 
-    .btn-undo-selected:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .record-item-checkbox {
+            display: none;
+        }
 
-    .record-item.income {
-      border-left: 3px solid #28a745;
-    }
+        .log-action-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+        }
 
-    .record-item.spending {
-      border-left: 3px solid #d73a49;
-    }
+        .btn-undo-selected {
+            padding: 6px 10px;
+            background: #d73a49;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            white-space: nowrap;
+        }
 
-    .record-item.deposit {
-      border-left: 3px solid #6f42c1;
-    }
+        .btn-undo-selected:hover:not(:disabled) {
+            background: #cb2431;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
 
-    .record-item.withdraw {
-      border-left: 3px solid #0366d6;
-    }
+        .btn-undo-selected:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    .record-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-    }
+        .record-item.income {
+            border-left: 3px solid #28a745;
+        }
 
-    .record-student {
-      font-weight: 700;
-      font-size: 12px;
-      color: #24292e;
-    }
+        .record-item.spending {
+            border-left: 3px solid #d73a49;
+        }
 
-    .record-type {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      padding: 2px 6px;
-      border-radius: 2px;
-      background: #f6f8fa;
-      color: #586069;
-    }
+        .record-item.deposit {
+            border-left: 3px solid #6f42c1;
+        }
 
-    .record-type.income {
-      background: #f3ffe3;
-      color: #155724;
-    }
+        .record-item.withdraw {
+            border-left: 3px solid #0366d6;
+        }
 
-    .record-type.spending {
-      background: #fde8e8;
-      color: #721c24;
-    }
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
 
-    .record-type.deposit {
-      background: #f6f3ff;
-      color: #24292e;
-    }
+        .record-student {
+            font-weight: 700;
+            font-size: 12px;
+            color: #24292e;
+        }
 
-    .record-type.withdraw {
-      background: #f1f8ff;
-      color: #24292e;
-    }
+        .record-type {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            background: #f6f8fa;
+            color: #586069;
+        }
 
-    .record-details {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      font-size: 10px;
-      margin: 4px 0;
-      color: #6a737d;
-    }
+        .record-type.income {
+            background: #f3ffe3;
+            color: #155724;
+        }
 
-    .record-detail-item {
-      display: flex;
-      justify-content: space-between;
-    }
+        .record-type.spending {
+            background: #fde8e8;
+            color: #721c24;
+        }
 
-    .record-detail-label {
-      font-weight: 600;
-      color: #586069;
-    }
+        .record-type.deposit {
+            background: #f6f3ff;
+            color: #24292e;
+        }
 
-    .record-detail-value {
-      color: #24292e;
-      font-family: monospace;
-    }
+        .record-type.withdraw {
+            background: #f1f8ff;
+            color: #24292e;
+        }
 
-    .record-amount {
-      font-weight: 700;
-      font-size: 12px;
-      text-align: right;
-      margin-top: 4px;
-      font-family: monospace;
-    }
+        .record-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 10px;
+            margin: 4px 0;
+            color: #6a737d;
+        }
 
-    .record-amount.positive {
-      color: #28a745;
-    }
+        .record-detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
 
-    .record-amount.negative {
-      color: #d73a49;
-    }
+        .record-detail-label {
+            font-weight: 600;
+            color: #586069;
+        }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #6a737d;
-      font-size: 11px;
-    }
+        .record-detail-value {
+            color: #24292e;
+            font-family: monospace;
+        }
 
-    .empty-state-icon {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
+        .record-amount {
+            font-weight: 700;
+            font-size: 12px;
+            text-align: right;
+            margin-top: 4px;
+            font-family: monospace;
+        }
 
-    .stats-bar {
-      background: #f6f8fa;
-      border-top: 1px solid #e1e4e8;
-      border-bottom: 1px solid #e1e4e8;
-      padding: 8px 10px;
-      display: flex;
-      justify-content: space-around;
-      font-size: 10px;
-      color: #586069;
-    }
+        .record-amount.positive {
+            color: #28a745;
+        }
 
-    .stat {
-      text-align: center;
-    }
+        .record-amount.negative {
+            color: #d73a49;
+        }
 
-    .stat-label {
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      font-size: 9px;
-    }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6a737d;
+            font-size: 11px;
+        }
 
-    .stat-value {
-      font-size: 12px;
-      font-weight: 700;
-      color: #24292e;
-      margin-top: 2px;
-      font-family: monospace;
-    }
-  </style>
+        .empty-state-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .stats-bar {
+            background: #f6f8fa;
+            border-top: 1px solid #e1e4e8;
+            border-bottom: 1px solid #e1e4e8;
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-around;
+            font-size: 10px;
+            color: #586069;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-size: 9px;
+        }
+
+        .stat-value {
+            font-size: 12px;
+            font-weight: 700;
+            color: #24292e;
+            margin-top: 2px;
+            font-family: monospace;
+        }
+    </style>
 </head>
 
 <body>
-  <div class="main-content">
-    <!-- Header -->
-    <div class="header">
-      <h1 class="header-title">📊 Transaction Records</h1>
-      <p class="header-subtitle">View all B-Bucks transactions and activity logs</p>
+    <!-- Navigation Header -->
+    <div class="nav-header">
+        <button class="nav-link" onclick="switchToAccountingManager();">💰 Manual B-Bucks
+            Modifier</button>
+        <button class="nav-link" onclick="switchToPricingManager();">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment
+            Banking</button>
+        <button class="nav-link active">📊 Transaction
+            Records</button>
+        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
-    <!-- Controls & Filters -->
-    <div class="controls">
-      <div class="control-group">
-        <label>Period</label>
-        <select id="filterPeriod">
-          <option value="">All Periods</option>
-          <option value="1">Period 1</option>
-          <option value="2">Period 2</option>
-          <option value="3">Period 3</option>
-          <option value="4">Period 4</option>
-        </select>
-      </div>
-
-      <div class="control-group" style="flex: 1; min-width: 150px;">
-        <label>Student</label>
-        <select id="filterStudent">
-          <option value="">All Students</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <label>Type</label>
-        <select id="filterType">
-          <option value="">All Types</option>
-          <option value="income">Income</option>
-          <option value="spending">Spending</option>
-          <option value="deposit">Deposit</option>
-          <option value="withdraw">Withdraw</option>
-        </select>
-      </div>
-
-      <div class="control-group">
-        <label>From Date</label>
-        <input type="date" id="filterFromDate">
-      </div>
-
-      <div class="control-group">
-        <label>To Date</label>
-        <input type="date" id="filterToDate">
-      </div>
-
-      <button class="btn-filter" id="applyFilterBtn">Filter</button>
-      <button class="btn-clear" id="clearFilterBtn">Clear</button>
-    </div>
-
-    <!-- Statistics Bar -->
-    <div class="stats-bar">
-      <div class="stat">
-        <div class="stat-label">Total</div>
-        <div class="stat-value" id="totalCount">0</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Income</div>
-        <div class="stat-value" id="incomeCount">0</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Spending</div>
-        <div class="stat-value" id="spendingCount">0</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Net</div>
-        <div class="stat-value" id="netAmount">$0.00</div>
-      </div>
-    </div>
-
-    <!-- Action Bar -->
-    <div class="log-action-bar">
-      <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
-    </div>
-
-    <!-- Records Container -->
-    <div class="records-container" id="recordsContainer">
-      <!-- Example Transaction 1 -->
-      <div class="record-item income" data-selectable="true">
-        <div class="record-item-content">
-          <div class="record-header">
-            <span class="record-student">Alex Chen</span>
-            <span class="record-type income">Income</span>
-          </div>
-          <div class="record-details">
-            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5041</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-25-2026</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">2</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span class="record-detail-value">Homework</span></div>
-          </div>
-          <div class="record-amount positive">$45.50 + $5.00 = $50.50</div>
+    <div class="main-content">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="header-title">📊 Transaction Records</h1>
+            <p class="header-subtitle">View all B-Bucks transactions and activity logs</p>
         </div>
-      </div>
 
-      <!-- Example Transaction 2 -->
-      <div class="record-item spending" data-selectable="true">
-        <div class="record-item-content">
-          <div class="record-header">
-            <span class="record-student">Marcus Johnson</span>
-            <span class="record-type spending">Spending</span>
-          </div>
-          <div class="record-details">
-            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5040</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-25-2026</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">3</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span class="record-detail-value">Movie Pass</span></div>
-          </div>
-          <div class="record-amount negative">$32.00 - $12.50 = $19.50</div>
-        </div>
-      </div>
+        <!-- Controls & Filters -->
+        <div class="controls">
+            <div class="control-group">
+                <label>Period</label>
+                <select id="filterPeriod">
+                    <option value="">All Periods</option>
+                    <option value="1">Period 1</option>
+                    <option value="2">Period 2</option>
+                    <option value="3">Period 3</option>
+                    <option value="4">Period 4</option>
+                </select>
+            </div>
 
-      <!-- Example Transaction 3 -->
-      <div class="record-item deposit" data-selectable="true">
-        <div class="record-item-content">
-          <div class="record-header">
-            <span class="record-student">Emma Rodriguez</span>
-            <span class="record-type deposit">Deposit</span>
-          </div>
-          <div class="record-details">
-            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5039</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-24-2026</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">1</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Amount:</span> <span class="record-detail-value">$25.00</span></div>
-          </div>
-          <div class="record-amount positive">$55.25 + $25.00 = $80.25 CoD</div>
-        </div>
-      </div>
+            <div class="control-group" style="flex: 1; min-width: 150px;">
+                <label>Student</label>
+                <select id="filterStudent">
+                    <option value="">All Students</option>
+                </select>
+            </div>
 
-      <!-- Example Transaction 4 -->
-      <div class="record-item withdraw" data-selectable="true">
-        <div class="record-item-content">
-          <div class="record-header">
-            <span class="record-student">Jordan Taylor</span>
-            <span class="record-type withdraw">Withdraw</span>
-          </div>
-          <div class="record-details">
-            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5038</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-23-2026</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">4</span></div>
-            <div class="record-detail-item"><span class="record-detail-label">Earnings:</span> <span class="record-detail-value">+$8.75</span></div>
-          </div>
-          <div class="record-amount positive">$25.00 + $8.75 = $33.75</div>
+            <div class="control-group">
+                <label>Type</label>
+                <select id="filterType">
+                    <option value="">All Types</option>
+                    <option value="income">Income</option>
+                    <option value="spending">Spending</option>
+                    <option value="deposit">Deposit</option>
+                    <option value="withdraw">Withdraw</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>From Date</label>
+                <input type="date" id="filterFromDate">
+            </div>
+
+            <div class="control-group">
+                <label>To Date</label>
+                <input type="date" id="filterToDate">
+            </div>
+
+            <button class="btn-filter" id="applyFilterBtn">Filter</button>
+            <button class="btn-clear" id="clearFilterBtn">Clear</button>
         </div>
-      </div>
+
+        <!-- Statistics Bar -->
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-label">Total</div>
+                <div class="stat-value" id="totalCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Income</div>
+                <div class="stat-value" id="incomeCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Spending</div>
+                <div class="stat-value" id="spendingCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Net</div>
+                <div class="stat-value" id="netAmount">$0.00</div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="log-action-bar">
+            <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+        </div>
+
+        <!-- Records Container -->
+        <div class="records-container" id="recordsContainer">
+            <!-- Example Transaction 1 -->
+            <div class="record-item income" data-selectable="true">
+                <div class="record-item-content">
+                    <div class="record-header">
+                        <span class="record-student">Alex Chen</span>
+                        <span class="record-type income">Income</span>
+                    </div>
+                    <div class="record-details">
+                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
+                                class="record-detail-value">#5041</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
+                                class="record-detail-value">5-25-2026</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
+                                class="record-detail-value">2</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span
+                                class="record-detail-value">Homework</span></div>
+                    </div>
+                    <div class="record-amount positive">$45.50 + $5.00 = $50.50</div>
+                </div>
+            </div>
+
+            <!-- Example Transaction 2 -->
+            <div class="record-item spending" data-selectable="true">
+                <div class="record-item-content">
+                    <div class="record-header">
+                        <span class="record-student">Marcus Johnson</span>
+                        <span class="record-type spending">Spending</span>
+                    </div>
+                    <div class="record-details">
+                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
+                                class="record-detail-value">#5040</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
+                                class="record-detail-value">5-25-2026</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
+                                class="record-detail-value">3</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span
+                                class="record-detail-value">Movie Pass</span></div>
+                    </div>
+                    <div class="record-amount negative">$32.00 - $12.50 = $19.50</div>
+                </div>
+            </div>
+
+            <!-- Example Transaction 3 -->
+            <div class="record-item deposit" data-selectable="true">
+                <div class="record-item-content">
+                    <div class="record-header">
+                        <span class="record-student">Emma Rodriguez</span>
+                        <span class="record-type deposit">Deposit</span>
+                    </div>
+                    <div class="record-details">
+                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
+                                class="record-detail-value">#5039</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
+                                class="record-detail-value">5-24-2026</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
+                                class="record-detail-value">1</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Amount:</span> <span
+                                class="record-detail-value">$25.00</span></div>
+                    </div>
+                    <div class="record-amount positive">$55.25 + $25.00 = $80.25 CoD</div>
+                </div>
+            </div>
+
+            <!-- Example Transaction 4 -->
+            <div class="record-item withdraw" data-selectable="true">
+                <div class="record-item-content">
+                    <div class="record-header">
+                        <span class="record-student">Jordan Taylor</span>
+                        <span class="record-type withdraw">Withdraw</span>
+                    </div>
+                    <div class="record-details">
+                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
+                                class="record-detail-value">#5038</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
+                                class="record-detail-value">5-23-2026</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
+                                class="record-detail-value">4</span></div>
+                        <div class="record-detail-item"><span class="record-detail-label">Earnings:</span> <span
+                                class="record-detail-value">+$8.75</span></div>
+                    </div>
+                    <div class="record-amount positive">$25.00 + $8.75 = $33.75</div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Handle click-to-select for all record items
-      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-        item.addEventListener('click', function(e) {
-          e.stopPropagation();
-          this.classList.toggle('selected');
-          updateUndoButtonState();
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Handle click-to-select for all record items
+            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+                item.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    this.classList.toggle('selected');
+                    updateUndoButtonState();
+                });
+            });
+
+            // Update undo button enabled state based on selected items
+            function updateUndoButtonState() {
+                const undoBtn = document.getElementById('undoSelectedBtn');
+                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+                undoBtn.disabled = selectedItems.length === 0;
+            }
+
+            // Deselect all when clicking outside
+            document.addEventListener('click', function () {
+                if (event.target === document.body || event.target === document.documentElement) {
+                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                    updateUndoButtonState();
+                }
+            });
         });
-      });
-
-      // Update undo button enabled state based on selected items
-      function updateUndoButtonState() {
-        const undoBtn = document.getElementById('undoSelectedBtn');
-        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-        undoBtn.disabled = selectedItems.length === 0;
-      }
-
-      // Deselect all when clicking outside
-      document.addEventListener('click', function() {
-        if (event.target === document.body || event.target === document.documentElement) {
-          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-            item.classList.remove('selected');
-          });
-          updateUndoButtonState();
-        }
-      });
-    });
-  </script>
+    </script>

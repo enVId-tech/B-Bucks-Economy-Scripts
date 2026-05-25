@@ -1,622 +1,687 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Banking Settings</title>
-  <style>
-    * {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-sizing: border-box;
-      user-select: none;
-    }
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banking Settings</title>
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-sizing: border-box;
+            user-select: none;
+        }
 
-    input[type="text"],
-    input[type="number"],
-    select {
-      user-select: text;
-    }
+        input[type="text"],
+        input[type="number"],
+        select {
+            user-select: text;
+        }
 
-    body {
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: #fafbfc;
-      overflow: hidden;
-      font-size: 12px;
-      color: #24292e;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #fafbfc;
+            overflow: hidden;
+            font-size: 12px;
+            color: #24292e;
+        }
 
-    .main-content {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-      flex-direction: column;
-    }
+        .nav-header {
+            background: #fff;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            gap: 0;
+            padding: 0;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
 
-    .header {
-      background: #fff;
-      border-bottom: 1px solid #e1e4e8;
-      padding: 12px;
-      border-bottom: 2px solid #6f42c1;
-    }
+        .nav-link {
+            padding: 10px 14px;
+            border: none;
+            background: #fff;
+            color: #6a737d;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
-    .header-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #24292e;
-      margin: 0;
-    }
+        .nav-link:hover {
+            color: #24292e;
+            background: #f6f8fa;
+        }
 
-    .header-subtitle {
-      font-size: 11px;
-      color: #6a737d;
-      margin: 2px 0 0 0;
-    }
+        .nav-link.active {
+            color: #0366d6;
+            border-bottom-color: #0366d6;
+        }
 
-    .content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            flex-direction: column;
+        }
 
-    .settings-card {
-      background: #fff;
-      padding: 10px;
-      border-radius: 4px;
-      border: 1px solid #e1e4e8;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #e1e4e8;
+            padding: 12px;
+            border-bottom: 2px solid #6f42c1;
+        }
 
-    .card-title {
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #586069;
-      margin: 0 0 6px 0;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e1e4e8;
-    }
+        .header-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #24292e;
+            margin: 0;
+        }
 
-    label {
-      display: block;
-      font-size: 9px;
-      color: #586069;
-      font-weight: 600;
-      text-transform: uppercase;
-      margin: 6px 0 2px 0;
-      letter-spacing: 0.3px;
-    }
+        .header-subtitle {
+            font-size: 11px;
+            color: #6a737d;
+            margin: 2px 0 0 0;
+        }
 
-    label:first-of-type {
-      margin-top: 0;
-    }
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
 
-    input[type="number"],
-    input[type="text"],
-    select {
-      width: 100%;
-      padding: 5px 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-      font-size: 11px;
-      transition: border 0.1s;
-      margin-bottom: 6px;
-    }
+        .settings-card {
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
 
-    input[type="number"]:focus,
-    input[type="text"]:focus,
-    select:focus {
-      border-color: #0366d6;
-      outline: none;
-      box-shadow: inset 0 0 0 1px #0366d6;
-    }
+        .card-title {
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #586069;
+            margin: 0 0 6px 0;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e1e4e8;
+        }
 
-    .info-box {
-      background: #f6f3ff;
-      border-left: 3px solid #6f42c1;
-      padding: 6px;
-      border-radius: 3px;
-      margin: 6px 0;
-      font-size: 10px;
-      color: #24292e;
-      line-height: 1.4;
-    }
+        label {
+            display: block;
+            font-size: 9px;
+            color: #586069;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin: 6px 0 2px 0;
+            letter-spacing: 0.3px;
+        }
 
-    .info-box strong {
-      color: #24292e;
-      font-weight: 600;
-    }
+        label:first-of-type {
+            margin-top: 0;
+        }
 
-    .btn {
-      padding: 7px 10px;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      color: white;
-      width: 100%;
-      margin-top: 4px;
-    }
+        input[type="number"],
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 5px 6px;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            font-size: 11px;
+            transition: border 0.1s;
+            margin-bottom: 6px;
+        }
 
-    .btn:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        select:focus {
+            border-color: #0366d6;
+            outline: none;
+            box-shadow: inset 0 0 0 1px #0366d6;
+        }
 
-    .btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
+        .info-box {
+            background: #f6f3ff;
+            border-left: 3px solid #6f42c1;
+            padding: 6px;
+            border-radius: 3px;
+            margin: 6px 0;
+            font-size: 10px;
+            color: #24292e;
+            line-height: 1.4;
+        }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .info-box strong {
+            color: #24292e;
+            font-weight: 600;
+        }
 
-    .btn-primary { background: #0366d6; }
-    .btn-primary:hover:not(:disabled) { background: #0256c7; }
+        .btn {
+            padding: 7px 10px;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            color: white;
+            width: 100%;
+            margin-top: 4px;
+        }
 
-    .btn-danger { background: #d73a49; }
-    .btn-danger:hover:not(:disabled) { background: #cb2431; }
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
 
-    .btn-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 6px;
-    }
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
 
-    .btn-group .btn {
-      margin-top: 0;
-    }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      margin: 6px 0;
-    }
+        .btn-primary {
+            background: #0366d6;
+        }
 
-    .toggle-container input[type="checkbox"] {
-      width: auto;
-      accent-color: #0366d6;
-    }
+        .btn-primary:hover:not(:disabled) {
+            background: #0256c7;
+        }
 
-    .toggle-container label {
-      margin: 0;
-      font-weight: 600;
-      text-transform: none;
-      font-size: 10px;
-    }
+        .btn-danger {
+            background: #d73a49;
+        }
 
-    .footer {
-      background: #f6f8fa;
-      border-top: 1px solid #e1e4e8;
-      padding: 8px 12px;
-      font-size: 9px;
-      color: #6a737d;
-    }
+        .btn-danger:hover:not(:disabled) {
+            background: #cb2431;
+        }
 
-    .warning-box {
-      background: #fde8e8;
-      border-left: 3px solid #d73a49;
-      padding: 6px;
-      border-radius: 3px;
-      margin: 6px 0;
-      font-size: 10px;
-      color: #721c24;
-    }
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 6px;
+        }
 
-    .success-box {
-      background: #f3ffe3;
-      border-left: 3px solid #28a745;
-      padding: 6px;
-      border-radius: 3px;
-      margin: 6px 0;
-      font-size: 10px;
-      color: #155724;
-    }
+        .btn-group .btn {
+            margin-top: 0;
+        }
 
-    #messageContainer {
-      min-height: 0;
-    }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin: 6px 0;
+        }
 
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-    }
+        .toggle-container input[type="checkbox"] {
+            width: auto;
+            accent-color: #0366d6;
+        }
 
-    .modal-overlay.show {
-      display: flex;
-    }
+        .toggle-container label {
+            margin: 0;
+            font-weight: 600;
+            text-transform: none;
+            font-size: 10px;
+        }
 
-    .confirmation-modal {
-      background: #fff;
-      border-radius: 6px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-      width: 90%;
-      max-width: 420px;
-      max-height: 80vh;
-      overflow-y: auto;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-    }
+        .footer {
+            background: #f6f8fa;
+            border-top: 1px solid #e1e4e8;
+            padding: 8px 12px;
+            font-size: 9px;
+            color: #6a737d;
+        }
 
-    .modal-header {
-      padding: 16px;
-      border-bottom: 1px solid #e1e4e8;
-      background: #fde8e8;
-      flex-shrink: 0;
-    }
+        .warning-box {
+            background: #fde8e8;
+            border-left: 3px solid #d73a49;
+            padding: 6px;
+            border-radius: 3px;
+            margin: 6px 0;
+            font-size: 10px;
+            color: #721c24;
+        }
 
-    .modal-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #d73a49;
-      margin: 0;
-    }
+        .success-box {
+            background: #f3ffe3;
+            border-left: 3px solid #28a745;
+            padding: 6px;
+            border-radius: 3px;
+            margin: 6px 0;
+            font-size: 10px;
+            color: #155724;
+        }
 
-    .modal-subtitle {
-      font-size: 11px;
-      color: #721c24;
-      margin: 4px 0 0 0;
-    }
+        #messageContainer {
+            min-height: 0;
+        }
 
-    .modal-body {
-      padding: 16px;
-      flex: 1;
-      overflow-y: auto;
-    }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
 
-    .confirmation-field {
-      margin-bottom: 12px;
-    }
+        .modal-overlay.show {
+            display: flex;
+        }
 
-    .confirmation-field-instruction {
-      font-size: 10px;
-      color: #6a737d;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      background: #f6f8fa;
-      padding: 6px 8px;
-      border-radius: 3px;
-      margin-bottom: 4px;
-      display: block;
-    }
+        .confirmation-modal {
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 420px;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
 
-    .confirmation-field-input {
-      width: 100%;
-      padding: 8px 10px;
-      border: 2px solid #e1e4e8;
-      border-radius: 4px;
-      font-size: 12px;
-      font-family: 'Courier New', monospace;
-      transition: border-color 0.15s;
-    }
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid #e1e4e8;
+            background: #fde8e8;
+            flex-shrink: 0;
+        }
 
-    .confirmation-field-input:focus {
-      outline: none;
-      border-color: #d73a49;
-      box-shadow: 0 0 0 3px rgba(215, 58, 73, 0.1);
-    }
+        .modal-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #d73a49;
+            margin: 0;
+        }
 
-    .modal-warning {
-      background: #fde8e8;
-      border-left: 4px solid #d73a49;
-      padding: 8px 10px;
-      border-radius: 3px;
-      font-size: 11px;
-      color: #721c24;
-      margin-bottom: 12px;
-      line-height: 1.4;
-    }
+        .modal-subtitle {
+            font-size: 11px;
+            color: #721c24;
+            margin: 4px 0 0 0;
+        }
 
-    .modal-footer {
-      padding: 12px 16px;
-      border-top: 1px solid #e1e4e8;
-      display: flex;
-      gap: 8px;
-      flex-shrink: 0;
-      background: #f6f8fa;
-    }
+        .modal-body {
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+        }
 
-    .modal-btn {
-      flex: 1;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 4px;
-      font-weight: 600;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    }
+        .confirmation-field {
+            margin-bottom: 12px;
+        }
 
-    .modal-btn:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        .confirmation-field-instruction {
+            font-size: 10px;
+            color: #6a737d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            background: #f6f8fa;
+            padding: 6px 8px;
+            border-radius: 3px;
+            margin-bottom: 4px;
+            display: block;
+        }
 
-    .modal-btn-confirm {
-      background: #d73a49;
-      color: white;
-    }
+        .confirmation-field-input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 2px solid #e1e4e8;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.15s;
+        }
 
-    .modal-btn-confirm:hover:not(:disabled) {
-      background: #cb2431;
-    }
+        .confirmation-field-input:focus {
+            outline: none;
+            border-color: #d73a49;
+            box-shadow: 0 0 0 3px rgba(215, 58, 73, 0.1);
+        }
 
-    .modal-btn-confirm:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .modal-warning {
+            background: #fde8e8;
+            border-left: 4px solid #d73a49;
+            padding: 8px 10px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #721c24;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
 
-    .modal-btn-cancel {
-      background: #e1e4e8;
-      color: #24292e;
-    }
+        .modal-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #e1e4e8;
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+            background: #f6f8fa;
+        }
 
-    .modal-btn-cancel:hover {
-      background: #d1d5da;
-    }
-  </style>
+        .modal-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        }
+
+        .modal-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
+
+        .modal-btn-confirm {
+            background: #d73a49;
+            color: white;
+        }
+
+        .modal-btn-confirm:hover:not(:disabled) {
+            background: #cb2431;
+        }
+
+        .modal-btn-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal-btn-cancel {
+            background: #e1e4e8;
+            color: #24292e;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #d1d5da;
+        }
+    </style>
 </head>
 
 <body>
-  <div class="main-content">
-    <!-- Header -->
-    <div class="header">
-      <h1 class="header-title">⚙️ Banking Settings</h1>
-      <p class="header-subtitle">Configure B-Bucks economy parameters</p>
+    <!-- Navigation Header -->
+    <div class="nav-header">
+        <button class="nav-link" onclick="switchToAccountingManager();">💰 Manual B-Bucks
+            Modifier</button>
+        <button class="nav-link active">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment
+            Banking</button>
+        <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction
+            Records</button>
+        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
-    <!-- Content -->
-    <div class="content">
-      
-      <!-- Card 1: Interest Configuration -->
-      <div class="settings-card">
-        <div class="card-title">📊 Interest Rates</div>
-        
-        <label for="simpleRate">Interest Rate (%)</label>
-        <input type="number" id="simpleRate" placeholder="5" step="0.01" min="0" max="100">
-
-        <div class="info-box">
-          💡 <strong>Tip:</strong> Higher rates encourage saving. Lower rates for simpler economy.
+    <div class="main-content">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="header-title">⚙️ Banking Settings</h1>
+            <p class="header-subtitle">Configure B-Bucks economy parameters</p>
         </div>
 
-        <button class="btn btn-primary" id="saveInterestRatesBtn" style="margin-top: 6px;">💾 Save</button>
-      </div>
+        <!-- Content -->
+        <div class="content">
 
-      <!-- Card 2: Restrictions -->
-      <div class="settings-card">
-        <div class="card-title">🔒 CoD Restrictions</div>
-        
-        <label for="twoWeekDays">2-Week Lockout (days)</label>
-        <input type="number" id="twoWeekDays" placeholder="14" step="1" min="0" max="365">
+            <!-- Card 1: Interest Configuration -->
+            <div class="settings-card">
+                <div class="card-title">📊 Interest Rates</div>
 
-        <label for="minDeposit">Minimum Deposit ($)</label>
-        <input type="number" id="minDeposit" placeholder="1.00" step="0.01" min="0">
+                <label for="simpleRate">Interest Rate (%)</label>
+                <input type="number" id="simpleRate" placeholder="5" step="0.01" min="0" max="100">
 
-        <label for="maxDeposit">Maximum Deposit ($)</label>
-        <input type="number" id="maxDeposit" placeholder="10000" step="0.01" min="0">
+                <div class="info-box">
+                    💡 <strong>Tip:</strong> Higher rates encourage saving. Lower rates for simpler economy.
+                </div>
 
-        <div class="info-box">
-          💡 <strong>Example:</strong> 14-day lockout prevents frequent withdrawals.
+                <button class="btn btn-primary" id="saveInterestRatesBtn" style="margin-top: 6px;">💾 Save</button>
+            </div>
+
+            <!-- Card 2: Restrictions -->
+            <div class="settings-card">
+                <div class="card-title">🔒 CoD Restrictions</div>
+
+                <label for="twoWeekDays">2-Week Lockout (days)</label>
+                <input type="number" id="twoWeekDays" placeholder="14" step="1" min="0" max="365">
+
+                <label for="minDeposit">Minimum Deposit ($)</label>
+                <input type="number" id="minDeposit" placeholder="1.00" step="0.01" min="0">
+
+                <label for="maxDeposit">Maximum Deposit ($)</label>
+                <input type="number" id="maxDeposit" placeholder="10000" step="0.01" min="0">
+
+                <div class="info-box">
+                    💡 <strong>Example:</strong> 14-day lockout prevents frequent withdrawals.
+                </div>
+
+                <button class="btn btn-primary" id="saveRestrictionsBtn" style="margin-top: 6px;">💾 Save</button>
+            </div>
+
+            <!-- Card 3: Important Dates -->
+            <div class="settings-card">
+                <div class="card-title">📅 Important Dates</div>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Banking Period</strong></label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label for="bankingStartDate">Start Date</label>
+                        <input type="date" id="bankingStartDate">
+                    </div>
+                    <div>
+                        <label for="bankingEndDate">End Date</label>
+                        <input type="date" id="bankingEndDate">
+                    </div>
+                </div>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Investments Period</strong></label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label for="investmentsStartDate">Start Date</label>
+                        <input type="date" id="investmentsStartDate">
+                    </div>
+                    <div>
+                        <label for="investmentsEndDate">End Date</label>
+                        <input type="date" id="investmentsEndDate">
+                    </div>
+                </div>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Quarters</strong></label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label for="q1StartDate">Q1 Start</label>
+                        <input type="date" id="q1StartDate">
+                    </div>
+                    <div>
+                        <label for="q1EndDate">Q1 End</label>
+                        <input type="date" id="q1EndDate">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label for="q2StartDate">Q2 Start</label>
+                        <input type="date" id="q2StartDate">
+                    </div>
+                    <div>
+                        <label for="q2EndDate">Q2 End</label>
+                        <input type="date" id="q2EndDate">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                    <div>
+                        <label for="q3StartDate">Q3 Start</label>
+                        <input type="date" id="q3StartDate">
+                    </div>
+                    <div>
+                        <label for="q3EndDate">Q3 End</label>
+                        <input type="date" id="q3EndDate">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div>
+                        <label for="q4StartDate">Q4 Start</label>
+                        <input type="date" id="q4StartDate">
+                    </div>
+                    <div>
+                        <label for="q4EndDate">Q4 End</label>
+                        <input type="date" id="q4EndDate">
+                    </div>
+                </div>
+
+                <div class="info-box" style="margin-top: 6px;">
+                    💡 <strong>Note:</strong> Q2 represents the semester. All dates affect validation and reporting.
+                </div>
+
+                <button class="btn btn-primary" id="saveDatesBtn" style="margin-top: 6px;">💾 Save</button>
+            </div>
+
+            <!-- Card 4: Logging & Data -->
+            <div class="settings-card">
+                <div class="card-title">📋 Transaction Logging</div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="autoLogTransactions" checked>
+                    <label for="autoLogTransactions">Auto-log all transactions</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="trackTimestamps" checked>
+                    <label for="trackTimestamps">Track timestamps</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="enableAuditLog" checked>
+                    <label for="enableAuditLog">Enable admin audit log</label>
+                </div>
+
+                <div class="info-box">
+                    💡 <strong>Note:</strong> Audit logs help track suspicious activity.
+                </div>
+
+                <button class="btn btn-primary" id="saveLoggingBtn" style="margin-top: 6px;">💾 Save</button>
+            </div>
+
+            <!-- Card 5: Maintenance -->
+            <div class="settings-card">
+                <div class="card-title">🔧 Maintenance</div>
+
+                <label style="text-transform: none; margin-top: 0;"><strong>Data Management</strong></label>
+                <button class="btn btn-primary" id="updateTimestampsBtn">Update All Timestamps</button>
+                <button class="btn btn-primary" id="recordDailyDataBtn">Record Daily Data Snapshot</button>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Historical Records</strong></label>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="saveHistoricalBtn">Save to New Tab</button>
+                    <button class="btn btn-danger" id="resetWorkingTabBtn">Reset Working Tab</button>
+                </div>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Reset All</strong></label>
+                <button class="btn btn-danger" id="resetAllMoneyBtn">Reset All Money</button>
+
+                <label style="text-transform: none; margin-top: 6px;"><strong>Reset by Column</strong></label>
+                <div class="btn-group">
+                    <button class="btn btn-danger" id="resetAccountHoldersBtn">Account Holders</button>
+                    <button class="btn btn-danger" id="resetEarningsBtn">Earnings</button>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-danger" id="resetExpendituresBtn">Expenditures</button>
+                    <button class="btn btn-danger" id="resetReturnsBtn">Returns</button>
+                </div>
+                <button class="btn btn-danger" id="resetInitDepBtn">Init Dep & Date Deposited</button>
+
+                <div class="warning-box" id="resetWarning" style="display: none; margin-top: 6px;">
+                    ⚠️ This action cannot be undone.
+                </div>
+
+                <button class="btn btn-primary" id="saveMaintenanceBtn" style="margin-top: 6px;">💾 Save</button>
+            </div>
+
+            <!-- Message Container -->
+            <div id="messageContainer"></div>
+
         </div>
 
-        <button class="btn btn-primary" id="saveRestrictionsBtn" style="margin-top: 6px;">💾 Save</button>
-      </div>
-
-      <!-- Card 3: Important Dates -->
-      <div class="settings-card">
-        <div class="card-title">📅 Important Dates</div>
-        
-        <label style="text-transform: none; margin-top: 6px;"><strong>Banking Period</strong></label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div>
-            <label for="bankingStartDate">Start Date</label>
-            <input type="date" id="bankingStartDate">
-          </div>
-          <div>
-            <label for="bankingEndDate">End Date</label>
-            <input type="date" id="bankingEndDate">
-          </div>
+        <!-- Footer -->
+        <div class="footer">
+            Last saved: <span id="lastSaved">--</span>
         </div>
-
-        <label style="text-transform: none; margin-top: 6px;"><strong>Investments Period</strong></label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div>
-            <label for="investmentsStartDate">Start Date</label>
-            <input type="date" id="investmentsStartDate">
-          </div>
-          <div>
-            <label for="investmentsEndDate">End Date</label>
-            <input type="date" id="investmentsEndDate">
-          </div>
-        </div>
-
-        <label style="text-transform: none; margin-top: 6px;"><strong>Quarters</strong></label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div>
-            <label for="q1StartDate">Q1 Start</label>
-            <input type="date" id="q1StartDate">
-          </div>
-          <div>
-            <label for="q1EndDate">Q1 End</label>
-            <input type="date" id="q1EndDate">
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div>
-            <label for="q2StartDate">Q2 Start</label>
-            <input type="date" id="q2StartDate">
-          </div>
-          <div>
-            <label for="q2EndDate">Q2 End</label>
-            <input type="date" id="q2EndDate">
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-          <div>
-            <label for="q3StartDate">Q3 Start</label>
-            <input type="date" id="q3StartDate">
-          </div>
-          <div>
-            <label for="q3EndDate">Q3 End</label>
-            <input type="date" id="q3EndDate">
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-          <div>
-            <label for="q4StartDate">Q4 Start</label>
-            <input type="date" id="q4StartDate">
-          </div>
-          <div>
-            <label for="q4EndDate">Q4 End</label>
-            <input type="date" id="q4EndDate">
-          </div>
-        </div>
-
-        <div class="info-box" style="margin-top: 6px;">
-          💡 <strong>Note:</strong> Q2 represents the semester. All dates affect validation and reporting.
-        </div>
-
-        <button class="btn btn-primary" id="saveDatesBtn" style="margin-top: 6px;">💾 Save</button>
-      </div>
-
-      <!-- Card 4: Logging & Data -->
-      <div class="settings-card">
-        <div class="card-title">📋 Transaction Logging</div>
-        
-        <div class="toggle-container">
-          <input type="checkbox" id="autoLogTransactions" checked>
-          <label for="autoLogTransactions">Auto-log all transactions</label>
-        </div>
-
-        <div class="toggle-container">
-          <input type="checkbox" id="trackTimestamps" checked>
-          <label for="trackTimestamps">Track timestamps</label>
-        </div>
-
-        <div class="toggle-container">
-          <input type="checkbox" id="enableAuditLog" checked>
-          <label for="enableAuditLog">Enable admin audit log</label>
-        </div>
-
-        <div class="info-box">
-          💡 <strong>Note:</strong> Audit logs help track suspicious activity.
-        </div>
-
-        <button class="btn btn-primary" id="saveLoggingBtn" style="margin-top: 6px;">💾 Save</button>
-      </div>
-
-      <!-- Card 5: Maintenance -->
-      <div class="settings-card">
-        <div class="card-title">🔧 Maintenance</div>
-        
-        <label style="text-transform: none; margin-top: 0;"><strong>Data Management</strong></label>
-        <button class="btn btn-primary" id="updateTimestampsBtn">Update All Timestamps</button>
-        <button class="btn btn-primary" id="recordDailyDataBtn">Record Daily Data Snapshot</button>
-        
-        <label style="text-transform: none; margin-top: 6px;"><strong>Historical Records</strong></label>
-        <div class="btn-group">
-          <button class="btn btn-primary" id="saveHistoricalBtn">Save to New Tab</button>
-          <button class="btn btn-danger" id="resetWorkingTabBtn">Reset Working Tab</button>
-        </div>
-
-        <label style="text-transform: none; margin-top: 6px;"><strong>Reset All</strong></label>
-        <button class="btn btn-danger" id="resetAllMoneyBtn">Reset All Money</button>
-
-        <label style="text-transform: none; margin-top: 6px;"><strong>Reset by Column</strong></label>
-        <div class="btn-group">
-          <button class="btn btn-danger" id="resetAccountHoldersBtn">Account Holders</button>
-          <button class="btn btn-danger" id="resetEarningsBtn">Earnings</button>
-        </div>
-        <div class="btn-group">
-          <button class="btn btn-danger" id="resetExpendituresBtn">Expenditures</button>
-          <button class="btn btn-danger" id="resetReturnsBtn">Returns</button>
-        </div>
-        <button class="btn btn-danger" id="resetInitDepBtn">Init Dep & Date Deposited</button>
-
-        <div class="warning-box" id="resetWarning" style="display: none; margin-top: 6px;">
-          ⚠️ This action cannot be undone.
-        </div>
-
-        <button class="btn btn-primary" id="saveMaintenanceBtn" style="margin-top: 6px;">💾 Save</button>
-      </div>
-
-      <!-- Message Container -->
-      <div id="messageContainer"></div>
-
     </div>
 
-    <!-- Footer -->
-    <div class="footer">
-      Last saved: <span id="lastSaved">--</span>
+    <!-- Confirmation Modal for Destructive Actions -->
+    <div class="modal-overlay" id="confirmationModal">
+        <div class="confirmation-modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">⚠️ Confirm Destructive Action</h2>
+                <p class="modal-subtitle" id="modalSubtitle">Please verify all three fields below before confirming</p>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-warning" id="modalWarning">
+                    This action cannot be undone. Please type the required information in each field below to confirm.
+                </div>
+
+                <!-- Field 1: Individual/Student Name -->
+                <div class="confirmation-field">
+                    <label class="confirmation-field-instruction" for="confirmIndividual">Type the name of the student
+                        or individual:</label>
+                    <input type="text" class="confirmation-field-input" id="confirmIndividual"
+                        placeholder="e.g., John Smith">
+                </div>
+
+                <!-- Field 2: Sheet Name -->
+                <div class="confirmation-field">
+                    <label class="confirmation-field-instruction" for="confirmSheetName">Type the name of this sheet or
+                        tab:</label>
+                    <input type="text" class="confirmation-field-input" id="confirmSheetName"
+                        placeholder="e.g., B-Bucks Main">
+                </div>
+
+                <!-- Field 3: Action/Button Name -->
+                <div class="confirmation-field">
+                    <label class="confirmation-field-instruction" for="confirmActionName">Type the action you want to
+                        perform:</label>
+                    <input type="text" class="confirmation-field-input" id="confirmActionName"
+                        placeholder="e.g., Reset All Money">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" id="cancelConfirmBtn">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="confirmActionBtn" disabled>I Understand -
+                    Proceed</button>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <!-- Confirmation Modal for Destructive Actions -->
-  <div class="modal-overlay" id="confirmationModal">
-    <div class="confirmation-modal">
-      <div class="modal-header">
-        <h2 class="modal-title" id="modalTitle">⚠️ Confirm Destructive Action</h2>
-        <p class="modal-subtitle" id="modalSubtitle">Please verify all three fields below before confirming</p>
-      </div>
-
-      <div class="modal-body">
-        <div class="modal-warning" id="modalWarning">
-          This action cannot be undone. Please type the required information in each field below to confirm.
-        </div>
-
-        <!-- Field 1: Individual/Student Name -->
-        <div class="confirmation-field">
-          <label class="confirmation-field-instruction" for="confirmIndividual">Type the name of the student or individual:</label>
-          <input type="text" class="confirmation-field-input" id="confirmIndividual" placeholder="e.g., John Smith">
-        </div>
-
-        <!-- Field 2: Sheet Name -->
-        <div class="confirmation-field">
-          <label class="confirmation-field-instruction" for="confirmSheetName">Type the name of this sheet or tab:</label>
-          <input type="text" class="confirmation-field-input" id="confirmSheetName" placeholder="e.g., B-Bucks Main">
-        </div>
-
-        <!-- Field 3: Action/Button Name -->
-        <div class="confirmation-field">
-          <label class="confirmation-field-instruction" for="confirmActionName">Type the action you want to perform:</label>
-          <input type="text" class="confirmation-field-input" id="confirmActionName" placeholder="e.g., Reset All Money">
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="modal-btn modal-btn-cancel" id="cancelConfirmBtn">Cancel</button>
-        <button class="modal-btn modal-btn-confirm" id="confirmActionBtn" disabled>I Understand - Proceed</button>
-      </div>
-    </div>
-  </div>
 </body>
 
 </html>

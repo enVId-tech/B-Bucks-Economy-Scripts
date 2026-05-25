@@ -31,8 +31,8 @@ function onOpen(): void {
 function openAccountingManager(): void {
   const html = HtmlService.createHtmlOutputFromFile('AccountingManager')
     .setTitle("Bank of Banderas - Manual Balance Manager")
-    .setWidth(390)
-    .setHeight(550);
+    .setWidth(500)
+    .setHeight(650);
 
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Manual Balance Manager");
 }
@@ -119,4 +119,27 @@ function resetHistoricalRecords(): void {
  */
 function placeholderFunction(): void {
   SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!");
+}
+
+/**
+ * Helper functions for page navigation in modeless dialogs
+ */
+function switchToAccountingManager(): void {
+  openAccountingManager();
+}
+
+function switchToInvestmentsManager(): void {
+  openInvestmentsManager();
+}
+
+function switchToPricingManager(): void {
+  showIncomeConsumables();
+}
+
+function switchToTransactionsRecords(): void {
+  openTransactionsRecords();
+}
+
+function switchToBankingSettings(): void {
+  openBankingSettings();
 }

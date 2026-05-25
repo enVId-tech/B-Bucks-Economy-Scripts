@@ -1,559 +1,613 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pricing Manager</title>
-  <style>
-    * {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-sizing: border-box;
-      user-select: none;
-    }
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing Manager</title>
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-sizing: border-box;
+            user-select: none;
+        }
 
-    input, select {
-      user-select: text;
-    }
+        input,
+        select {
+            user-select: text;
+        }
 
-    body {
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: #fafbfc;
-      overflow: hidden;
-      font-size: 12px;
-      color: #24292e;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #fafbfc;
+            overflow: hidden;
+            font-size: 12px;
+            color: #24292e;
+        }
 
-    .main-content {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+        .nav-header {
+            background: #fff;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            gap: 0;
+            padding: 0;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
 
-    .controls {
-      width: 50%;
-      padding: 10px;
-      border-right: 1px solid #e1e4e8;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      overflow-y: auto;
-      background: #fff;
-    }
+        .nav-link {
+            padding: 10px 14px;
+            border: none;
+            background: #fff;
+            color: #6a737d;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
-    .log-panel {
-      width: 50%;
-      padding: 10px;
-      background: #fafbfc;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
+        .nav-link:hover {
+            color: #24292e;
+            background: #f6f8fa;
+        }
 
-    .section-divider {
-      border-top: 1px solid #e1e4e8;
-      margin: 8px 0;
-    }
+        .nav-link.active {
+            color: #0366d6;
+            border-bottom-color: #0366d6;
+        }
 
-    .header-title {
-      font-weight: 700;
-      font-size: 13px;
-      color: #24292e;
-      margin-bottom: 2px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
 
-    .header-subtitle {
-      font-size: 9px;
-      color: #6a737d;
-      margin-bottom: 4px;
-    }
+        .controls {
+            width: 50%;
+            padding: 10px;
+            border-right: 1px solid #e1e4e8;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow-y: auto;
+            background: #fff;
+        }
 
-    .balance-display {
-      background: #f6f8fa;
-      padding: 6px;
-      border-radius: 3px;
-      text-align: center;
-      margin: 4px 0;
-      border: 1px solid #e1e4e8;
-    }
+        .log-panel {
+            width: 50%;
+            padding: 10px;
+            background: #fafbfc;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
 
-    .balance-label {
-      font-size: 9px;
-      color: #586069;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+        .section-divider {
+            border-top: 1px solid #e1e4e8;
+            margin: 8px 0;
+        }
 
-    .balance-amount {
-      font-size: 14px;
-      font-weight: 700;
-      color: #24292e;
-      margin-top: 2px;
-      font-family: monospace;
-    }
+        .header-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #24292e;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
 
-    .balance-amount.negative {
-      color: #d73a49;
-    }
+        .header-subtitle {
+            font-size: 9px;
+            color: #6a737d;
+            margin-bottom: 4px;
+        }
 
-    .balance-amount.positive {
-      color: #28a745;
-    }
+        .balance-display {
+            background: #f6f8fa;
+            padding: 6px;
+            border-radius: 3px;
+            text-align: center;
+            margin: 4px 0;
+            border: 1px solid #e1e4e8;
+        }
 
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      background: #fff3d5;
-      padding: 5px;
-      border-radius: 3px;
-      border: 1px solid #f39c12;
-      margin: 4px 0;
-    }
+        .balance-label {
+            font-size: 9px;
+            color: #586069;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
 
-    .toggle-container input[type="checkbox"] {
-      width: auto;
-      cursor: pointer;
-      accent-color: #f39c12;
-    }
+        .balance-amount {
+            font-size: 14px;
+            font-weight: 700;
+            color: #24292e;
+            margin-top: 2px;
+            font-family: monospace;
+        }
 
-    .toggle-label {
-      font-size: 10px;
-      color: #856404;
-      font-weight: 600;
-      cursor: pointer;
-    }
+        .balance-amount.negative {
+            color: #d73a49;
+        }
 
-    .insufficient-warning {
-      background: #fde8e8;
-      color: #721c24;
-      padding: 5px;
-      border-radius: 3px;
-      border: 1px solid #d73a49;
-      font-size: 10px;
-      text-align: center;
-      font-weight: 600;
-      margin: 4px 0;
-    }
+        .balance-amount.positive {
+            color: #28a745;
+        }
 
-    .label {
-      font-size: 9px;
-      font-weight: 600;
-      color: #586069;
-      margin-top: 4px;
-      margin-bottom: 2px;
-      display: block;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: #fff3d5;
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #f39c12;
+            margin: 4px 0;
+        }
 
-    select, input[type="number"] {
-      width: 100%;
-      padding: 5px 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-      font-size: 11px;
-      transition: border 0.1s;
-    }
+        .toggle-container input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+            accent-color: #f39c12;
+        }
 
-    select:focus, input[type="number"]:focus {
-      border-color: #0366d6;
-      outline: none;
-      box-shadow: inset 0 0 0 1px #0366d6;
-    }
+        .toggle-label {
+            font-size: 10px;
+            color: #856404;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
-    .preview-container {
-      background: #f1f8ff;
-      border: 1px solid #0366d6;
-      padding: 6px;
-      border-radius: 3px;
-      margin: 4px 0;
-    }
+        .insufficient-warning {
+            background: #fde8e8;
+            color: #721c24;
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #d73a49;
+            font-size: 10px;
+            text-align: center;
+            font-weight: 600;
+            margin: 4px 0;
+        }
 
-    .preview-text {
-      font-size: 11px;
-      color: #24292e;
-      font-weight: 600;
-      text-align: center;
-      line-height: 1.4;
-    }
+        .label {
+            font-size: 9px;
+            font-weight: 600;
+            color: #586069;
+            margin-top: 4px;
+            margin-bottom: 2px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
 
-    .student-highlight {
-      color: #28a745;
-      font-size: 12px;
-      font-weight: 700;
-    }
+        select,
+        input[type="number"] {
+            width: 100%;
+            padding: 5px 6px;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            font-size: 11px;
+            transition: border 0.1s;
+        }
 
-    .item-highlight {
-      color: #0366d6;
-      font-weight: 700;
-    }
+        select:focus,
+        input[type="number"]:focus {
+            border-color: #0366d6;
+            outline: none;
+            box-shadow: inset 0 0 0 1px #0366d6;
+        }
 
-    .btn-submit {
-      color: white;
-      border: none;
-      padding: 7px 10px;
-      width: 100%;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      margin-top: 4px;
-    }
+        .preview-container {
+            background: #f1f8ff;
+            border: 1px solid #0366d6;
+            padding: 6px;
+            border-radius: 3px;
+            margin: 4px 0;
+        }
 
-    .btn-income {
-      background: #28a745;
-    }
+        .preview-text {
+            font-size: 11px;
+            color: #24292e;
+            font-weight: 600;
+            text-align: center;
+            line-height: 1.4;
+        }
 
-    .btn-income:hover {
-      background: #218838;
-    }
+        .student-highlight {
+            color: #28a745;
+            font-size: 12px;
+            font-weight: 700;
+        }
 
-    .btn-spending {
-      background: #d73a49;
-    }
+        .item-highlight {
+            color: #0366d6;
+            font-weight: 700;
+        }
 
-    .btn-spending:hover {
-      background: #cb2431;
-    }
+        .btn-submit {
+            color: white;
+            border: none;
+            padding: 7px 10px;
+            width: 100%;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            margin-top: 4px;
+        }
 
-    .btn-submit:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        .btn-income {
+            background: #28a745;
+        }
 
-    .btn-submit:active:not(:disabled) {
-      transform: translateY(0);
-    }
+        .btn-income:hover {
+            background: #218838;
+        }
 
-    .btn-submit:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .btn-spending {
+            background: #d73a49;
+        }
 
-    .log-header {
-      font-weight: 700;
-      font-size: 12px;
-      color: #0366d6;
-      border-bottom: 1px solid #e1e4e8;
-      padding-bottom: 4px;
-      margin-bottom: 6px;
-    }
+        .btn-spending:hover {
+            background: #cb2431;
+        }
 
-    .log-action-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-      padding: 8px;
-      background: #fff;
-      border-radius: 4px;
-      border: 1px solid #e1e4e8;
-    }
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
 
-    .btn-undo-selected {
-      padding: 6px 10px;
-      background: #d73a49;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      white-space: nowrap;
-    }
+        .btn-submit:active:not(:disabled) {
+            transform: translateY(0);
+        }
 
-    .btn-undo-selected:hover:not(:disabled) {
-      background: #cb2431;
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    .btn-undo-selected:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .log-header {
+            font-weight: 700;
+            font-size: 12px;
+            color: #0366d6;
+            border-bottom: 1px solid #e1e4e8;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
 
-    .log-item {
-      background: #fff;
-      padding: 6px;
-      margin-bottom: 4px;
-      border-left: 2px solid #28a745;
-      font-size: 10px;
-      border-radius: 3px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
+        .log-action-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+        }
 
-    .log-item:hover {
-      background: #f6f8fa;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
+        .btn-undo-selected {
+            padding: 6px 10px;
+            background: #d73a49;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            white-space: nowrap;
+        }
 
-    .log-item.selected {
-      background: #2d3748;
-      color: white;
-    }
+        .btn-undo-selected:hover:not(:disabled) {
+            background: #cb2431;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
 
-    .log-item.selected .log-student,
-    .log-item.selected .log-details {
-      color: white;
-    }
+        .btn-undo-selected:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    .log-item.selected .log-amount.income {
-      color: #68d391;
-    }
+        .log-item {
+            background: #fff;
+            padding: 6px;
+            margin-bottom: 4px;
+            border-left: 2px solid #28a745;
+            font-size: 10px;
+            border-radius: 3px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
 
-    .log-item.selected .log-amount.spending {
-      color: #fc8181;
-    }
+        .log-item:hover {
+            background: #f6f8fa;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
 
-    .log-item-content {
-      flex: 1;
-    }
+        .log-item.selected {
+            background: #2d3748;
+            color: white;
+        }
 
-    .log-item-checkbox {
-      display: none;
-    }
+        .log-item.selected .log-student,
+        .log-item.selected .log-details {
+            color: white;
+        }
 
-    .log-item.income {
-      border-left-color: #28a745;
-    }
+        .log-item.selected .log-amount.income {
+            color: #68d391;
+        }
 
-    .log-item.spending {
-      border-left-color: #d73a49;
-    }
+        .log-item.selected .log-amount.spending {
+            color: #fc8181;
+        }
 
-    .log-item.override {
-      border-left-color: #f39c12;
-      background: #fff3d5;
-    }
+        .log-item-content {
+            flex: 1;
+        }
 
-    .log-student {
-      font-weight: 700;
-      color: #24292e;
-      font-size: 11px;
-    }
+        .log-item-checkbox {
+            display: none;
+        }
 
-    .log-details {
-      color: #6a737d;
-      font-size: 9px;
-      margin-top: 2px;
-    }
+        .log-item.income {
+            border-left-color: #28a745;
+        }
 
-    .log-amount {
-      font-weight: 700;
-      font-size: 11px;
-      text-align: right;
-      margin-top: 2px;
-      font-family: monospace;
-    }
+        .log-item.spending {
+            border-left-color: #d73a49;
+        }
 
-    .log-amount.income {
-      color: #28a745;
-    }
+        .log-item.override {
+            border-left-color: #f39c12;
+            background: #fff3d5;
+        }
 
-    .log-amount.spending {
-      color: #d73a49;
-    }
+        .log-student {
+            font-weight: 700;
+            color: #24292e;
+            font-size: 11px;
+        }
 
-    .override-badge {
-      background: #f39c12;
-      color: white;
-      padding: 1px 4px;
-      border-radius: 2px;
-      font-size: 8px;
-      font-weight: 600;
-      margin-left: 3px;
-      display: inline-block;
-    }
+        .log-details {
+            color: #6a737d;
+            font-size: 9px;
+            margin-top: 2px;
+        }
 
-    .error-message {
-      background: #d73a49;
-      color: white;
-      padding: 5px;
-      border-radius: 3px;
-      margin: 4px 0;
-      font-size: 10px;
-    }
+        .log-amount {
+            font-weight: 700;
+            font-size: 11px;
+            text-align: right;
+            margin-top: 2px;
+            font-family: monospace;
+        }
 
-    .loading {
-      opacity: 0.6;
-    }
+        .log-amount.income {
+            color: #28a745;
+        }
 
-    .auto-refresh-indicator {
-      font-size: 8px;
-      color: #6a737d;
-      text-align: center;
-      padding: 3px;
-      background: #f6f8fa;
-      border-radius: 2px;
-      margin-top: 4px;
-    }
+        .log-amount.spending {
+            color: #d73a49;
+        }
 
-    .auto-refresh-indicator.active {
-      color: #28a745;
-    }
-  </style>
+        .override-badge {
+            background: #f39c12;
+            color: white;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 8px;
+            font-weight: 600;
+            margin-left: 3px;
+            display: inline-block;
+        }
+
+        .error-message {
+            background: #d73a49;
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+            margin: 4px 0;
+            font-size: 10px;
+        }
+
+        .loading {
+            opacity: 0.6;
+        }
+
+        .auto-refresh-indicator {
+            font-size: 8px;
+            color: #6a737d;
+            text-align: center;
+            padding: 3px;
+            background: #f6f8fa;
+            border-radius: 2px;
+            margin-top: 4px;
+        }
+
+        .auto-refresh-indicator.active {
+            color: #28a745;
+        }
+    </style>
 </head>
 
 <body>
-  <div class="main-content">
-    <!-- LEFT PANEL: Controls -->
-    <div class="controls">
-      
-      <!-- CARD 1: INCOME SECTION -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div class="header-title" style="margin: 0 0 4px 0;">💰 Add Income</div>
-        <div class="header-subtitle" style="margin-bottom: 4px;">Earnable items to Column D</div>
-
-        <label class="label">Quarter</label>
-        <select id="quarterSelectIncome">
-          <option value="1">Quarter 1</option>
-          <option value="2">Quarter 2</option>
-          <option value="3">Quarter 3</option>
-          <option value="4">Quarter 4</option>
-        </select>
-
-        <label class="label">Item</label>
-        <select id="itemSelectIncome">
-          <option value="">Select an item...</option>
-        </select>
-
-        <label class="label">Quantity</label>
-        <input type="number" id="multiplierIncome" value="1" min="1">
-
-        <div class="preview-container">
-          <div class="preview-text" id="previewIncome">--</div>
-        </div>
-
-        <button class="btn-submit btn-income" id="submitIncomeBtn" style="margin-top: 4px;">Add Income</button>
-      </div>
-
-      <!-- CARD 2: SPENDING SECTION -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: 6px;">
-        <div class="header-title" style="margin: 0 0 4px 0;">💸 Add Spending</div>
-        <div class="header-subtitle" style="margin-bottom: 4px;">Consumable items to Column G</div>
-
-        <!-- Balance Display - Prominent -->
-        <div class="balance-display" style="margin: 6px 0;">
-          <div class="balance-label">Current Balance</div>
-          <div class="balance-amount" id="balanceAmount">$0.00</div>
-        </div>
-
-        <label class="label">Quarter</label>
-        <select id="quarterSelectSpending">
-          <option value="1">Quarter 1</option>
-          <option value="2">Quarter 2</option>
-          <option value="3">Quarter 3</option>
-          <option value="4">Quarter 4</option>
-        </select>
-
-        <label class="label">Item</label>
-        <select id="itemSelectSpending">
-          <option value="">Select an item...</option>
-        </select>
-
-        <label class="label">Quantity</label>
-        <input type="number" id="multiplierSpending" value="1" min="1">
-
-        <!-- Insufficient Funds Warning -->
-        <div id="insufficientWarning" style="display: none;" class="insufficient-warning">
-          ⚠️ Insufficient funds! Enable override to proceed.
-        </div>
-
-        <!-- Override Toggle -->
-        <div class="toggle-container" style="margin: 4px 0;">
-          <input type="checkbox" id="overrideToggle">
-          <label class="toggle-label" for="overrideToggle">Allow Negative</label>
-        </div>
-
-        <div class="preview-container">
-          <div class="preview-text" id="previewSpending">--</div>
-        </div>
-
-        <button class="btn-submit btn-spending" id="submitSpendingBtn" style="margin-top: 4px;">Add Spending</button>
-
-        <div class="auto-refresh-indicator" id="refreshIndicator">● Auto-refreshing</div>
-        <div id="errorContainer"></div>
-      </div>
-      
+    <!-- Navigation Header -->
+    <div class="nav-header">
+        <button class="nav-link" onclick="switchToAccountingManager();">💰 Manual B-Bucks
+            Modifier</button>
+        <button class="nav-link active">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment
+            Banking</button>
+        <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction
+            Records</button>
+        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
-    <!-- RIGHT PANEL: Activity Log -->
-    <div class="log-panel">
-      <div class="log-header">Activity Log</div>
-      <div class="log-action-bar">
-        <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
-      </div>
-      <div id="logContainer">
-        <!-- Example Income Entry -->
-        <div class="log-item income" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-student">Alex Chen</div>
-            <div class="log-details">Q2 • Homework Submission (+$3.50)</div>
-            <div class="log-amount income">+$3.50</div>
-          </div>
+    <div class="main-content">
+        <!-- LEFT PANEL: Controls -->
+        <div class="controls">
+
+            <!-- CARD 1: INCOME SECTION -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div class="header-title" style="margin: 0 0 4px 0;">💰 Add Income</div>
+                <div class="header-subtitle" style="margin-bottom: 4px;">Earnable items to Column D</div>
+
+                <label class="label">Quarter</label>
+                <select id="quarterSelectIncome">
+                    <option value="1">Quarter 1</option>
+                    <option value="2">Quarter 2</option>
+                    <option value="3">Quarter 3</option>
+                    <option value="4">Quarter 4</option>
+                </select>
+
+                <label class="label">Item</label>
+                <select id="itemSelectIncome">
+                    <option value="">Select an item...</option>
+                </select>
+
+                <label class="label">Quantity</label>
+                <input type="number" id="multiplierIncome" value="1" min="1">
+
+                <div class="preview-container">
+                    <div class="preview-text" id="previewIncome">--</div>
+                </div>
+
+                <button class="btn-submit btn-income" id="submitIncomeBtn" style="margin-top: 4px;">Add Income</button>
+            </div>
+
+            <!-- CARD 2: SPENDING SECTION -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: 6px;">
+                <div class="header-title" style="margin: 0 0 4px 0;">💸 Add Spending</div>
+                <div class="header-subtitle" style="margin-bottom: 4px;">Consumable items to Column G</div>
+
+                <!-- Balance Display - Prominent -->
+                <div class="balance-display" style="margin: 6px 0;">
+                    <div class="balance-label">Current Balance</div>
+                    <div class="balance-amount" id="balanceAmount">$0.00</div>
+                </div>
+
+                <label class="label">Quarter</label>
+                <select id="quarterSelectSpending">
+                    <option value="1">Quarter 1</option>
+                    <option value="2">Quarter 2</option>
+                    <option value="3">Quarter 3</option>
+                    <option value="4">Quarter 4</option>
+                </select>
+
+                <label class="label">Item</label>
+                <select id="itemSelectSpending">
+                    <option value="">Select an item...</option>
+                </select>
+
+                <label class="label">Quantity</label>
+                <input type="number" id="multiplierSpending" value="1" min="1">
+
+                <!-- Insufficient Funds Warning -->
+                <div id="insufficientWarning" style="display: none;" class="insufficient-warning">
+                    ⚠️ Insufficient funds! Enable override to proceed.
+                </div>
+
+                <!-- Override Toggle -->
+                <div class="toggle-container" style="margin: 4px 0;">
+                    <input type="checkbox" id="overrideToggle">
+                    <label class="toggle-label" for="overrideToggle">Allow Negative</label>
+                </div>
+
+                <div class="preview-container">
+                    <div class="preview-text" id="previewSpending">--</div>
+                </div>
+
+                <button class="btn-submit btn-spending" id="submitSpendingBtn" style="margin-top: 4px;">Add
+                    Spending</button>
+
+                <div class="auto-refresh-indicator" id="refreshIndicator">● Auto-refreshing</div>
+                <div id="errorContainer"></div>
+            </div>
+
         </div>
-        <!-- Example Spending Entry -->
-        <div class="log-item spending" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-student">Jordan Taylor</div>
-            <div class="log-details">Q3 • Movie Pass Redemption (-$15.00)</div>
-            <div class="log-amount spending">-$15.00</div>
-          </div>
+
+        <!-- RIGHT PANEL: Activity Log -->
+        <div class="log-panel">
+            <div class="log-header">Activity Log</div>
+            <div class="log-action-bar">
+                <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+            </div>
+            <div id="logContainer">
+                <!-- Example Income Entry -->
+                <div class="log-item income" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-student">Alex Chen</div>
+                        <div class="log-details">Q2 • Homework Submission (+$3.50)</div>
+                        <div class="log-amount income">+$3.50</div>
+                    </div>
+                </div>
+                <!-- Example Spending Entry -->
+                <div class="log-item spending" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-student">Jordan Taylor</div>
+                        <div class="log-details">Q3 • Movie Pass Redemption (-$15.00)</div>
+                        <div class="log-amount spending">-$15.00</div>
+                    </div>
+                </div>
+                <!-- Example Override Entry -->
+                <div class="log-item override" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-student">Casey Williams <span class="override-badge">OVERRIDE</span></div>
+                        <div class="log-details">Q1 • Emergency Fund (-$50.00)</div>
+                        <div class="log-amount spending">-$50.00</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <!-- Example Override Entry -->
-        <div class="log-item override" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-student">Casey Williams <span class="override-badge">OVERRIDE</span></div>
-            <div class="log-details">Q1 • Emergency Fund (-$50.00)</div>
-            <div class="log-amount spending">-$50.00</div>
-          </div>
-        </div>
-      </div>
     </div>
-  </div>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Handle click-to-select for all log items
-      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-        item.addEventListener('click', function(e) {
-          e.stopPropagation();
-          this.classList.toggle('selected');
-          updateUndoButtonState();
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Handle click-to-select for all log items
+            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+                item.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    this.classList.toggle('selected');
+                    updateUndoButtonState();
+                });
+            });
+
+            // Update undo button enabled state based on selected items
+            function updateUndoButtonState() {
+                const undoBtn = document.getElementById('undoSelectedBtn');
+                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+                undoBtn.disabled = selectedItems.length === 0;
+            }
+
+            // Deselect all when clicking outside
+            document.addEventListener('click', function () {
+                if (event.target === document.body || event.target === document.documentElement) {
+                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                    updateUndoButtonState();
+                }
+            });
         });
-      });
-
-      // Update undo button enabled state based on selected items
-      function updateUndoButtonState() {
-        const undoBtn = document.getElementById('undoSelectedBtn');
-        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-        undoBtn.disabled = selectedItems.length === 0;
-      }
-
-      // Deselect all when clicking outside
-      document.addEventListener('click', function() {
-        if (event.target === document.body || event.target === document.documentElement) {
-          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-            item.classList.remove('selected');
-          });
-          updateUndoButtonState();
-        }
-      });
-    });
-  </script>
+    </script>
