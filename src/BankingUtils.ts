@@ -3,7 +3,12 @@
 // Script licensed under the MIT License.
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
 
-
+enum Operation {
+  ADD = "ADD",
+  SUBTRACT = "SUBTRACT",
+  MULTIPLY = "MULTIPLY",
+  DIVIDE = "DIVIDE"
+}
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
@@ -11,13 +16,6 @@
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-enum Operation {
-  ADD = "ADD",
-  SUBTRACT = "SUBTRACT",
-  MULTIPLY = "MULTIPLY",
-  DIVIDE = "DIVIDE"
-}
-
 function applyMathToSelection(operation: Operation, value: number, range?: GoogleAppsScript.Spreadsheet.Range): boolean {
   try {
     if (!operation || !value) {

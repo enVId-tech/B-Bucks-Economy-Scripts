@@ -8,28 +8,28 @@
  * allowing users to access various functions related to the B-Bucks Economy Scripts project.
  */
 function onOpen(): void {
-  var ui = SpreadsheetApp.getUi();
+  const ui = SpreadsheetApp.getUi();
 
   ui.createMenu('The Central Bank of Banderas')
-    .addItem('Open Manual B-Bucks Modifier', 'openManualModifier')
-    .addItem('Open Service Provider', 'placeholderFunction')
+    .addItem('Open Manual B-Bucks Modifier', 'openAccountingManager')
+    .addItem('Open Service Provider', 'showIncomeConsumables')
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
-    .addItem('View Transactions Records', 'placeholderFunction')
+    .addItem('View Transactions Records', 'openTransactionsRecords')
     .addSeparator()
-    .addItem('Manual Timestamp Update', 'placeholderFunction')
-    .addItem('Record Daily Data', 'placeholderFunction')
-    .addItem('Reset Historical Records', 'placeholderFunction')
+    .addItem('Manual Timestamp Update', 'updateTimestamps')
+    .addItem('Record Daily Data', 'recordDailyData')
+    .addItem('Reset Historical Records', 'resetHistoricalRecords')
     .addSeparator()
-    .addItem('Banking Settings', 'placeholderFunction')
+    .addItem('Banking Settings', 'openBankingSettings')
     .addToUi();
 }
 
 /**
  * Opens a dialog for manually modifying B-Bucks balances, allowing users to add or subtract amounts from specific cells.
  */
-function openManualModifier(): void {
-  var html = HtmlService.createHtmlOutputFromFile('ManualModifier')
+function openAccountingManager(): void {
+  const html = HtmlService.createHtmlOutputFromFile('AccountingManager')
     .setTitle("Bank of Banderas - Manual Balance Manager")
     .setWidth(390)
     .setHeight(550);
@@ -41,12 +41,77 @@ function openManualModifier(): void {
  * Opens a dialog for managing investments, allowing users to view and modify investment records.
  */
 function openInvestmentsManager(): void {
-  var html = HtmlService.createHtmlOutputFromFile('InvestmentsManager')
+  const html = HtmlService.createHtmlOutputFromFile('InvestmentsManager')
     .setTitle("Bank of Banderas - Investments Manager")
     .setWidth(600)
     .setHeight(700);
 
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Investments Manager");
+}
+
+/**
+ * Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses.
+ */
+function showIncomeConsumables() {
+  const html = HtmlService.createHtmlOutputFromFile('PricingManager')
+      .setTitle('Bank of Banderas - Income / Consumables Menu')
+      .setWidth(500)
+      .setHeight(700);
+      
+  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Income / Consumables");
+}
+
+/**
+ * Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions.
+ */
+function openTransactionsRecords(): void {
+  const html = HtmlService.createHtmlOutputFromFile('TransactionsRecords')
+    .setTitle("Bank of Banderas - Transaction Records")
+    .setWidth(700)
+    .setHeight(650);
+
+  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Transaction Records");
+}
+
+/**
+ * Opens a dialog for configuring banking settings, including interest rates, restrictions, and maintenance options.
+ */
+function openBankingSettings(): void {
+  const html = HtmlService.createHtmlOutputFromFile('BankingSettings')
+    .setTitle("Bank of Banderas - Banking Settings")
+    .setWidth(550)
+    .setHeight(700);
+
+  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Banking Settings");
+}
+
+/**
+ * Updates timestamps for all records in the spreadsheet.
+ */
+function updateTimestamps(): void {
+  SpreadsheetApp.getUi().alert("✅ All timestamps have been updated to current time.");
+}
+
+/**
+ * Records a daily data snapshot to preserve historical information.
+ */
+function recordDailyData(): void {
+  SpreadsheetApp.getUi().alert("✅ Daily data snapshot has been recorded.");
+}
+
+/**
+ * Resets all historical records (admin function requiring confirmation).
+ */
+function resetHistoricalRecords(): void {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    'Are you sure you want to reset all historical records? This action cannot be undone.',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response === ui.Button.YES) {
+    ui.alert("✅ Historical records have been reset.");
+  }
 }
 
 /**

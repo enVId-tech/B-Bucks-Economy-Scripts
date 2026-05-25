@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accounting Manager</title>
+  <style>
+    * {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      user-select: text;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #fafbfc;
+      overflow: hidden;
+      font-size: 12px;
+      color: #24292e;
+    }
+
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .controls {
+      width: 48%;
+      padding: 10px;
+      border-right: 1px solid #e1e4e8;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      background: #fff;
+    }
+
+    .log-panel {
+      width: 52%;
+      padding: 10px;
+      background: #fafbfc;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid #e1e4e8;
+    }
+
+    .log-header {
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #586069;
+      letter-spacing: 0.5px;
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .log-item {
+      padding: 8px;
+      margin-bottom: 6px;
+      border-left: 3px solid #0366d6;
+      font-size: 11px;
+      border-radius: 3px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .student-name {
+      font-weight: 600;
+      font-size: 12px;
+      color: #24292e;
+      margin-bottom: 2px;
+    }
+
+    .section-name {
+      font-size: 10px;
+      color: #6a737d;
+      margin-bottom: 3px;
+    }
+
+    .log-math {
+      font-weight: 600;
+      font-size: 12px;
+      text-align: right;
+      margin-top: 4px;
+      font-family: monospace;
+    }
+
+    .neg { color: #d73a49; }
+    .pos { color: #28a745; }
+    .zero { color: #24292e; }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5px;
+    }
+
+    .btn {
+      color: white;
+      border: none;
+      padding: 8px 4px;
+      border-radius: 3px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn:hover:not(:disabled) {
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-add { background: #28a745; }
+    .btn-add:hover:not(:disabled) { background: #218838; }
+    .btn-remove { background: #d73a49; }
+    .btn-remove:hover:not(:disabled) { background: #cb2431; }
+    .btn-math { background: #0366d6; }
+    .btn-math:hover:not(:disabled) { background: #0256c7; }
+
+    input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #e1e4e8;
+      border-radius: 3px;
+      font-size: 11px;
+      transition: border 0.1s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #0366d6;
+      box-shadow: inset 0 0 0 1px #0366d6;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #586069;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 6px;
+      margin-bottom: 3px;
+    }
+
+    .guide {
+      font-size: 9px;
+      color: #6a737d;
+      line-height: 1.5;
+      background: #f6f8fa;
+      padding: 6px;
+      border: 1px solid #e1e4e8;
+      border-radius: 3px;
+    }
+
+    .guide b {
+      color: #24292e;
+      font-weight: 600;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #6a737d;
+      margin: 4px 0;
+    }
+
+    .toggle-container input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+      accent-color: #0366d6;
+    }
+
+    .section-footer {
+      margin-top: auto;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #6a737d;
+    }
+
+    .section-footer label {
+      margin: 0;
+    }
+
+    .section-footer input {
+      width: 40px;
+      padding: 4px;
+    }
+
+    #log-container {
+      flex: 1;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="main-content">
+    <!-- Controls Panel -->
+    <div class="controls">
+      <!-- Card: Quick Adjustments -->
+      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+        <div class="section-label" style="margin-top: 0;">Quick Adjustments</div>
+        <div class="btn-group">
+          <button class="btn btn-add">+1</button>
+          <button class="btn btn-remove">-1</button>
+          <button class="btn btn-add">+2</button>
+          <button class="btn btn-remove">-2</button>
+          <button class="btn btn-add">+5</button>
+          <button class="btn btn-remove">-5</button>
+          <button class="btn btn-add">+10</button>
+          <button class="btn btn-remove">-10</button>
+        </div>
+      </div>
+
+      <!-- Card: Math Operations -->
+      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+        <div class="section-label" style="margin-top: 0;">Multiply / Divide</div>
+        <div class="btn-group">
+          <button class="btn btn-math">×2</button>
+          <button class="btn btn-math">÷2</button>
+          <button class="btn btn-math">×5</button>
+          <button class="btn btn-math">÷5</button>
+        </div>
+      </div>
+
+      <!-- Card: Custom Input -->
+      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+        <div class="section-label" style="margin-top: 0;">Custom Amount</div>
+        <label for="customInput" class="section-label" style="margin-top: 6px;">Input</label>
+        <input type="text" id="customInput" placeholder="Enter amount...">
+        <div class="toggle-container" style="margin-top: 6px;">
+          <input type="checkbox" id="enterToggle" checked>
+          <label for="enterToggle">Auto-Submit</label>
+        </div>
+        <button class="btn btn-add" style="width: 100%; margin-top: 6px;">Add Custom Amount</button>
+      </div>
+
+      <!-- Card: Guide -->
+      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+        <div class="section-label" style="margin-top: 0; margin-bottom: 4px;">Input Format</div>
+        <div class="guide" style="margin: 0;">
+          <b>10</b> = add $10 | <b>-5</b> = subtract $5<br>
+          <b>*2</b> = double | <b>/4</b> = quarter
+        </div>
+      </div>
+
+      <!-- Footer: History Control -->
+      <div class="section-footer" style="padding: 6px 8px; background: #f6f8fa; border-radius: 4px; border: 1px solid #e1e4e8;">
+        <label for="logLimit">Show last:</label>
+        <input type="number" id="logLimit" value="25" min="1">
+      </div>
+    </div>
+
+    <!-- Activity Log Panel -->
+    <div class="log-panel">
+      <div class="log-header">Activity Log</div>
+      <div id="log-container"></div>
+    </div>
+  </div>
+</body>
+
+</html>

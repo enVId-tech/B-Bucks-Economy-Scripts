@@ -1,322 +1,492 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investments Manager</title>
   <style>
-    * { font-family: Arial, sans-serif; box-sizing: border-box; user-select: none; }
-    input[type="text"], input[type="number"], select { user-select: text; }
-    body, .main-content { margin: 0; padding: 0; width: 100%; height: 100vh; display: flex; overflow: hidden; }
-    body { background: #f0f2f5; }
-    .left-panel, .right-panel { width: 50%; height: 100vh; padding: 15px; overflow-y: auto; overflow-x: hidden; }
-    .left-panel { border-right: 1px solid #ddd; background: #f8f9fa; }
-    .right-panel { background: #fff; }
-    .left-panel>*:not(:last-child), .right-panel>*:not(:last-child) { margin-bottom: 15px; }
-    .section-title { font-weight: bold; font-size: 18px; color: #2c3e50; border-bottom: 3px solid #9b59b6; padding-bottom: 8px; margin-bottom: 15px; }
-    .section-title::before { content: "💎 "; }
-    .form-section, .calc-section { background: #fff; padding: 15px; border-radius: 8px; border: 2px solid #9b59b6; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-    .calc-section { background: #f8f9fa; border-color: #3498db; }
-    .form-title, .calc-title { font-weight: bold; font-size: 14px; color: #9b59b6; margin-bottom: 12px; }
-    .calc-title { color: #3498db; }
-    label, .custom-input-label { display: block; font-size: 12px; color: #34495e; font-weight: 600; margin: 10px 0 5px 0; }
-    label:first-of-type { margin-top: 0; }
-    .custom-input-label { color: #3498db; text-transform: uppercase; margin-bottom: 8px; }
-    input, select { width: 100%; padding: 10px; border: 2px solid #ecf0f1; border-radius: 4px; font-size: 13px; transition: border 0.2s; }
-    input:focus, select:focus { border-color: #9b59b6; outline: none; }
-    .calc-section input:focus { border-color: #3498db; }
-    .info-box, .deadline-box, .warning-box, .error-box, .info-text { padding: 12px; border-radius: 6px; margin: 10px 0; border-left: 4px solid #9b59b6; font-size: 12px; }
-    .info-box { background: #f4ecf7; }
-    .info-label, .deadline-label { font-size: 11px; color: #7f8c8d; text-transform: uppercase; font-weight: 600; }
-    .info-value, .deadline-value { font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 3px; }
-    .warning-box, .deadline-box { background: #fff3cd; border-left-color: #f39c12; color: #856404; display: none; }
-    .deadline-box { border-left-color: #ff6b6b; display: none; }
-    .deadline-label { color: #856404; } .deadline-value { font-size: 14px; color: #721c24; }
-    .error-box { background: #f8d7da; border-left-color: #dc3545; color: #721c24; display: none; }
-    .current-earnings { background: #d4edda; border-left-color: #28a745; }
-    .projection-container { max-height: 400px; overflow-y: auto; background: #fff; border: 2px solid #ecf0f1; border-radius: 4px; }
-    .projection-item { padding: 10px 12px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-    .projection-item:hover { background: #f8f9fa; }
-    .projection-item.current-week { background: #fff9c4; border-left: 4px solid #fbc02d; font-weight: 600; }
-    .projection-item.deadline-week { background: #ffcdd2; border-left: 4px solid #e53935; font-weight: 600; }
-    .projection-week { font-weight: bold; color: #9b59b6; }
-    .projection-amount { font-weight: bold; color: #27ae60; font-size: 13px; }
-    .projection-rate { font-size: 11px; color: #7f8c8d; margin-left: 5px; }
-    .deadline-badge, .current-badge { color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-left: 5px; }
-    .deadline-badge { background: #e53935; } .current-badge { background: #fbc02d; color: #333; }
-    .btn { color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s; width: 100%; margin-top: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
-    .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-    .btn:active:not(:disabled) { transform: translateY(0); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #3498db; } .btn-primary:hover:not(:disabled) { background: #2980b9; }
-    .btn-deposit { background: #27ae60; } .btn-deposit:hover:not(:disabled) { background: #229954; }
-    .btn-withdraw { background: #e74c3c; } .btn-withdraw:hover:not(:disabled) { background: #c0392b; }
-    .btn-group, .week-input-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-    .week-input-container { margin-top: 10px; }
-    .btn-icon { font-size: 16px; margin-right: 6px; }
-    .checkbox-container { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
-    .checkbox-container input { width: auto; }
-    .checkbox-container label { margin: 0; font-weight: normal; }
-    .info-text { color: #7f8c8d; line-height: 1.6; background: #fff; border: 1px solid #ecf0f1; border-left: none; }
-    .custom-input-group { background: #fff; padding: 12px; border-radius: 6px; border: 2px solid #3498db; margin: 10px 0; }
-    .projection-mode-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
-    .tab-btn { flex: 1; padding: 10px; border: 2px solid #3498db; background: white; color: #3498db; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; transition: all 0.2s; }
-    .tab-btn:hover:not(:disabled) { background: #ebf5fb; }
-    .tab-btn.active { background: #3498db; color: white; }
-    .tab-btn:disabled { opacity: 0.4; cursor: not-allowed; background: #ecf0f1; color: #95a5a6; border-color: #bdc3c7; }
+    * {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      user-select: text;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      background: #fafbfc;
+      font-size: 12px;
+      color: #24292e;
+    }
+
+    .main-content {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+    }
+
+    .left-panel,
+    .right-panel {
+      width: 50%;
+      height: 100vh;
+      padding: 10px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .left-panel {
+      border-right: 1px solid #e1e4e8;
+      background: #fff;
+    }
+
+    .right-panel {
+      background: #fafbfc;
+    }
+
+    .section-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: #24292e;
+      border-bottom: 2px solid #6f42c1;
+      padding-bottom: 6px;
+      margin: 0 0 8px 0;
+    }
+
+    .section-title::before {
+      content: "💎 ";
+      margin-right: 4px;
+    }
+
+    .form-section,
+    .calc-section {
+      background: #fff;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #e1e4e8;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      margin-bottom: 8px;
+    }
+
+    .calc-section {
+      background: #f6f8fa;
+      border-color: #e1e4e8;
+    }
+
+    .form-title,
+    .calc-title {
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #586069;
+      margin-bottom: 6px;
+    }
+
+    label {
+      display: block;
+      font-size: 10px;
+      color: #586069;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin: 6px 0 2px 0;
+      letter-spacing: 0.3px;
+    }
+
+    label:first-of-type {
+      margin-top: 0;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 5px 6px;
+      border: 1px solid #e1e4e8;
+      border-radius: 3px;
+      font-size: 11px;
+      transition: border 0.1s;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #0366d6;
+      outline: none;
+      box-shadow: inset 0 0 0 1px #0366d6;
+    }
+
+    .info-box,
+    .deadline-box,
+    .warning-box,
+    .current-earnings {
+      padding: 6px;
+      border-radius: 3px;
+      margin: 6px 0;
+      border-left: 3px solid #6f42c1;
+      font-size: 10px;
+    }
+
+    .info-box {
+      background: #f6f3ff;
+      border-left-color: #6f42c1;
+    }
+
+    .info-label {
+      font-size: 9px;
+      color: #586069;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .info-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: #24292e;
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    .deadline-box {
+      background: #fff3d5;
+      border-left-color: #f39c12;
+      color: #856404;
+      display: none;
+    }
+
+    .deadline-label {
+      font-size: 9px;
+      color: #856404;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .deadline-value {
+      font-size: 12px;
+      color: #721c24;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .warning-box {
+      background: #fff3d5;
+      border-left-color: #f39c12;
+      color: #856404;
+      display: none;
+    }
+
+    .error-box {
+      background: #fde8e8;
+      border-left-color: #d73a49;
+      color: #721c24;
+      display: none;
+      padding: 6px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    .current-earnings {
+      background: #f3ffe3;
+      border-left-color: #28a745;
+      display: none;
+    }
+
+    .projection-container {
+      max-height: 350px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      border-radius: 3px;
+    }
+
+    .projection-item {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e1e4e8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+    }
+
+    .projection-item:hover {
+      background: #f6f8fa;
+    }
+
+    .projection-week {
+      font-weight: 600;
+      color: #6f42c1;
+      font-family: monospace;
+    }
+
+    .projection-amount {
+      font-weight: 600;
+      color: #28a745;
+      font-size: 11px;
+      font-family: monospace;
+    }
+
+    .projection-rate {
+      font-size: 9px;
+      color: #6a737d;
+      margin-left: 4px;
+    }
+
+    .btn {
+      color: white;
+      border: none;
+      padding: 7px 10px;
+      border-radius: 3px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary { background: #0366d6; }
+    .btn-primary:hover:not(:disabled) { background: #0256c7; }
+    .btn-deposit { background: #28a745; }
+    .btn-deposit:hover:not(:disabled) { background: #218838; }
+    .btn-withdraw { background: #d73a49; }
+    .btn-withdraw:hover:not(:disabled) { background: #cb2431; }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 6px 0;
+    }
+
+    .checkbox-container input {
+      width: auto;
+      accent-color: #0366d6;
+    }
+
+    .checkbox-container label {
+      margin: 0;
+      font-weight: normal;
+      text-transform: none;
+      font-size: 10px;
+    }
+
+    .info-text {
+      color: #6a737d;
+      line-height: 1.5;
+      background: #f6f8fa;
+      border: 1px solid #e1e4e8;
+      padding: 6px;
+      border-radius: 3px;
+      margin: 6px 0;
+      font-size: 10px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 6px;
+      border: 1px solid #0366d6;
+      background: white;
+      color: #0366d6;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 10px;
+      transition: all 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .tab-btn:hover:not(:disabled) {
+      background: #f1f8ff;
+    }
+
+    .tab-btn.active {
+      background: #0366d6;
+      color: white;
+    }
+
+    .tab-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      background: #f6f8fa;
+      color: #6a737d;
+      border-color: #e1e4e8;
+    }
+
+    .tab-container {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+  
   </style>
 </head>
+
 <body>
   <div class="main-content">
+    <!-- Left Panel: Controls -->
     <div class="left-panel">
       <div class="section-title">CoD Manager</div>
+
+      <!-- Card 1: Student Selection -->
       <div class="form-section">
-        <div class="form-title">Select Period & Student</div>
-        <label>Period</label>
-        <select id="periodSelect" onchange="loadPeriodStudents()"><option value="">Loading...</option></select>
-        <label>Student Name</label>
-        <select id="studentSelect" onchange="loadStudentData()"><option value="">-- Select a student --</option></select>
+        <div class="form-title">Select Student</div>
+        <label for="periodSelect">Period</label>
+        <select id="periodSelect">
+          <option value="">Loading...</option>
+        </select>
+        <label for="studentSelect">Student Name</label>
+        <select id="studentSelect">
+          <option value="">-- Select a student --</option>
+        </select>
+
+        <!-- Deadline Warning (integrated into card) -->
+        <div class="deadline-box" id="deadlineBox" style="margin-top: 8px;">
+          <div class="deadline-label">⚠️ CoD Final Deadline</div>
+          <div class="deadline-value" id="deadlineDate">--</div>
+        </div>
       </div>
 
-      <div class="deadline-box" id="deadlineBox">
-        <div class="deadline-label">⚠️ CoD Final Deadline</div>
-        <div class="deadline-value" id="deadlineDate">--</div>
-      </div>
-
+      <!-- Card 2: Account Overview -->
       <div class="form-section" id="studentInfoSection" style="display: none;">
         <div class="form-title">Account Overview</div>
-        <div class="info-box"><div class="info-label">Available Cash (Column B)</div><div class="info-value" id="cashAmount">$0.00</div></div>
-        <div class="info-box"><div class="info-label">Current CoD Balance (Column J)</div><div class="info-value" id="codAmount">$0.00</div></div>
-        <div class="info-box" id="purchaseDateBox" style="display: none;"><div class="info-label">Purchase Date (Column K)</div><div class="info-value" id="purchaseDate">--</div></div>
-        <div class="info-box current-earnings" id="currentEarningsBox" style="display: none;">
-          <div class="info-label">💰 Current Withdrawal Value</div>
+        <div class="info-box">
+          <div class="info-label">Available Cash</div>
+          <div class="info-value" id="cashAmount">$0.00</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Current CoD</div>
+          <div class="info-value" id="codAmount">$0.00</div>
+        </div>
+        <div class="info-box" id="purchaseDateBox" style="display: none;">
+          <div class="info-label">Purchase Date</div>
+          <div class="info-value" id="purchaseDate">--</div>
+        </div>
+        <div class="current-earnings info-box" id="currentEarningsBox" style="display: none;">
+          <div class="info-label">💰 Withdrawal Value</div>
           <div class="info-value" id="currentEarnings">$0.00</div>
-          <div style="font-size: 11px; color: #155724; margin-top: 5px;" id="currentEarningsDetail">--</div>
+          <div id="currentEarningsDetail" style="font-size: 11px; margin-top: 5px; color: #155724;"></div>
         </div>
         <div class="warning-box" id="warningBox"></div>
         <div class="error-box" id="errorBox"></div>
       </div>
 
+      <!-- Card 3: CoD Operations -->
       <div class="form-section" id="depositSection" style="display: none;">
         <div class="form-title">Deposit to CoD</div>
-        <label>Amount to Deposit</label>
-        <input type="number" id="depositAmount" placeholder="Enter amount" step="0.01" min="0" oninput="validateDeposit()">
-        <button class="btn btn-primary" onclick="setDepositAll()"><span class="btn-icon">💵</span>Deposit All Cash</button>
-        <div class="custom-input-group" style="border-color: #9b59b6; margin-bottom: 15px;">
-          <div class="custom-input-label" style="color: #9b59b6;">Interest Calculation Method</div>
-          <div class="projection-mode-tabs" style="margin-bottom: 0;">
-            <button class="tab-btn active" id="btnCompound" onclick="setInterestMode('compound')">Compound</button>
-            <button class="tab-btn" id="btnSimple" onclick="setInterestMode('simple')">Simple</button>
+        <label for="depositAmount">Amount ($)</label>
+        <input type="number" id="depositAmount" placeholder="Enter amount" step="0.01" min="0">
+        <button class="btn btn-primary" style="width: 100%; margin-top: 5px;">Deposit All Cash</button>
+
+        <!-- Interest Mode Selection -->
+        <div style="margin-top: 8px;">
+          <div style="font-size: 11px; font-weight: bold; color: #586069; text-transform: uppercase; margin-bottom: 5px;">Interest Mode</div>
+          <div class="btn-group">
+            <button class="tab-btn active" id="btnCompound">Compound</button>
+            <button class="tab-btn" id="btnSimple">Simple</button>
           </div>
         </div>
+
+        <!-- Override Checkbox -->
         <div class="checkbox-container">
-          <input type="checkbox" id="overrideCheck" onchange="validateDeposit()">
-          <label for="overrideCheck">Override 2-week restriction (Admin only)</label>
+          <input type="checkbox" id="overrideCheck">
+          <label for="overrideCheck">Admin Override (2-week)</label>
         </div>
+
+        <!-- Action Buttons -->
         <div class="btn-group">
-          <button class="btn btn-deposit" id="depositBtn" onclick="processDeposit()"><span class="btn-icon">💰</span>Deposit</button>
-          <button class="btn btn-withdraw" id="withdrawBtn" onclick="processWithdrawal()"><span class="btn-icon">💸</span>Withdraw All</button>
+          <button class="btn btn-deposit" id="depositBtn">Deposit</button>
+          <button class="btn btn-withdraw" id="withdrawBtn">Withdraw</button>
         </div>
       </div>
 
+      <!-- Card 4: Reference -->
       <div class="info-text">
-        💡 <strong>How it works:</strong><br>
-        • <strong>Deposit:</strong> Adds to Money Spent (Column G), updates CoD (Column J)<br>
-        • <strong>Withdraw:</strong> Adds total with interest to Investments (Column H)<br>
-        • <strong>Interest:</strong> Applies interest on withdrawal/redeposit.<br>
-        • <strong>2-Week Rule:</strong> Locked within 2 weeks of last purchase.
+        <strong>How it works:</strong><br>
+        • <strong>Deposit:</strong> Column G + J<br>
+        • <strong>Withdraw:</strong> To Column H<br>
+        • <strong>2-Week:</strong> Locked after purchase
       </div>
     </div>
 
+    <!-- Right Panel: Earnings Calculator -->
     <div class="right-panel">
       <div class="section-title">Earnings Calculator</div>
-      <div class="calc-section" id="projectionModeSection">
+
+      <!-- Projection Mode Section -->
+      <div class="calc-section">
         <div class="calc-title">📊 Projection Mode</div>
-        <div class="projection-mode-tabs">
-          <button class="tab-btn" id="tabCurrentCod" onclick="switchProjectionMode('current')" disabled>Current CoD</button>
-          <button class="tab-btn active" id="tabCustomAmount" onclick="switchProjectionMode('custom')">Custom Amount</button>
-          <button class="tab-btn" id="tabDepositInput" onclick="switchProjectionMode('deposit')" disabled>From Deposit Input</button>
+        <div class="tab-container">
+          <button class="tab-btn" id="tabCurrentCod" disabled>Current CoD</button>
+          <button class="tab-btn active" id="tabCustomAmount">Custom Amount</button>
+          <button class="tab-btn" id="tabDepositInput" disabled>From Deposit</button>
         </div>
 
+        <!-- Custom Amount Input -->
         <div id="customAmountInput">
-          <div class="custom-input-group">
-            <div class="custom-input-label">Enter custom amount & starting week</div>
-            <input type="number" id="customAmount" placeholder="Enter principal amount" step="0.01" min="0" oninput="calculateProjections()">
-            <div class="week-input-container">
-              <div><label>Starting Week</label><input type="number" id="customWeek" min="0" max="52" value="1" oninput="calculateProjections()"></div>
-              <div><label>Current Rate</label><input type="text" id="customRate" readonly style="background: #f8f9fa;"></div>
-            </div>
-          </div>
+          <label for="customAmount">Principal Amount ($)</label>
+          <input type="number" id="customAmount" placeholder="Enter amount" step="0.01" min="0">
+          <label for="customWeek" style="margin-top: 10px;">Starting Week</label>
+          <input type="number" id="customWeek" min="0" max="52" value="1">
+          <label for="customRate" style="margin-top: 10px;">Total Interest Rate</label>
+          <input type="text" id="customRate" readonly style="background: #f5f5f5; cursor: not-allowed;">
         </div>
 
+        <!-- Deposit Input Info -->
         <div id="depositInputInfo" style="display: none;">
           <div class="info-box">
             <div class="info-label">Projecting based on Deposit Input</div>
             <div class="info-value" id="depositInputValue">$0.00</div>
           </div>
         </div>
-        <div class="info-box" id="projectionCurrentBox" style="margin-top: 12px; display: none;">
-          <div class="info-label">Value at Week <span id="projectionWeeks">0</span></div>
-          <div class="info-value" id="projectionCurrentValue">$0.00</div>
+
+        <!-- Current Projection -->
+        <div id="projectionCurrentBox" style="display: none; background: #e8f5e9; border: 2px solid #4caf50; padding: 12px; border-radius: 6px; margin-top: 12px;">
+          <div style="font-size: 11px; color: #2e7d32; font-weight: bold;">Value at Week <span id="projectionWeeks">0</span></div>
+          <div id="projectionCurrentValue" style="font-size: 16px; font-weight: bold; color: #1b5e20; margin-top: 5px;"></div>
         </div>
       </div>
 
+      <!-- Projections List -->
       <div class="calc-section" id="projectionsSection" style="display: none;">
-        <div class="calc-title">📈 Earnings Projections (52 Weeks)</div>
-        <div class="projection-container" id="projectionContainer"></div>
+        <div class="calc-title">📈 52-Week Earnings Projections</div>
+        <div class="projection-container">
+          <div id="projectionContainer"></div>
+        </div>
       </div>
     </div>
   </div>
-
-  <script>
-    let allPeriods = [], studentData = {}, currentPeriod = '', currentStudent = null;
-    let finalDeadlineDate = null, projectionMode = 'custom', interestMode = 'compound';
-    const WEEKLY_RATE = 10;
-
-    const $ = id => document.getElementById(id);
-    const debounce = (f, w) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f(...a), w); }; };
-    const debouncedCalc = debounce(calculateProjections, 300);
-
-    google.script.run.withSuccessHandler(data => {
-      allPeriods = data.periods; finalDeadlineDate = new Date(data.finalDate);
-      $('deadlineBox').style.display = 'block'; $('deadlineDate').textContent = data.finalDate;
-      $('periodSelect').innerHTML = data.periods.map(p => `<option value="${p}" ${p === data.currentSheet ? 'selected' : ''}>${p}</option>`).join('');
-      if (allPeriods.length) loadPeriodStudents();
-    }).getCodData();
-
-    function loadPeriodStudents() {
-      currentPeriod = $('periodSelect').value; if (!currentPeriod) return;
-      $('studentSelect').innerHTML = '<option value="">Loading...</option>';
-      $('studentInfoSection').style.display = $('depositSection').style.display = 'none';
-      google.script.run.withSuccessHandler(students => {
-        studentData = {};
-        $('studentSelect').innerHTML = '<option value="">-- Select a student --</option>' + 
-          students.map(s => { studentData[s.row] = s; return `<option value="${s.row}">${s.name}</option>`; }).join('');
-      }).getStudentsForPeriod(currentPeriod);
-    }
-
-    function loadStudentData() {
-      const row = $('studentSelect').value;
-      if (!row) {
-        $('studentInfoSection').style.display = $('depositSection').style.display = 'none';
-        $('tabCurrentCod').disabled = $('tabDepositInput').disabled = true;
-        if (projectionMode !== 'custom') switchProjectionMode('custom');
-        return;
-      }
-      currentStudent = studentData[row];
-      $('tabCurrentCod').disabled = $('tabDepositInput').disabled = false;
-      $('studentInfoSection').style.display = $('depositSection').style.display = 'block';
-      
-      $('cashAmount').textContent = `$${currentStudent.cash.toFixed(2)}`;
-      $('codAmount').textContent = `$${currentStudent.cod.toFixed(2)}`;
-      
-      if (currentStudent.purchaseDate && currentStudent.cod > 0) {
-        $('purchaseDateBox').style.display = 'block'; $('purchaseDate').textContent = currentStudent.purchaseDate;
-        displayCurrentEarnings();
-        $('warningBox').style.display = currentStudent.daysSincePurchase < 14 ? 'block' : 'none';
-        $('warningBox').textContent = `⚠️ Lockout active: ${currentStudent.daysSincePurchase} days elapsed, ${14 - currentStudent.daysSincePurchase} remaining`;
-      } else {
-        $('purchaseDateBox').style.display = $('currentEarningsBox').style.display = $('warningBox').style.display = 'none';
-      }
-      validateDeposit();
-    }
-
-    function displayCurrentEarnings() {
-      const weeks = currentStudent.weeksSincePurchase, p = currentStudent.cod, r = WEEKLY_RATE / 100;
-      const total = interestMode === 'compound' ? p * Math.pow(1 + r, weeks) : p + (p * r * weeks);
-      $('currentEarnings').textContent = `$${total.toFixed(2)}`;
-      $('currentEarningsDetail').textContent = `Principal: $${p.toFixed(2)} + Int: $${(total-p).toFixed(2)} over ${weeks} weeks`;
-      $('currentEarningsBox').style.display = 'block';
-    }
-
-    function setInterestMode(mode) {
-      interestMode = mode;
-      $('btnCompound').classList.toggle('active', mode === 'compound');
-      $('btnSimple').classList.toggle('active', mode === 'simple');
-      if (currentStudent) displayCurrentEarnings();
-      calculateProjections();
-    }
-
-    function switchProjectionMode(mode) {
-      projectionMode = mode;
-      ['tabCurrentCod', 'tabCustomAmount', 'tabDepositInput'].forEach(t => $(t).classList.remove('active'));
-      $('customAmountInput').style.display = mode === 'custom' ? 'block' : 'none';
-      $('depositInputInfo').style.display = mode === 'deposit' ? 'block' : 'none';
-      $(`tab${mode.charAt(0).toUpperCase() + mode.slice(1)}${mode==='current'?'Cod':mode==='custom'?'Amount':'Input'}`).classList.add('active');
-      if (mode === 'custom' && currentStudent) $('customAmount').value = currentStudent.cod.toFixed(2);
-      calculateProjections();
-    }
-
-    function calculateProjections() {
-      let p = 0, wk = 0, r = WEEKLY_RATE / 100;
-      if (projectionMode === 'current' && currentStudent) { p = currentStudent.cod; wk = currentStudent.weeksSincePurchase || 0; }
-      else if (projectionMode === 'custom') { p = parseFloat($('customAmount').value) || 0; wk = parseInt($('customWeek').value) || 0; $('customRate').value = `${wk * WEEKLY_RATE}%`; }
-      else if (projectionMode === 'deposit' && currentStudent) {
-        let cur = currentStudent.cod;
-        if (cur > 0 && currentStudent.weeksSincePurchase > 0) cur += currentStudent.cod * (r * currentStudent.weeksSincePurchase);
-        p = cur + (parseFloat($('depositAmount').value) || 0);
-        $('depositInputValue').textContent = `$${p.toFixed(2)}`;
-      }
-      if (p <= 0) { $('projectionCurrentBox').style.display = $('projectionsSection').style.display = 'none'; return; }
-
-      const curTotal = interestMode === 'compound' ? p * Math.pow(1 + r, wk) : p + (p * r * wk);
-      $('projectionCurrentBox').style.display = 'block'; $('projectionWeeks').textContent = wk;
-      $('projectionCurrentValue').textContent = `$${curTotal.toFixed(2)} (+$${(curTotal-p).toFixed(2)} int)`;
-
-      let dlWeek = null;
-      if (finalDeadlineDate && currentStudent?.purchaseDate) dlWeek = Math.floor((finalDeadlineDate - new Date(currentStudent.purchaseDate)) / 604800000);
-
-      $('projectionContainer').innerHTML = Array.from({length: 53}, (_, w) => {
-        const tot = interestMode === 'compound' ? p * Math.pow(1 + r, w) : p + (p * r * w);
-        const rateLbl = interestMode === 'compound' ? (((tot/p)-1)*100).toFixed(1) : (w*WEEKLY_RATE).toFixed(0);
-        let cls = w === wk ? 'current-week ' : ''; if (dlWeek !== null && w >= dlWeek) cls += 'deadline-week';
-        let b = w === wk ? '<span class="current-badge">START</span>' : '';
-        if (dlWeek !== null) b += w === dlWeek ? '<span class="deadline-badge">DEADLINE</span>' : w > dlWeek ? '<span class="deadline-badge">CLOSED</span>' : '';
-        return `<div class="projection-item ${cls}"><div><span class="projection-week">Week ${w}</span><span class="projection-rate">(${rateLbl}%)</span>${b}</div><span class="projection-amount">$${tot.toFixed(2)}</span></div>`;
-      }).join('');
-      $('projectionsSection').style.display = 'block';
-      const items = $('projectionContainer').querySelectorAll('.projection-item');
-      if (items[wk]) requestAnimationFrame(() => items[wk].scrollIntoView({ behavior: 'smooth', block: 'center' }));
-    }
-
-    function setDepositAll() { if (currentStudent) { $('depositAmount').value = currentStudent.cash.toFixed(2); validateDeposit(); } }
-    
-    function validateDeposit() {
-      if (!currentStudent) return false;
-      const amt = parseFloat($('depositAmount').value) || 0, over = $('overrideCheck').checked;
-      if (projectionMode === 'deposit') debouncedCalc();
-      
-      let err = "";
-      if (amt > currentStudent.cash) err = `❌ Insufficient funds. Max: $${currentStudent.cash.toFixed(2)}`;
-      else if (!over && currentStudent.daysSincePurchase < 14 && amt > 0) err = `❌ Lockout active (${currentStudent.daysSincePurchase} days elapsed). Check Override.`;
-      
-      $('errorBox').style.display = err ? 'block' : 'none'; $('errorBox').textContent = err;
-      $('depositBtn').disabled = !!err || amt <= 0;
-      $('withdrawBtn').disabled = !(currentStudent.cod > 0 && (currentStudent.daysSincePurchase >= 14 || over));
-      return !err;
-    }
-
-    function processDeposit() {
-      if (!validateDeposit()) return;
-      $('depositBtn').disabled = true;
-      google.script.run.withSuccessHandler(res => {
-        alert(`✅ Deposit successful!\n\nNew Balance: $${res.newCodBalance.toFixed(2)}`); refreshStudentData();
-      }).withFailureHandler(e => { alert('❌ Error: ' + e.message); $('depositBtn').disabled = false; })
-      .depositToCod(currentPeriod, parseInt(currentStudent.row), parseFloat($('depositAmount').value), $('overrideCheck').checked);
-    }
-
-    function processWithdrawal() {
-      const over = $('overrideCheck').checked;
-      if (!over && currentStudent.daysSincePurchase < 14) return alert('Cannot withdraw during lock.');
-      $('withdrawBtn').disabled = true;
-      google.script.run.withSuccessHandler(res => {
-        alert(`✅ Withdrawn: $${res.totalWithdrawn.toFixed(2)}`); refreshStudentData();
-      }).withFailureHandler(e => { alert('❌ Error: ' + e.message); $('withdrawBtn').disabled = false; })
-      .withdrawFromCod(currentPeriod, parseInt(currentStudent.row), over);
-    }
-
-    function refreshStudentData() {
-      const r = currentStudent.row; loadPeriodStudents();
-      setTimeout(() => { $('studentSelect').value = r; loadStudentData(); }, 600);
-    }
-  </script>
 </body>
+
 </html>
