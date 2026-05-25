@@ -148,6 +148,86 @@
       padding: 8px;
       margin-bottom: 6px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .record-item:hover {
+      background: #f6f8fa;
+      border-color: #d1d5da;
+    }
+
+    .record-item.selected {
+      background: #2d3748;
+      color: white;
+      border-color: #1a202c;
+    }
+
+    .record-item.selected .record-student,
+    .record-item.selected .record-details {
+      color: white;
+    }
+
+    .record-item.selected .record-detail-label {
+      color: #cbd5e0;
+    }
+
+    .record-item.selected .record-detail-value {
+      color: white;
+    }
+
+    .record-item.selected .record-amount.positive {
+      color: #68d391;
+    }
+
+    .record-item.selected .record-amount.negative {
+      color: #fc8181;
+    }
+
+    .record-item-content {
+      flex: 1;
+    }
+
+    .record-item-checkbox {
+      display: none;
+    }
+
+    .log-action-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 8px;
+      background: #fff;
+      border-radius: 4px;
+      border: 1px solid #e1e4e8;
+    }
+
+    .btn-undo-selected {
+      padding: 6px 10px;
+      background: #d73a49;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      white-space: nowrap;
+    }
+
+    .btn-undo-selected:hover:not(:disabled) {
+      background: #cb2431;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-undo-selected:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .record-item.income {
@@ -367,14 +447,108 @@
       </div>
     </div>
 
+    <!-- Action Bar -->
+    <div class="log-action-bar">
+      <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+    </div>
+
     <!-- Records Container -->
     <div class="records-container" id="recordsContainer">
-      <div class="empty-state">
-        <div class="empty-state-icon">📭</div>
-        <div>No transactions found. Use filters to search.</div>
+      <!-- Example Transaction 1 -->
+      <div class="record-item income" data-selectable="true">
+        <div class="record-item-content">
+          <div class="record-header">
+            <span class="record-student">Alex Chen</span>
+            <span class="record-type income">Income</span>
+          </div>
+          <div class="record-details">
+            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5041</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-25-2026</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">2</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span class="record-detail-value">Homework</span></div>
+          </div>
+          <div class="record-amount positive">$45.50 + $5.00 = $50.50</div>
+        </div>
+      </div>
+
+      <!-- Example Transaction 2 -->
+      <div class="record-item spending" data-selectable="true">
+        <div class="record-item-content">
+          <div class="record-header">
+            <span class="record-student">Marcus Johnson</span>
+            <span class="record-type spending">Spending</span>
+          </div>
+          <div class="record-details">
+            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5040</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-25-2026</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">3</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span class="record-detail-value">Movie Pass</span></div>
+          </div>
+          <div class="record-amount negative">$32.00 - $12.50 = $19.50</div>
+        </div>
+      </div>
+
+      <!-- Example Transaction 3 -->
+      <div class="record-item deposit" data-selectable="true">
+        <div class="record-item-content">
+          <div class="record-header">
+            <span class="record-student">Emma Rodriguez</span>
+            <span class="record-type deposit">Deposit</span>
+          </div>
+          <div class="record-details">
+            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5039</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-24-2026</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">1</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Amount:</span> <span class="record-detail-value">$25.00</span></div>
+          </div>
+          <div class="record-amount positive">$55.25 + $25.00 = $80.25 CoD</div>
+        </div>
+      </div>
+
+      <!-- Example Transaction 4 -->
+      <div class="record-item withdraw" data-selectable="true">
+        <div class="record-item-content">
+          <div class="record-header">
+            <span class="record-student">Jordan Taylor</span>
+            <span class="record-type withdraw">Withdraw</span>
+          </div>
+          <div class="record-details">
+            <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span class="record-detail-value">#5038</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span class="record-detail-value">5-23-2026</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span class="record-detail-value">4</span></div>
+            <div class="record-detail-item"><span class="record-detail-label">Earnings:</span> <span class="record-detail-value">+$8.75</span></div>
+          </div>
+          <div class="record-amount positive">$25.00 + $8.75 = $33.75</div>
+        </div>
       </div>
     </div>
   </div>
-</body>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Handle click-to-select for all record items
+      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+        item.addEventListener('click', function(e) {
+          e.stopPropagation();
+          this.classList.toggle('selected');
+          updateUndoButtonState();
+        });
+      });
 
-</html>
+      // Update undo button enabled state based on selected items
+      function updateUndoButtonState() {
+        const undoBtn = document.getElementById('undoSelectedBtn');
+        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+        undoBtn.disabled = selectedItems.length === 0;
+      }
+
+      // Deselect all when clicking outside
+      document.addEventListener('click', function() {
+        if (event.target === document.body || event.target === document.documentElement) {
+          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+            item.classList.remove('selected');
+          });
+          updateUndoButtonState();
+        }
+      });
+    });
+  </script>

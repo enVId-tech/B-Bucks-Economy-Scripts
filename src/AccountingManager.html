@@ -58,45 +58,102 @@
     }
 
     .log-header {
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      color: #586069;
-      letter-spacing: 0.5px;
-      padding-bottom: 6px;
-      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      color: #0366d6;
       border-bottom: 1px solid #e1e4e8;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
     }
 
     .log-item {
       padding: 8px;
       margin-bottom: 6px;
-      border-left: 3px solid #0366d6;
-      font-size: 11px;
-      border-radius: 3px;
+      border: 1px solid #e1e4e8;
+      border-radius: 4px;
       background: #fff;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: all 0.15s;
     }
 
-    .student-name {
-      font-weight: 600;
-      font-size: 12px;
+    .log-item:hover {
+      background: #f6f8fa;
+      border-color: #d1d5da;
+    }
+
+    .log-item.selected {
+      background: #2d3748;
+      color: white;
+      border-color: #1a202c;
+    }
+
+    .log-item.selected .log-item-content,
+    .log-item.selected .log-item-name,
+    .log-item.selected .log-item-id,
+    .log-item.selected .log-item-date,
+    .log-item.selected .log-item-math {
+      color: white;
+    }
+
+    .log-item.selected .log-item-math.positive {
+      color: #68d391;
+    }
+
+    .log-item.selected .log-item-math.negative {
+      color: #fc8181;
+    }
+
+    .log-item-content {
+      flex: 1;
+    }
+
+    .log-item-header {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .log-item-name {
+      font-weight: 700;
+      font-size: 11px;
       color: #24292e;
-      margin-bottom: 2px;
     }
 
-    .section-name {
+    .log-item-id {
       font-size: 10px;
       color: #6a737d;
-      margin-bottom: 3px;
+      font-family: monospace;
     }
 
-    .log-math {
-      font-weight: 600;
-      font-size: 12px;
-      text-align: right;
-      margin-top: 4px;
+    .log-item-date {
+      font-size: 10px;
+      color: #6a737d;
+      margin-left: auto;
+    }
+
+    .log-item-math {
+      font-weight: 700;
+      font-size: 11px;
       font-family: monospace;
+      color: #24292e;
+      line-height: 1.4;
+    }
+
+    .log-item-math.negative {
+      color: #d73a49;
+    }
+
+    .log-item-math.positive {
+      color: #28a745;
+    }
+
+    .log-item-checkbox {
+      display: none;
     }
 
     .neg { color: #d73a49; }
@@ -219,6 +276,41 @@
       flex: 1;
       overflow-y: auto;
     }
+
+    .log-action-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 8px;
+      background: #fff;
+      border-radius: 4px;
+      border: 1px solid #e1e4e8;
+    }
+
+    .btn-undo-selected {
+      padding: 6px 10px;
+      background: #d73a49;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      white-space: nowrap;
+    }
+
+    .btn-undo-selected:hover:not(:disabled) {
+      background: #cb2431;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-undo-selected:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -226,9 +318,10 @@
   <div class="main-content">
     <!-- Controls Panel -->
     <div class="controls">
-      <!-- Card: Quick Adjustments -->
+      <!-- CARD 1: Quick Adjustments -->
       <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div class="section-label" style="margin-top: 0;">Quick Adjustments</div>
+        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;\">💰 Quick Adjustments</div>
+        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Instant balance modifications</div>
         <div class="btn-group">
           <button class="btn btn-add">+1</button>
           <button class="btn btn-remove">-1</button>
@@ -241,9 +334,10 @@
         </div>
       </div>
 
-      <!-- Card: Math Operations -->
+      <!-- CARD 2: Math Operations -->
       <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div class="section-label" style="margin-top: 0;">Multiply / Divide</div>
+        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">🧮 Multiply / Divide</div>
+        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Scale balances by factor</div>
         <div class="btn-group">
           <button class="btn btn-math">×2</button>
           <button class="btn btn-math">÷2</button>
@@ -252,40 +346,122 @@
         </div>
       </div>
 
-      <!-- Card: Custom Input -->
+      <!-- CARD 3: Custom Input -->
       <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div class="section-label" style="margin-top: 0;">Custom Amount</div>
+        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">✏️ Custom Amount</div>
+        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Manual entry with format support</div>
         <label for="customInput" class="section-label" style="margin-top: 6px;">Input</label>
         <input type="text" id="customInput" placeholder="Enter amount...">
         <div class="toggle-container" style="margin-top: 6px;">
           <input type="checkbox" id="enterToggle" checked>
           <label for="enterToggle">Auto-Submit</label>
         </div>
-        <button class="btn btn-add" style="width: 100%; margin-top: 6px;">Add Custom Amount</button>
+        <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Add Custom Amount</button>
       </div>
 
-      <!-- Card: Guide -->
+      <!-- CARD 4: Format Guide -->
       <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div class="section-label" style="margin-top: 0; margin-bottom: 4px;">Input Format</div>
-        <div class="guide" style="margin: 0;">
+        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">📋 Input Format</div>
+        <div class="guide" style="margin: 0; margin-top: 4px;\">
           <b>10</b> = add $10 | <b>-5</b> = subtract $5<br>
           <b>*2</b> = double | <b>/4</b> = quarter
         </div>
       </div>
 
-      <!-- Footer: History Control -->
-      <div class="section-footer" style="padding: 6px 8px; background: #f6f8fa; border-radius: 4px; border: 1px solid #e1e4e8;">
-        <label for="logLimit">Show last:</label>
-        <input type="number" id="logLimit" value="25" min="1">
+      <!-- CARD 5: History Control -->
+      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: auto;">
+        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">📝 Log Display</div>
+        <label for="logLimit" style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px;">Recent Entries</label>
+        <input type="number" id="logLimit" value="25" min="1" style="width: 100%;">
       </div>
     </div>
 
     <!-- Activity Log Panel -->
     <div class="log-panel">
       <div class="log-header">Activity Log</div>
-      <div id="log-container"></div>
+      
+      <!-- Search & Filter Controls -->
+      <div style="display: flex; gap: 8px; margin-bottom: 8px; padding: 8px; background: #fff; border-radius: 4px; border: 1px solid #e1e4e8;">
+        <div style="flex: 1;">
+          <label style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Search Name</label>
+          <input type="text" id="logSearchName" placeholder="Search by name..." style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Transaction Date</label>
+          <input type="date" id="logFilterDate" style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
+        </div>
+      </div>
+
+      <!-- Undo Action Bar -->
+      <div class="log-action-bar">
+        <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+      </div>
+      
+      <div id="log-container">
+        <!-- Example Entry 1 -->
+        <div class="log-item" data-selectable="true">
+          <div class="log-item-content">
+            <div class="log-item-header">
+              <span class="log-item-name">Sarah Mitchell</span>
+              <span class="log-item-id">TXN#2847</span>
+              <span class="log-item-date">5-25-2026</span>
+            </div>
+            <div class="log-item-math positive">$45.50 + $10.00 = $55.50</div>
+          </div>
+        </div>
+        <!-- Example Entry 2 -->
+        <div class="log-item" data-selectable="true">
+          <div class="log-item-content">
+            <div class="log-item-header">
+              <span class="log-item-name">Marcus Johnson</span>
+              <span class="log-item-id">TXN#2846</span>
+              <span class="log-item-date">5-25-2026</span>
+            </div>
+            <div class="log-item-math negative">$32.00 - $5.00 = $27.00</div>
+          </div>
+        </div>
+        <!-- Example Entry 3 -->
+        <div class="log-item" data-selectable="true">
+          <div class="log-item-content">
+            <div class="log-item-header">
+              <span class="log-item-name">Emma Rodriguez</span>
+              <span class="log-item-id">TXN#2845</span>
+              <span class="log-item-date">5-24-2026</span>
+            </div>
+            <div class="log-item-math positive">$20.00 × 2 = $40.00</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-</body>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Handle click-to-select for all log items
+      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+        item.addEventListener('click', function(e) {
+          e.stopPropagation();
+          this.classList.toggle('selected');
+          updateUndoButtonState();
+        });
+      });
 
+      // Update undo button enabled state based on selected items
+      function updateUndoButtonState() {
+        const undoBtn = document.getElementById('undoSelectedBtn');
+        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+        undoBtn.disabled = selectedItems.length === 0;
+      }
+
+      // Deselect all when clicking outside
+      document.addEventListener('click', function() {
+        if (event.target === document.body || event.target === document.documentElement) {
+          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+            item.classList.remove('selected');
+          });
+          updateUndoButtonState();
+        }
+      });
+    });
+  </script>
+</body>
 </html>
