@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "ncu": "npx npm-check-updates -u && npm install --force",
-    "push": "npm run build && clasp push",
-    "build": "tsc --outDir ./src/dist --rootDir ./src --allowJs --checkJs"
+    "build": "tsc && copy src\\*.html dist\\ && copy src\\appsscript.json dist\\",
+    "push": "npm run build && npx @google/clasp push"
   },
   "repository": {
     "type": "git",

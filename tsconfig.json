@@ -5,7 +5,9 @@
     "lib": ["es2019"],
     "experimentalDecorators": true,
     "noImplicitAny": false,
-    "types": ["google-apps-script"]
+    "types": ["google-apps-script"],
+    "rootDir": "./src",
+    "outDir": "./dist" 
   },
   "include": ["src/**/*"]
 }
