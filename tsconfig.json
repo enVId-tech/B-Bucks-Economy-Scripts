@@ -6,5 +6,6 @@
     "experimentalDecorators": true,
     "noImplicitAny": false,
     "types": ["google-apps-script"]
-  }
+  },
+  "include": ["src/**/*"]
 }

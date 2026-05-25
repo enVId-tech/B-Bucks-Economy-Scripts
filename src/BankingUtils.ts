@@ -3,7 +3,7 @@
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  */
-function applyMathToSelection(operation: string, value: number) {
+function applyMathToSelection(operation: string, value: number): void {
   if (!operation || !value) throw new Error("You must have an operation and a value");
 
   let sheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -29,7 +29,7 @@ function applyMathToSelection(operation: string, value: number) {
 }
 
 function moveToCell(amount: number, finalCell: GoogleAppsScript.Spreadsheet.Range, initialCell: GoogleAppsScript.Spreadsheet.Range) {
-  
+
 }
 
 function commentOnCell() {

@@ -4,7 +4,9 @@
   "description": "A central location for my Google Sheets App Scripts code for a classroom economic system.",
   "main": "index.js",
   "scripts": {
-    "ncu": "npx npm-check-updates -u && npm install --force"
+    "ncu": "npx npm-check-updates -u && npm install --force",
+    "push": "npm run build && clasp push",
+    "build": "tsc --outDir ./src/dist --rootDir ./src --allowJs --checkJs"
   },
   "repository": {
     "type": "git",
@@ -19,6 +21,7 @@
   },
   "homepage": "https://github.com/enVId-tech/B-Bucks-Economy-Scripts#readme",
   "devDependencies": {
-    "@types/google-apps-script": "^2.0.9"
+    "@types/google-apps-script": "^2.0.9",
+    "typescript": "^6.0.3"
   }
 }
