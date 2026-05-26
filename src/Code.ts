@@ -22,6 +22,7 @@ function onOpen(): void {
     .addItem('Reset Historical Records', 'resetHistoricalRecords')
     .addSeparator()
     .addItem('Banking Settings', 'openBankingSettings')
+    .addItem('Import Student Names', 'importStudentNames')
     .addToUi();
 }
 
@@ -83,6 +84,15 @@ function openBankingSettings(): void {
     .setHeight(700);
 
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Banking Settings");
+}
+
+function importStudentNames(): void {
+  const html = HtmlService.createHtmlOutputFromFile('FillSheet')
+    .setTitle("Bank of Banderas - Fill Sheet")
+    .setWidth(550)
+    .setHeight(700);
+
+  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Fill Sheet");
 }
 
 /**
