@@ -1,7 +1,9 @@
 // Coded by Erick Tran for Mr. Banderas, 2026
-// This file contains the main code for the B-Bucks Economy Scripts project, including menu creation and dialog management.
-// Script licensed under the MIT License.
+// Copyright (c) 2026 Erick Tran. All rights reserved.
+// This file is licensed under the MIT License, check the LICENSE file for details.
+
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+// This file contains the main entry point for the B-Bucks Economy Scripts project, including the onOpen function that creates a custom menu in the Google Sheets UI and various functions for opening dialogs and performing operations related to the B-Bucks Economy.
 
 /**
  * Creates a custom dropdown menu in the Google Sheets UI when the spreadsheet is opened, 

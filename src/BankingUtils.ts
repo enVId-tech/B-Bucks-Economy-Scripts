@@ -1,7 +1,9 @@
 // Coded by Erick Tran for Mr. Banderas, 2026
-// This file contains utility functions for banking operations in the B-Bucks Economy Scripts project.
-// Script licensed under the MIT License.
+// Copyright (c) 2026 Erick Tran. All rights reserved.
+// This file is licensed under the MIT License, check the LICENSE file for details.
+
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+// This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including mathematical operations on cell values, moving values between cells, and adding comments to cells.
 
 enum Operation {
   ADD = "ADD",
