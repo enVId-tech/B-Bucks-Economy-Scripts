@@ -54,10 +54,10 @@ function openInvestmentsManager(): void {
  */
 function showIncomeConsumables() {
   const html = HtmlService.createHtmlOutputFromFile('PricingManager')
-      .setTitle('Bank of Banderas - Income / Consumables Menu')
-      .setWidth(500)
-      .setHeight(700);
-      
+    .setTitle('Bank of Banderas - Income / Consumables Menu')
+    .setWidth(500)
+    .setHeight(700);
+
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Income / Consumables");
 }
 
@@ -108,7 +108,7 @@ function resetHistoricalRecords(): void {
     'Are you sure you want to reset all historical records? This action cannot be undone.',
     ui.ButtonSet.YES_NO
   );
-  
+
   if (response === ui.Button.YES) {
     ui.alert("✅ Historical records have been reset.");
   }

@@ -1,514 +1,569 @@
+<!-- Coded by Erick Tran for Mr. Banderas, 2026 -->
+<!-- This file contains the HTML structure for the Accounting Manager, which allows users to manually adjust B-Bucks balances, view transaction logs, and perform quick math operations on selected cells. -->
+<!-- Script licensed under the MIT License -->
+<!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accounting Manager</title>
-  <style>
-    * {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-sizing: border-box;
-      user-select: none;
-    }
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accounting Manager</title>
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-sizing: border-box;
+            user-select: none;
+        }
 
-    input[type="text"],
-    input[type="number"] {
-      user-select: text;
-    }
+        input[type="text"],
+        input[type="number"] {
+            user-select: text;
+        }
 
-    body {
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      width: 100vw;
-      background: #fafbfc;
-      overflow: hidden;
-      font-size: 12px;
-      color: #24292e;
-    }
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background: #fafbfc;
+            overflow: hidden;
+            font-size: 12px;
+            color: #24292e;
+        }
 
-    .nav-header {
-      background: #fff;
-      border-bottom: 1px solid #e1e4e8;
-      display: flex;
-      gap: 0;
-      padding: 0;
-      overflow-x: auto;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
+        .nav-header {
+            background: #fff;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            gap: 0;
+            padding: 0;
+            overflow-x: auto;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
 
-    .nav-link {
-      padding: 10px 14px;
-      border: none;
-      background: #fff;
-      color: #6a737d;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 500;
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
+        .nav-link {
+            padding: 10px 14px;
+            border: none;
+            background: #fff;
+            color: #6a737d;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
-    .nav-link:hover {
-      color: #24292e;
-      background: #f6f8fa;
-    }
+        .nav-link:hover {
+            color: #24292e;
+            background: #f6f8fa;
+        }
 
-    .nav-link.active {
-      color: #0366d6;
-      border-bottom-color: #0366d6;
-    }
+        .nav-link.active {
+            color: #0366d6;
+            border-bottom-color: #0366d6;
+        }
 
-    .main-content {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-      width: 100vw;
-    }
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            width: 100vw;
+        }
 
-    .controls {
-      width: 48%;
-      padding: 10px;
-      border-right: 1px solid #e1e4e8;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      overflow-y: auto;
-      background: #fff;
-    }
+        .controls {
+            width: 48%;
+            padding: 10px;
+            border-right: 1px solid #e1e4e8;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            background: #fff;
+        }
 
-    .log-panel {
-      width: 52%;
-      padding: 10px;
-      background: #fafbfc;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      border-left: 1px solid #e1e4e8;
-    }
+        .log-panel {
+            width: 52%;
+            padding: 10px;
+            background: #fafbfc;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #e1e4e8;
+        }
 
-    .log-header {
-      font-weight: 700;
-      font-size: 12px;
-      color: #0366d6;
-      border-bottom: 1px solid #e1e4e8;
-      padding-bottom: 4px;
-      margin-bottom: 6px;
-    }
+        .log-header {
+            font-weight: 700;
+            font-size: 12px;
+            color: #0366d6;
+            border-bottom: 1px solid #e1e4e8;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
 
-    .log-item {
-      padding: 8px;
-      margin-bottom: 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 4px;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
+        .log-item {
+            padding: 8px;
+            margin-bottom: 6px;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
 
-    .log-item:hover {
-      background: #f6f8fa;
-      border-color: #d1d5da;
-    }
+        .log-item:hover {
+            background: #f6f8fa;
+            border-color: #d1d5da;
+        }
 
-    .log-item.selected {
-      background: #2d3748;
-      color: white;
-      border-color: #1a202c;
-    }
+        .log-item.selected {
+            background: #2d3748;
+            color: white;
+            border-color: #1a202c;
+        }
 
-    .log-item.selected .log-item-content,
-    .log-item.selected .log-item-name,
-    .log-item.selected .log-item-id,
-    .log-item.selected .log-item-date,
-    .log-item.selected .log-item-math {
-      color: white;
-    }
+        .log-item.selected .log-item-content,
+        .log-item.selected .log-item-name,
+        .log-item.selected .log-item-id,
+        .log-item.selected .log-item-date,
+        .log-item.selected .log-item-math {
+            color: white;
+        }
 
-    .log-item.selected .log-item-math.positive {
-      color: #68d391;
-    }
+        .log-item.selected .log-item-math.positive {
+            color: #68d391;
+        }
 
-    .log-item.selected .log-item-math.negative {
-      color: #fc8181;
-    }
+        .log-item.selected .log-item-math.negative {
+            color: #fc8181;
+        }
 
-    .log-item-content {
-      flex: 1;
-    }
+        .log-item-content {
+            flex: 1;
+        }
 
-    .log-item-header {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      margin-bottom: 4px;
-    }
+        .log-item-header {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 4px;
+        }
 
-    .log-item-name {
-      font-weight: 700;
-      font-size: 11px;
-      color: #24292e;
-    }
+        .log-item-name {
+            font-weight: 700;
+            font-size: 11px;
+            color: #24292e;
+        }
 
-    .log-item-id {
-      font-size: 10px;
-      color: #6a737d;
-      font-family: monospace;
-    }
+        .log-item-id {
+            font-size: 10px;
+            color: #6a737d;
+            font-family: monospace;
+        }
 
-    .log-item-date {
-      font-size: 10px;
-      color: #6a737d;
-      margin-left: auto;
-    }
+        .log-item-date {
+            font-size: 10px;
+            color: #6a737d;
+            margin-left: auto;
+        }
 
-    .log-item-math {
-      font-weight: 700;
-      font-size: 11px;
-      font-family: monospace;
-      color: #24292e;
-      line-height: 1.4;
-    }
+        .log-item-math {
+            font-weight: 700;
+            font-size: 11px;
+            font-family: monospace;
+            color: #24292e;
+            line-height: 1.4;
+        }
 
-    .log-item-math.negative {
-      color: #d73a49;
-    }
+        .log-item-math.negative {
+            color: #d73a49;
+        }
 
-    .log-item-math.positive {
-      color: #28a745;
-    }
+        .log-item-math.positive {
+            color: #28a745;
+        }
 
-    .log-item-checkbox {
-      display: none;
-    }
+        .log-item-checkbox {
+            display: none;
+        }
 
-    .neg { color: #d73a49; }
-    .pos { color: #28a745; }
-    .zero { color: #24292e; }
+        .neg {
+            color: #d73a49;
+        }
 
-    .btn-group {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 5px;
-    }
+        .pos {
+            color: #28a745;
+        }
 
-    .btn {
-      color: white;
-      border: none;
-      padding: 8px 4px;
-      border-radius: 3px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 11px;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    }
+        .zero {
+            color: #24292e;
+        }
 
-    .btn:hover:not(:disabled) {
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-      transform: translateY(-1px);
-    }
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+        }
 
-    .btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
+        .btn {
+            color: white;
+            border: none;
+            padding: 8px 4px;
+            border-radius: 3px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+        .btn:hover:not(:disabled) {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+        }
 
-    .btn-add { background: #28a745; }
-    .btn-add:hover:not(:disabled) { background: #218838; }
-    .btn-remove { background: #d73a49; }
-    .btn-remove:hover:not(:disabled) { background: #cb2431; }
-    .btn-math { background: #0366d6; }
-    .btn-math:hover:not(:disabled) { background: #0256c7; }
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
 
-    input {
-      width: 100%;
-      padding: 6px 8px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-      font-size: 11px;
-      transition: border 0.1s;
-    }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-    input:focus {
-      outline: none;
-      border-color: #0366d6;
-      box-shadow: inset 0 0 0 1px #0366d6;
-    }
+        .btn-add {
+            background: #28a745;
+        }
 
-    .section-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: #586069;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 6px;
-      margin-bottom: 3px;
-    }
+        .btn-add:hover:not(:disabled) {
+            background: #218838;
+        }
 
-    .guide {
-      font-size: 9px;
-      color: #6a737d;
-      line-height: 1.5;
-      background: #f6f8fa;
-      padding: 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-    }
+        .btn-remove {
+            background: #d73a49;
+        }
 
-    .guide b {
-      color: #24292e;
-      font-weight: 600;
-    }
+        .btn-remove:hover:not(:disabled) {
+            background: #cb2431;
+        }
 
-    .toggle-container {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 10px;
-      color: #6a737d;
-      margin: 4px 0;
-    }
+        .btn-math {
+            background: #0366d6;
+        }
 
-    .toggle-container input[type="checkbox"] {
-      width: auto;
-      cursor: pointer;
-      accent-color: #0366d6;
-    }
+        .btn-math:hover:not(:disabled) {
+            background: #0256c7;
+        }
 
-    .section-footer {
-      margin-top: auto;
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #6a737d;
-    }
+        input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            font-size: 11px;
+            transition: border 0.1s;
+        }
 
-    .section-footer label {
-      margin: 0;
-    }
+        input:focus {
+            outline: none;
+            border-color: #0366d6;
+            box-shadow: inset 0 0 0 1px #0366d6;
+        }
 
-    .section-footer input {
-      width: 40px;
-      padding: 4px;
-    }
+        .section-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #586069;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+            margin-bottom: 3px;
+        }
 
-    #log-container {
-      flex: 1;
-      overflow-y: auto;
-    }
+        .guide {
+            font-size: 9px;
+            color: #6a737d;
+            line-height: 1.5;
+            background: #f6f8fa;
+            padding: 6px;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+        }
 
-    .log-action-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-      padding: 8px;
-      background: #fff;
-      border-radius: 4px;
-      border: 1px solid #e1e4e8;
-    }
+        .guide b {
+            color: #24292e;
+            font-weight: 600;
+        }
 
-    .btn-undo-selected {
-      padding: 6px 10px;
-      background: #d73a49;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      font-weight: 600;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      white-space: nowrap;
-    }
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: #6a737d;
+            margin: 4px 0;
+        }
 
-    .btn-undo-selected:hover:not(:disabled) {
-      background: #cb2431;
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
+        .toggle-container input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+            accent-color: #0366d6;
+        }
 
-    .btn-undo-selected:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  </style>
+        .section-footer {
+            margin-top: auto;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #6a737d;
+        }
+
+        .section-footer label {
+            margin: 0;
+        }
+
+        .section-footer input {
+            width: 40px;
+            padding: 4px;
+        }
+
+        #log-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .log-action-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+        }
+
+        .btn-undo-selected {
+            padding: 6px 10px;
+            background: #d73a49;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            white-space: nowrap;
+        }
+
+        .btn-undo-selected:hover:not(:disabled) {
+            background: #cb2431;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
+
+        .btn-undo-selected:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
 </head>
 
 <body>
-  <!-- Navigation Header -->
-  <div class="nav-header">
-    <button class="nav-link active">💰 Manual B-Bucks Modifier</button>
-    <button class="nav-link" onclick="switchToPricingManager();">💸 Income / Consumables</button>
-    <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment Banking</button>
-    <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction Records</button>
-    <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
-  </div>
-
-  <div class="main-content">
-    <!-- Controls Panel -->
-    <div class="controls">
-      <!-- CARD 1: Quick Adjustments -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;\">💰 Quick Adjustments</div>
-        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Instant balance modifications</div>
-        <div class="btn-group">
-          <button class="btn btn-add">+1</button>
-          <button class="btn btn-remove">-1</button>
-          <button class="btn btn-add">+2</button>
-          <button class="btn btn-remove">-2</button>
-          <button class="btn btn-add">+5</button>
-          <button class="btn btn-remove">-5</button>
-          <button class="btn btn-add">+10</button>
-          <button class="btn btn-remove">-10</button>
-        </div>
-      </div>
-
-      <!-- CARD 2: Math Operations -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">🧮 Multiply / Divide</div>
-        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Scale balances by factor</div>
-        <div class="btn-group">
-          <button class="btn btn-math">×2</button>
-          <button class="btn btn-math">÷2</button>
-          <button class="btn btn-math">×5</button>
-          <button class="btn btn-math">÷5</button>
-        </div>
-      </div>
-
-      <!-- CARD 3: Custom Input -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">✏️ Custom Amount</div>
-        <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Manual entry with format support</div>
-        <label for="customInput" class="section-label" style="margin-top: 6px;">Input</label>
-        <input type="text" id="customInput" placeholder="Enter amount...">
-        <div class="toggle-container" style="margin-top: 6px;">
-          <input type="checkbox" id="enterToggle" checked>
-          <label for="enterToggle">Auto-Submit</label>
-        </div>
-        <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Add Custom Amount</button>
-      </div>
-
-      <!-- CARD 4: Format Guide -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
-        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">📋 Input Format</div>
-        <div class="guide" style="margin: 0; margin-top: 4px;\">
-          <b>10</b> = add $10 | <b>-5</b> = subtract $5<br>
-          <b>*2</b> = double | <b>/4</b> = quarter
-        </div>
-      </div>
-
-      <!-- CARD 5: History Control -->
-      <div style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: auto;">
-        <div style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">📝 Log Display</div>
-        <label for="logLimit" style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px;">Recent Entries</label>
-        <input type="number" id="logLimit" value="25" min="1" style="width: 100%;">
-        <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Refresh Log</button>
-      </div>
+    <!-- Navigation Header -->
+    <div class="nav-header">
+        <button class="nav-link active">💰 Manual B-Bucks Modifier</button>
+        <button class="nav-link" onclick="switchToPricingManager();">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment Banking</button>
+        <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction Records</button>
+        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
-    <!-- Activity Log Panel -->
-    <div class="log-panel">
-      <div class="log-header">Activity Log</div>
-      
-      <!-- Search & Filter Controls -->
-      <div style="display: flex; gap: 8px; margin-bottom: 8px; padding: 8px; background: #fff; border-radius: 4px; border: 1px solid #e1e4e8;">
-        <div style="flex: 1;">
-          <label style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Search Name</label>
-          <input type="text" id="logSearchName" placeholder="Search by name..." style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
-        </div>
-        <div style="flex: 1;">
-          <label style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Transaction Date</label>
-          <input type="date" id="logFilterDate" style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
-        </div>
-      </div>
+    <div class="main-content">
+        <!-- Controls Panel -->
+        <div class="controls">
+            <!-- CARD 1: Quick Adjustments -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;\">
+                    💰 Quick Adjustments</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Instant balance modifications</div>
+                <div class="btn-group">
+                    <button class="btn btn-add">+1</button>
+                    <button class="btn btn-remove">-1</button>
+                    <button class="btn btn-add">+2</button>
+                    <button class="btn btn-remove">-2</button>
+                    <button class="btn btn-add">+5</button>
+                    <button class="btn btn-remove">-5</button>
+                    <button class="btn btn-add">+10</button>
+                    <button class="btn btn-remove">-10</button>
+                </div>
+            </div>
 
-      <!-- Undo Action Bar -->
-      <div class="log-action-bar">
-        <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
-      </div>
-      
-      <div id="log-container">
-        <!-- Example Entry 1 -->
-        <div class="log-item" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-item-header">
-              <span class="log-item-name">Sarah Mitchell</span>
-              <span class="log-item-id">TXN#2847</span>
-              <span class="log-item-date">5-25-2026</span>
+            <!-- CARD 2: Math Operations -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    🧮 Multiply / Divide</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Scale balances by factor</div>
+                <div class="btn-group">
+                    <button class="btn btn-math">×2</button>
+                    <button class="btn btn-math">÷2</button>
+                    <button class="btn btn-math">×5</button>
+                    <button class="btn btn-math">÷5</button>
+                </div>
             </div>
-            <div class="log-item-math positive">$45.50 + $10.00 = $55.50</div>
-          </div>
-        </div>
-        <!-- Example Entry 2 -->
-        <div class="log-item" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-item-header">
-              <span class="log-item-name">Marcus Johnson</span>
-              <span class="log-item-id">TXN#2846</span>
-              <span class="log-item-date">5-25-2026</span>
+
+            <!-- CARD 3: Custom Input -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    ✏️ Custom Amount</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Manual entry with format support</div>
+                <label for="customInput" class="section-label" style="margin-top: 6px;">Input</label>
+                <input type="text" id="customInput" placeholder="Enter amount...">
+                <div class="toggle-container" style="margin-top: 6px;">
+                    <input type="checkbox" id="enterToggle" checked>
+                    <label for="enterToggle">Auto-Submit</label>
+                </div>
+                <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Add Custom Amount</button>
             </div>
-            <div class="log-item-math negative">$32.00 - $5.00 = $27.00</div>
-          </div>
-        </div>
-        <!-- Example Entry 3 -->
-        <div class="log-item" data-selectable="true">
-          <div class="log-item-content">
-            <div class="log-item-header">
-              <span class="log-item-name">Emma Rodriguez</span>
-              <span class="log-item-id">TXN#2845</span>
-              <span class="log-item-date">5-24-2026</span>
+
+            <!-- CARD 4: Format Guide -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    📋 Input Format</div>
+                <div class="guide" style="margin: 0; margin-top: 4px;\">
+                    <b>10</b> = add $10 | <b>-5</b> = subtract $5<br>
+                    <b>*2</b> = double | <b>/4</b> = quarter
+                </div>
             </div>
-            <div class="log-item-math positive">$20.00 × 2 = $40.00</div>
-          </div>
+
+            <!-- CARD 5: History Control -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: auto;">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    📝 Log Display</div>
+                <label for="logLimit"
+                    style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px;">Recent
+                    Entries</label>
+                <input type="number" id="logLimit" value="25" min="1" style="width: 100%;">
+                <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Refresh Log</button>
+            </div>
         </div>
-      </div>
+
+        <!-- Activity Log Panel -->
+        <div class="log-panel">
+            <div class="log-header">Activity Log</div>
+
+            <!-- Search & Filter Controls -->
+            <div
+                style="display: flex; gap: 8px; margin-bottom: 8px; padding: 8px; background: #fff; border-radius: 4px; border: 1px solid #e1e4e8;">
+                <div style="flex: 1;">
+                    <label
+                        style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Search
+                        Name</label>
+                    <input type="text" id="logSearchName" placeholder="Search by name..."
+                        style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
+                </div>
+                <div style="flex: 1;">
+                    <label
+                        style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 3px;">Transaction
+                        Date</label>
+                    <input type="date" id="logFilterDate"
+                        style="width: 100%; padding: 5px 6px; border: 1px solid #e1e4e8; border-radius: 3px; font-size: 11px;">
+                </div>
+            </div>
+
+            <!-- Undo Action Bar -->
+            <div class="log-action-bar">
+                <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+            </div>
+
+            <div id="log-container">
+                <!-- Example Entry 1 -->
+                <div class="log-item" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-item-header">
+                            <span class="log-item-name">Sarah Mitchell</span>
+                            <span class="log-item-id">TXN#2847</span>
+                            <span class="log-item-date">5-25-2026</span>
+                        </div>
+                        <div class="log-item-math positive">$45.50 + $10.00 = $55.50</div>
+                    </div>
+                </div>
+                <!-- Example Entry 2 -->
+                <div class="log-item" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-item-header">
+                            <span class="log-item-name">Marcus Johnson</span>
+                            <span class="log-item-id">TXN#2846</span>
+                            <span class="log-item-date">5-25-2026</span>
+                        </div>
+                        <div class="log-item-math negative">$32.00 - $5.00 = $27.00</div>
+                    </div>
+                </div>
+                <!-- Example Entry 3 -->
+                <div class="log-item" data-selectable="true">
+                    <div class="log-item-content">
+                        <div class="log-item-header">
+                            <span class="log-item-name">Emma Rodriguez</span>
+                            <span class="log-item-id">TXN#2845</span>
+                            <span class="log-item-date">5-24-2026</span>
+                        </div>
+                        <div class="log-item-math positive">$20.00 × 2 = $40.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Handle click-to-select for all log items
-      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-        item.addEventListener('click', function(e) {
-          e.stopPropagation();
-          this.classList.toggle('selected');
-          updateUndoButtonState();
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Handle click-to-select for all log items
+            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+                item.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    this.classList.toggle('selected');
+                    updateUndoButtonState();
+                });
+            });
+
+            // Update undo button enabled state based on selected items
+            function updateUndoButtonState() {
+                const undoBtn = document.getElementById('undoSelectedBtn');
+                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+                undoBtn.disabled = selectedItems.length === 0;
+            }
+
+            // Deselect all when clicking outside
+            document.addEventListener('click', function () {
+                if (event.target === document.body || event.target === document.documentElement) {
+                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                    updateUndoButtonState();
+                }
+            });
         });
-      });
-
-      // Update undo button enabled state based on selected items
-      function updateUndoButtonState() {
-        const undoBtn = document.getElementById('undoSelectedBtn');
-        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-        undoBtn.disabled = selectedItems.length === 0;
-      }
-
-      // Deselect all when clicking outside
-      document.addEventListener('click', function() {
-        if (event.target === document.body || event.target === document.documentElement) {
-          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-            item.classList.remove('selected');
-          });
-          updateUndoButtonState();
-        }
-      });
-    });
-  </script>
+    </script>
 </body>
+
 </html>
