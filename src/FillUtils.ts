@@ -10,6 +10,8 @@ interface CSVData {
     individuals: string[];
 }
 
+// Sheet is "Reports -> Gb -> Rb Rstr"
+
 /**
  * Parses CSV data into an array of objects.
  * @param csvData The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
@@ -73,19 +75,23 @@ function fillSheetsWithData(data: string): void {
     let sheet: GoogleAppsScript.Spreadsheet.Sheet[] = SpreadsheetApp.getActiveSpreadsheet().getSheets();
 
     const cellToStartFrom = "A7"; // Starting cell for filling data
+    const cellToSetName = "A2"; // Cell to set the identifier name
 
     for (const entry of parsedData) {
         let targetSheet = sheet.find(s => s.getName().includes(entry.identifier.toString()));
+        
         if (!targetSheet) {
             const findSheet = sheet.find(s => s.getName() === "Template");
             if (findSheet) {
                 targetSheet = findSheet.copyTo(SpreadsheetApp.getActiveSpreadsheet());
                 targetSheet.setName("Period " + entry.identifier);
+                targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
             } else {
                 Logger.log("Template sheet not found. Cannot create new sheet for identifier: " + entry.identifier);
                 continue; // Skip to the next entry if template is missing
             }
         }
+
         // Clear existing content before filling new data
         targetSheet.clearContents();
         let lengthParsed = entry.individuals.length;

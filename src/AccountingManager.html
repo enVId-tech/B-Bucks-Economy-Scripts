@@ -387,10 +387,10 @@
     <!-- Navigation Header -->
     <div class="nav-header">
         <button class="nav-link active">💰 Manual B-Bucks Modifier</button>
-        <button class="nav-link" onclick="switchToPricingManager();">💸 Income / Consumables</button>
-        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment Banking</button>
-        <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction Records</button>
-        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
+        <button class="nav-link" onclick="google.scripts.run.switchToPricingManager();">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="google.scripts.run.switchToInvestmentsManager();">📈 Investment Banking</button>
+        <button class="nav-link" onclick="google.scripts.run.switchToTransactionsRecords();">📊 Transaction Records</button>
+        <button class="nav-link" onclick="google.scripts.run.switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
@@ -404,14 +404,14 @@
                     💰 Quick Adjustments</div>
                 <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Instant balance modifications</div>
                 <div class="btn-group">
-                    <button class="btn btn-add">+1</button>
-                    <button class="btn btn-remove">-1</button>
-                    <button class="btn btn-add">+2</button>
-                    <button class="btn btn-remove">-2</button>
-                    <button class="btn btn-add">+5</button>
-                    <button class="btn btn-remove">-5</button>
-                    <button class="btn btn-add">+10</button>
-                    <button class="btn btn-remove">-10</button>
+                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 1);">+1</button>
+                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 1);">-1</button>
+                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 2);">+2</button>
+                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 2);">-2</button>
+                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 5);">+5</button>
+                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 5);">-5</button>
+                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 10);">+10</button>
+                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 10);">-10</button>
                 </div>
             </div>
 
@@ -423,10 +423,10 @@
                     🧮 Multiply / Divide</div>
                 <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Scale balances by factor</div>
                 <div class="btn-group">
-                    <button class="btn btn-math">×2</button>
-                    <button class="btn btn-math">÷2</button>
-                    <button class="btn btn-math">×5</button>
-                    <button class="btn btn-math">÷5</button>
+                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('MULTIPLY', 2);">×2</button>
+                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('DIVIDE', 2);">÷2</button>
+                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('MULTIPLY', 5);">×5</button>
+                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('DIVIDE', 5);">÷5</button>
                 </div>
             </div>
 
@@ -538,10 +538,10 @@
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', () => {
             // Handle click-to-select for all log items
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-                item.addEventListener('click', function (e) {
+                item.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.classList.toggle('selected');
                     updateUndoButtonState();
@@ -556,7 +556,7 @@
             }
 
             // Deselect all when clicking outside
-            document.addEventListener('click', function () {
+            document.addEventListener('click', () => {
                 if (event.target === document.body || event.target === document.documentElement) {
                     document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
                         item.classList.remove('selected');
@@ -564,7 +564,26 @@
                     updateUndoButtonState();
                 }
             });
-        });
+        })
+
+        function applyValue(operation, amount) {
+            switch (operation) {
+                case "ADD":
+                    google.scripts.run.applyMathToSelection("ADD", amount);
+                    break;
+                case "SUBTRACT":
+                    google.scripts.run.applyMathToSelection("SUBTRACT", amount);
+                    break;
+                case "MULTIPLY":
+                    google.scripts.run.applyMathToSelection("MULTIPLY", amount);
+                    break;
+                case "DIVIDE":
+                    google.scripts.run.applyMathToSelection("DIVIDE", amount);
+                    break;
+                default:
+                    Logger.log("Invalid operation: " + operation);
+            }
+        }
     </script>
 </body>
 

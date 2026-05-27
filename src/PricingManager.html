@@ -460,14 +460,14 @@
 <body>
     <!-- Navigation Header -->
     <div class="nav-header">
-        <button class="nav-link" onclick="switchToAccountingManager();">💰 Manual B-Bucks
+        <button class="nav-link" onclick="google.scripts.run.switchToAccountingManager();">💰 Manual B-Bucks
             Modifier</button>
         <button class="nav-link active">💸 Income / Consumables</button>
-        <button class="nav-link" onclick="switchToInvestmentsManager();">📈 Investment
+        <button class="nav-link" onclick="google.scripts.run.switchToInvestmentsManager();">📈 Investment
             Banking</button>
-        <button class="nav-link" onclick="switchToTransactionsRecords();">📊 Transaction
+        <button class="nav-link" onclick="google.scripts.run.switchToTransactionsRecords();">📊 Transaction
             Records</button>
-        <button class="nav-link" onclick="switchToBankingSettings();">⚙️ Banking Settings</button>
+        <button class="nav-link" onclick="google.scripts.run.switchToBankingSettings();">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
@@ -590,10 +590,10 @@
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', () => {
             // Handle click-to-select for all log items
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-                item.addEventListener('click', function (e) {
+                item.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.classList.toggle('selected');
                     updateUndoButtonState();
@@ -608,7 +608,7 @@
             }
 
             // Deselect all when clicking outside
-            document.addEventListener('click', function () {
+            document.addEventListener('click', () => {
                 if (event.target === document.body || event.target === document.documentElement) {
                     document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
                         item.classList.remove('selected');

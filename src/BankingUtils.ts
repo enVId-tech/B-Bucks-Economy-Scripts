@@ -14,21 +14,43 @@ enum Operation {
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
- * @param value The value to use in the mathematical operation. Must be a number.
+ * @param value The value to use in the mathematical operation on the selected cells. Must be a number.
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation, value: number, range?: GoogleAppsScript.Spreadsheet.Range): boolean {
+function applyMathToSelection(operation: Operation | string, value: number, range?: GoogleAppsScript.Spreadsheet.Range): boolean {
   try {
     if (!operation || !value) {
       Logger.log("You must have an operation and a value.");
       return false;
     }
+
     if (typeof value !== 'number' || isNaN(value)) {
       Logger.log("Value must be a number.");
       return false;
     }
-    if (!Object.values(Operation).includes(operation)) {
+
+    if (typeof operation === 'string') {
+      switch (operation.toUpperCase()) {
+        case "ADD":
+          operation = Operation.ADD;
+          break;
+        case "SUBTRACT":
+          operation = Operation.SUBTRACT;
+          break;
+        case "MULTIPLY":
+          operation = Operation.MULTIPLY;
+          break;
+        case "DIVIDE":
+          operation = Operation.DIVIDE;
+          break;
+        default:
+          Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
+          return false;
+      }
+    }
+
+    if (!Object.values(Operation).includes(operation as Operation)) {
       Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
       return false;
     }

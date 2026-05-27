@@ -351,15 +351,6 @@
   </style>
 </head>
 <body>
-  <div class="nav-header">
-    <a class="nav-link" data-page="accounting">💰</a>
-    <a class="nav-link" data-page="pricing">💸</a>
-    <a class="nav-link" data-page="investments">📈</a>
-    <a class="nav-link" data-page="transactions">📊</a>
-    <a class="nav-link" data-page="settings">⚙️</a>
-    <a class="nav-link active" data-page="import">📥</a>
-  </div>
-
   <div class="main-content">
     <div class="card">
       <div class="card-title">📥 Import Data</div>
@@ -374,14 +365,8 @@
       <div class="file-input-wrapper">
         <input type="file" id="csvFile" accept=".csv" />
         <label for="csvFile" class="file-input-label">📂 Choose CSV File</label>
+        <button id="processBtn" class="btn-primary" style="margin-left: 8px;" onclick="processUpload()">Upload</button>
         <div id="fileName" class="file-name-display">No file selected</div>
-      </div>
-
-      <div class="section-label">Preview</div>
-      <div class="preview-area">
-        <div id="previewContent" class="preview-empty">
-          Select a CSV file to preview data
-        </div>
       </div>
 
       <div class="warning-box">
@@ -389,8 +374,8 @@
       </div>
 
       <div class="button-row">
-        <button id="clearBtn">Clear</button>
-        <button id="importBtn" class="btn-primary" disabled>Import Data</button>
+        <button id="clearBtn" onclick="clearFileSelection()">Clear</button>
+        <button id="importBtn" class="btn-primary" disabled onclick="openConfirmModal()">Import Data</button>
       </div>
     </div>
   </div>
@@ -404,10 +389,58 @@
         <p style="margin-top: 8px; color: #d73a49;">This cannot be undone easily. Please review the preview above.</p>
       </div>
       <div class="modal-buttons">
-        <button id="cancelBtn">Cancel</button>
-        <button id="confirmBtn" class="btn-danger">Proceed with Import</button>
+        <button id="cancelBtn" onclick="closeModal()">Cancel</button>
+        <button id="confirmBtn" class="btn-danger" onclick="sendCsvToBackend()">Proceed with Import</button>
       </div>
     </div>
   </div>
+
+  <script>
+    function processUpload() {
+      let fileInput = document.getElementById('csvFile');
+      if (fileInput.files.length === 0) {
+        showStatusMessage("Please select a CSV file to upload.", "error");
+        return;
+      }
+
+      document.getElementById('fileName').textContent = fileInput.files[0].name;
+      document.getElementById('importBtn').disabled = false;
+    }
+
+    function clearFileSelection() {
+      let fileInput = document.getElementById('csvFile');
+      fileInput.value = "";
+      document.getElementById('fileName').textContent = "No file selected";
+      document.getElementById('importBtn').disabled = true;
+      clearPreview();
+      hideStatusMessage();
+    }
+
+    function openConfirmModal() {
+      document.getElementById('recordCount').textContent = window.parsedCSVData ? window.parsedCSVData.length : 0;
+      document.getElementById('confirmModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('confirmModal').classList.remove('active');
+    }
+
+    function sendCsvToBackend() {
+      let csvFile = document.getElementById('csvFile').files[0];
+
+      if (!window.parsedCSVData) {
+        showStatusMessage("No CSV data available to import. Please upload a file first.", "error");
+        return;
+      }
+
+      google.scripts.run.fillSheetsWithData(() => {
+        showStatusMessage("Data imported successfully!", "success");
+        closeModal();
+        clearFileSelection();
+      }).withFailureHandler((error) => {
+        showStatusMessage("An error occurred during import: " + error.message, "error");
+      }).importCsvData(window.parsedCSVData);
+    }
+  </script>
 </body>
 </html>
