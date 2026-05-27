@@ -155,3 +155,12 @@ function switchToTransactionsRecords(): void {
 function switchToBankingSettings(): void {
   openBankingSettings();
 }
+
+// Trigger authorization flow for necessary scopes when the script is first run
+// Run this ONCE to force Google to ask for permissions
+// Only necessary to pre-authorize the script without having to run any of the main functions first
+function forceAuthorizationTrigger() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const cell = sheet.getRange("A1");
+  Logger.log("Permissions triggered successfully.");
+}
