@@ -460,14 +460,14 @@
 <body>
     <!-- Navigation Header -->
     <div class="nav-header">
-        <button class="nav-link" onclick="google.scripts.run.switchToAccountingManager();">💰 Manual B-Bucks
+        <button class="nav-link" onclick="callServer('switchToManualBucksModifier')">💰 Manual B-Bucks
             Modifier</button>
         <button class="nav-link active">💸 Income / Consumables</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToInvestmentsManager();">📈 Investment
+        <button class="nav-link" onclick="callServer('switchToInvestmentsManager')">📈 Investment
             Banking</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToTransactionsRecords();">📊 Transaction
+        <button class="nav-link" onclick="callServer('switchToTransactionsRecords')">📊 Transaction
             Records</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToBankingSettings();">⚙️ Banking Settings</button>
+        <button class="nav-link" onclick="callServer('switchToBankingSettings')">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
@@ -617,4 +617,21 @@
                 }
             });
         });
+
+        // Use to call server functions from client-side with optional success and failure handlers
+        function callServer(serverFunctionName, data, onSuccess, onFailure) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                // Dynamically call the server function
+                google.script.run
+                    .withSuccessHandler(onSuccess || function () { })
+                    .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+            } else {
+                // Local development fallback
+                console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
+                if (onSuccess) onSuccess("Mock Local Success Response");
+            }
+        }
     </script>
+</body>
+
+</html>

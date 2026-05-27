@@ -387,10 +387,12 @@
     <!-- Navigation Header -->
     <div class="nav-header">
         <button class="nav-link active">💰 Manual B-Bucks Modifier</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToPricingManager();">💸 Income / Consumables</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToInvestmentsManager();">📈 Investment Banking</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToTransactionsRecords();">📊 Transaction Records</button>
-        <button class="nav-link" onclick="google.scripts.run.switchToBankingSettings();">⚙️ Banking Settings</button>
+        <button class="nav-link" onclick="callServer('switchToPricingManager')">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="callServer('switchToInvestmentsManager')">📈 Investment
+            Banking</button>
+        <button class="nav-link" onclick="callServer('switchToTransactionsRecords')">📊 Transaction
+            Records</button>
+        <button class="nav-link" onclick="callServer('switchToBankingSettings')">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
@@ -400,18 +402,18 @@
             <div
                 style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
                 <div
-                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;\">
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
                     💰 Quick Adjustments</div>
-                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Instant balance modifications</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Instant balance modifications</div>
                 <div class="btn-group">
-                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 1);">+1</button>
-                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 1);">-1</button>
-                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 2);">+2</button>
-                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 2);">-2</button>
-                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 5);">+5</button>
-                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 5);">-5</button>
-                    <button class="btn btn-add" onclick="google.scripts.run.applyValue('ADD', 10);">+10</button>
-                    <button class="btn btn-remove" onclick="google.scripts.run.applyValue('SUBTRACT', 10);">-10</button>
+                    <button class="btn btn-add" onclick="applyValue('ADD', 1);">+1</button>
+                    <button class="btn btn-remove" onclick="applyValue('SUBTRACT', 1);">-1</button>
+                    <button class="btn btn-add" onclick="applyValue('ADD', 2);">+2</button>
+                    <button class="btn btn-remove" onclick="applyValue('SUBTRACT', 2);">-2</button>
+                    <button class="btn btn-add" onclick="applyValue('ADD', 5);">+5</button>
+                    <button class="btn btn-remove" onclick="applyValue('SUBTRACT', 5);">-5</button>
+                    <button class="btn btn-add" onclick="applyValue('ADD', 10);">+10</button>
+                    <button class="btn btn-remove" onclick="applyValue('SUBTRACT', 10);">-10</button>
                 </div>
             </div>
 
@@ -421,12 +423,12 @@
                 <div
                     style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
                     🧮 Multiply / Divide</div>
-                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;\">Scale balances by factor</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Scale balances by factor</div>
                 <div class="btn-group">
-                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('MULTIPLY', 2);">×2</button>
-                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('DIVIDE', 2);">÷2</button>
-                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('MULTIPLY', 5);">×5</button>
-                    <button class="btn btn-math" onclick="google.scripts.run.applyMathToSelection('DIVIDE', 5);">÷5</button>
+                    <button class="btn btn-math" onclick="applyValue('MULTIPLY', 2);">×2</button>
+                    <button class="btn btn-math" onclick="applyValue('DIVIDE', 2);">÷2</button>
+                    <button class="btn btn-math" onclick="applyValue('MULTIPLY', 5);">×5</button>
+                    <button class="btn btn-math" onclick="applyValue('DIVIDE', 5);">÷5</button>
                 </div>
             </div>
 
@@ -443,7 +445,8 @@
                     <input type="checkbox" id="enterToggle" checked>
                     <label for="enterToggle">Auto-Submit</label>
                 </div>
-                <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Add Custom Amount</button>
+                <button class="btn btn-add" style="width: 100%; margin-top: 6px;" onclick="handleCustomInput()">Add
+                    Custom Amount</button>
             </div>
 
             <!-- CARD 4: Format Guide -->
@@ -452,7 +455,7 @@
                 <div
                     style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
                     📋 Input Format</div>
-                <div class="guide" style="margin: 0; margin-top: 4px;\">
+                <div class="guide" style="margin: 0; margin-top: 4px;">
                     <b>10</b> = add $10 | <b>-5</b> = subtract $5<br>
                     <b>*2</b> = double | <b>/4</b> = quarter
                 </div>
@@ -468,7 +471,7 @@
                     style="font-size: 9px; color: #586069; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px;">Recent
                     Entries</label>
                 <input type="number" id="logLimit" value="25" min="1" style="width: 100%;">
-                <button class="btn btn-add" style="width: 100%; margin-top: 6px;\">Refresh Log</button>
+                <button class="btn btn-add" style="width: 100%; margin-top: 6px;">Refresh Log</button>
             </div>
         </div>
 
@@ -566,22 +569,77 @@
             });
         })
 
+        // Use to call server functions from client-side with optional success and failure handlers
+        function callServer(serverFunctionName, data, onSuccess, onFailure) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                // Dynamically call the server function
+                google.script.run
+                    .withSuccessHandler(onSuccess || function () { })
+                    .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+            } else {
+                // Local development fallback
+                console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
+                if (onSuccess) onSuccess("Mock Local Success Response");
+            }
+        }
+
         function applyValue(operation, amount) {
+            if (!operation || amount === undefined || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
+                Logger.log("You must have an operation and an amount.");
+                return;
+            }
+
             switch (operation) {
                 case "ADD":
-                    google.scripts.run.applyMathToSelection("ADD", amount);
+                    callServer("applyMathToSelection", { operation: "ADD", amount: amount });
                     break;
                 case "SUBTRACT":
-                    google.scripts.run.applyMathToSelection("SUBTRACT", amount);
+                    callServer("applyMathToSelection", { operation: "SUBTRACT", amount: amount });
                     break;
                 case "MULTIPLY":
-                    google.scripts.run.applyMathToSelection("MULTIPLY", amount);
+                    callServer("applyMathToSelection", { operation: "MULTIPLY", amount: amount });
                     break;
                 case "DIVIDE":
-                    google.scripts.run.applyMathToSelection("DIVIDE", amount);
+                    callServer("applyMathToSelection", { operation: "DIVIDE", amount: amount });
                     break;
                 default:
                     Logger.log("Invalid operation: " + operation);
+            }
+        }
+
+        function handleCustomInput() {
+            const input = document.getElementById('customInput');
+            const value = input.value.trim();
+            if (!value) return;
+
+            const autoSubmit = document.getElementById('enterToggle').checked;
+            if (autoSubmit) {
+                const match = value.match(/^([+\-*/])?\s*(\d+(\.\d{1,2})?)$/);
+                if (!match) {
+                    Logger.log("Invalid input format. Use +10, -5, *2, /4, etc.");
+                    return;
+                }
+                const operator = match[1] || "ADD";
+                const amount = parseFloat(match[2]);
+                let operation;
+                switch (operator) {
+                    case "+":
+                        operation = "ADD";
+                        break;
+                    case "-":
+                        operation = "SUBTRACT";
+                        break;
+                    case "*":
+                        operation = "MULTIPLY";
+                        break;
+                    case "/":
+                        operation = "DIVIDE";
+                        break;
+                    default:
+                        operation = "ADD";
+                }
+                applyValue(operation, amount);
+                input.value = "";
             }
         }
     </script>

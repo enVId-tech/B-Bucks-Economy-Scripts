@@ -7,6 +7,7 @@
 
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>CSV Import</title>
@@ -350,11 +351,12 @@
     }
   </style>
 </head>
+
 <body>
   <div class="main-content">
     <div class="card">
       <div class="card-title">📥 Import Data</div>
-      
+
       <div class="info-box">
         <strong>Instructions:</strong> Select a CSV file to import. Preview your data before confirming.
       </div>
@@ -370,7 +372,8 @@
       </div>
 
       <div class="warning-box">
-        ⚠️ <strong>Destructive Action:</strong> Importing data WILL overwrite any existing data and cannot be undone. Review carefully before confirming.
+        ⚠️ <strong>Destructive Action:</strong> Importing data WILL overwrite any existing data and cannot be undone.
+        Review carefully before confirming.
       </div>
 
       <div class="button-row">
@@ -396,6 +399,20 @@
   </div>
 
   <script>
+    // Use to call server functions from client-side with optional success and failure handlers
+    function callServer(serverFunctionName, data, onSuccess, onFailure) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        // Dynamically call the server function
+        google.script.run
+          .withSuccessHandler(onSuccess || function () { })
+          .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+      } else {
+        // Local development fallback
+        console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
+        if (onSuccess) onSuccess("Mock Local Success Response");
+      }
+    }
+
     function processUpload() {
       let fileInput = document.getElementById('csvFile');
       if (fileInput.files.length === 0) {
@@ -433,7 +450,7 @@
         return;
       }
 
-      google.scripts.run.fillSheetsWithData(() => {
+      callServer('fillSheetsWithData', window.parsedCSVData, () => {
         showStatusMessage("Data imported successfully!", "success");
         closeModal();
         clearFileSelection();
@@ -443,4 +460,5 @@
     }
   </script>
 </body>
+
 </html>
