@@ -462,10 +462,14 @@
           let csvData = e.target.result;
 
           callServer('fillSheetsWithData', csvData,
-            () => {
-              showStatusMessage("Data imported successfully!", "success");
-              closeModal();
-              clearFileSelection();
+            (success) => {
+              if (success) {
+                showStatusMessage(`Data imported successfully! ${success}`, "success");
+                closeModal();
+                clearFileSelection();
+              } else {
+                showStatusMessage("Import completed with warnings. Please check your data and try again.", "info");
+              }
             },
             (error) => {
               showStatusMessage("An error occurred during import: " + error.message, "error");
