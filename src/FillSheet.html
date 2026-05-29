@@ -365,9 +365,8 @@
 
       <div class="section-label">Select File</div>
       <div class="file-input-wrapper">
-        <input type="file" id="csvFile" accept=".csv" />
+        <input type="file" id="csvFile" onchange="processUpload()" accept=".csv,.txt" style="display:none;">
         <label for="csvFile" class="file-input-label">📂 Choose CSV File</label>
-        <button id="processBtn" class="btn-primary" style="margin-left: 8px;" onclick="processUpload()">Upload</button>
         <div id="fileName" class="file-name-display">No file selected</div>
       </div>
 
@@ -388,7 +387,6 @@
       <div class="modal-title">⚠️ Confirm Import</div>
       <div class="modal-content">
         <p>This action will import the selected CSV data into your spreadsheet.</p>
-        <p style="margin-top: 8px;"><strong>Records to import:</strong> <span id="recordCount">0</span></p>
         <p style="margin-top: 8px; color: #d73a49;">This cannot be undone easily. Please review the preview above.</p>
       </div>
       <div class="modal-buttons">
@@ -414,7 +412,7 @@
     }
 
     function processUpload() {
-      let fileInput = document.getElementById('csvFile');
+      const fileInput = document.getElementById('csvFile');
       if (fileInput.files.length === 0) {
         showStatusMessage("Please select a CSV file to upload.", "error");
         return;
@@ -425,7 +423,7 @@
     }
 
     function clearFileSelection() {
-      let fileInput = document.getElementById('csvFile');
+      const fileInput = document.getElementById('csvFile');
       fileInput.value = "";
       document.getElementById('fileName').textContent = "No file selected";
       document.getElementById('importBtn').disabled = true;
@@ -434,7 +432,11 @@
     }
 
     function openConfirmModal() {
-      document.getElementById('recordCount').textContent = window.parsedCSVData ? window.parsedCSVData.length : 0;
+      const fileInput = document.getElementById('csvFile');
+      if (fileInput.files.length === 0) {
+        showStatusMessage("No file selected. Please choose a CSV file to import.", "error");
+        return;
+      }
       document.getElementById('confirmModal').classList.add('active');
     }
 
@@ -443,20 +445,48 @@
     }
 
     function sendCsvToBackend() {
-      let csvFile = document.getElementById('csvFile').files[0];
+      try {
+        const fileInput = document.getElementById('csvFile');
+        const file = fileInput.files[0];
 
-      if (!window.parsedCSVData) {
-        showStatusMessage("No CSV data available to import. Please upload a file first.", "error");
-        return;
+        if (!file) {
+          showStatusMessage("No file selected. Please choose a CSV file to import.", "error");
+          return;
+        }
+
+        // Read the file content as a string and send it to the server function to be parsed and processed
+        // Fix "Failed due to illegal value in property: 0" error
+        let reader = new FileReader();
+
+        reader.onload = (e) => {
+          let csvData = e.target.result;
+
+          callServer('fillSheetsWithData', csvData,
+            () => {
+              showStatusMessage("Data imported successfully!", "success");
+              closeModal();
+              clearFileSelection();
+            },
+            (error) => {
+              showStatusMessage("An error occurred during import: " + error.message, "error");
+            }
+          )
+        };
+
+        reader.onerror = (e) => {
+          showStatusMessage("Failed to read file: " + e.target.error.message, "error");
+        };
+
+        reader.readAsText(file);
+      } catch (err) {
+        showStatusMessage("An unexpected error occurred: " + err.message, "error");
       }
+    }
 
-      callServer('fillSheetsWithData', window.parsedCSVData, () => {
-        showStatusMessage("Data imported successfully!", "success");
-        closeModal();
-        clearFileSelection();
-      }).withFailureHandler((error) => {
-        showStatusMessage("An error occurred during import: " + error.message, "error");
-      }).importCsvData(window.parsedCSVData);
+    function showStatusMessage(message, type) {
+      const statusDiv = document.getElementById('statusMessage');
+      statusDiv.textContent = message;
+      statusDiv.className = `status-message ${type}`;
     }
   </script>
 </body>

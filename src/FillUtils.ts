@@ -18,93 +18,134 @@ interface CSVData {
  * @returns {CSVData[]} An array of objects, each containing an identifier and an array of associated individuals.
  */
 function parseCsvData(csvData: string): CSVData[] {
-    // Split once, but don't mutate the array elements in place
-    const rows = csvData.split('\n');
-    const data: CSVData[] = [];
+    try {
+        if (!csvData) return [];
 
-    // Initialize the first block container
-    let currentSheet: CSVData | null = null;
+        // Split once, but don't mutate the array elements in place
+        const rows = csvData.split('\n');
+        const data: CSVData[] = [];
 
-    // Compiled regexes outside or pre-compiled per row execution
-    // Grouping patterns allows us to check AND extract data in one single operation
-    const identifierRegex = /^(\d+)\s*-\s*/;
-    const individualRegex = /^\d+\s*,\s*([^,]+)/; // Captures the name after the comma
+        // Initialize the first block container
+        let currentSheet: CSVData | null = null;
 
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i].trim();
-        if (!row) continue;
+        // Compiled regexes outside or pre-compiled per row execution
+        // Grouping patterns allows us to check AND extract data in one single operation
+        const blockHeaderRegex = /(?:^|\]\s*)(\d+)\s*-\s*[^,]+,\s*[^,]+/;
+        const columnHeaderRegex = /^[A-Za-z0-9#]+(?:\s*[A-Za-z0-9#]+)*,\s*[A-Za-z0-9#]+/;
+        const dataRowRegex = /^\d+,\d+,"([^"]+)"/;
 
-        // Check for Identifier Row (e.g., "1 - Header Group")
-        const idMatch = row.match(identifierRegex);
-        if (idMatch) {
-            if (currentSheet) {
-                data.push(currentSheet);
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i].trim();
+            if (!row) continue;
+
+            // Check for Identifier Row (e.g., "1 - Header Group")
+            const blockMatch = row.match(blockHeaderRegex);
+            if (blockMatch) {
+                if (currentSheet) {
+                    data.push(currentSheet);
+                }
+
+                currentSheet = {
+                    identifier: parseInt(blockMatch[1], 10),
+                    individuals: []
+                };
+                continue;
             }
 
-            currentSheet = {
-                identifier: parseInt(idMatch[1], 10),
-                individuals: []
-            };
-            continue;
+            // Skip column headers based on structure
+            if (columnHeaderRegex.test(row)) continue;
+            // Capture data rows
+            const dataMatch = row.match(dataRowRegex);
+            if (dataMatch && currentSheet) {
+                currentSheet.individuals.push(dataMatch[1].trim());
+                continue;
+            }
         }
 
-        // Check for Individual Row (e.g., "1, John Doe")
-        const individualMatch = row.match(individualRegex);
-        if (individualMatch && currentSheet) {
-            currentSheet.individuals.push(individualMatch[1].trim());
-            continue;
+        // Push the final sheet if it exists
+        if (currentSheet) {
+            data.push(currentSheet);
         }
-    }
 
-    // Push the final sheet if it exists
-    if (currentSheet) {
-        data.push(currentSheet);
-    }
+        // Sort the individuals inside each group
+        // Time complexity here depends on the number of individuals per group: O(K log K)
+        for (const entry of data) {
+            entry.individuals.sort((a, b) => a.localeCompare(b));
+        }
 
-    // Sort the individuals inside each group
-    // Time complexity here depends on the number of individuals per group: O(K log K)
-    for (const entry of data) {
-        entry.individuals.sort((a, b) => a.localeCompare(b));
+        return data;
+    } catch (err: any) {
+        Logger.log(`An error occured in parseCsvData: ${err as string}`);
+        console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
+        return [];
     }
-
-    return data;
 }
 
+/**
+ * Fills the sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet.
+ * @param data  The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
+ * @returns {void}
+ */
 function fillSheetsWithData(data: string): void {
-    let parsedData: CSVData[] = parseCsvData(data);
-    let sheet: GoogleAppsScript.Spreadsheet.Sheet[] = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+    try {
+        let parsedData: CSVData[] = parseCsvData(data);
+        let spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        let sheets: GoogleAppsScript.Spreadsheet.Sheet[] = spreadsheet.getSheets();
 
-    const cellToStartFrom = "A7"; // Starting cell for filling data
-    const cellToSetName = "A2"; // Cell to set the identifier name
+        const cellToStartFrom = "A7"; // Starting cell for filling data
+        const cellToSetName = "A2"; // Cell to set the identifier name
 
-    for (const entry of parsedData) {
-        let targetSheet = sheet.find(s => s.getName().includes(entry.identifier.toString()));
-        
-        if (!targetSheet) {
-            const findSheet = sheet.find(s => s.getName() === "Template");
-            if (findSheet) {
-                targetSheet = findSheet.copyTo(SpreadsheetApp.getActiveSpreadsheet());
-                targetSheet.setName("Period " + entry.identifier);
-                targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
-            } else {
-                Logger.log("Template sheet not found. Cannot create new sheet for identifier: " + entry.identifier);
-                continue; // Skip to the next entry if template is missing
+        for (const entry of parsedData) {
+            let targetSheet = sheets.find(s => s.getName() === "Period " + entry.identifier);
+
+            if (!targetSheet) {
+                const templateSheet = sheets.find(s => s.getName() === "Template");
+                if (templateSheet) {
+                    targetSheet = templateSheet.copyTo(spreadsheet);
+                    targetSheet.setName("Period " + entry.identifier);
+                    sheets = spreadsheet.getSheets();
+                } else {
+                    Logger.log("Template sheet not found. Skipping period: " + entry.identifier);
+                    continue;
+                }
             }
-        }
 
-        // Clear existing content before filling new data
-        targetSheet.clearContents();
-        let lengthParsed = entry.individuals.length;
-        // Make sure the maximum number of rows available in the sheet isn't exceeded, but extended, starting from the starting cell
-        let rowCount = targetSheet.getMaxRows() - targetSheet.getRange(cellToStartFrom).getRow() + 1;
-        if (lengthParsed < rowCount) {
-            // Copy the starting cell row to the end of the data range to ensure formatting is preserved
-            targetSheet.getRange(cellToStartFrom + ":" + cellToStartFrom.replace(/\d+/, (match) => (parseInt(match, 10) + lengthParsed - 1).toString())).copyTo(targetSheet.getRange(cellToStartFrom + ":" + cellToStartFrom.replace(/\d+/, (match) => (parseInt(match, 10) + rowCount - 1).toString())), { formatOnly: true });
-        }
+            const startRow = targetSheet.getRange(cellToStartFrom).getRow();
+            let lengthParsed = entry.individuals.length;
 
-        // Fill the sheet with the individuals' names starting from the specified cell
-        for (let i = 0; i < lengthParsed && i < rowCount; i++) {
-            targetSheet.getRange(cellToStartFrom).offset(i, 0).setValue(entry.individuals[i]);
+            targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
+
+            if (lengthParsed === 0) continue;
+
+            // Clear existing content from row A7 down.
+            const lastRowWithData = targetSheet.getLastRow();
+            if (lastRowWithData >= startRow) {
+                targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, 1).clearContent();
+            }
+
+            let maxRows = targetSheet.getMaxRows();
+            if (startRow + lengthParsed > maxRows) {
+                let rowsToAdd = (startRow + lengthParsed) - maxRows;
+                targetSheet.insertRowsAfter(maxRows, rowsToAdd);
+            }
+
+            // Set header name safely
+            if (lengthParsed > 1) {
+                let sourceRange = targetSheet.getRange(startRow, 1, 1, targetSheet.getMaxColumns());
+                let destinationRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, targetSheet.getMaxColumns());
+                sourceRange.copyTo(destinationRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+            }
+
+            // Fill data cleanly in a single network call
+            const outputValues = entry.individuals.map(name => [name]);
+            targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
+
+            const lastRow = targetSheet.getLastRow();
+
+            if (maxRows - lastRow != 0) targetSheet.deleteRows(lastRow + 1, maxRows - lastRow);
         }
+    } catch (err: any) {
+        Logger.log(`An error occurred in function fillSheetsWithData: ${err as string}`);
+        console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
     }
 }

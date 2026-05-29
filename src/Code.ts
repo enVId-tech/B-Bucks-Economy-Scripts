@@ -91,8 +91,8 @@ function openBankingSettings(): void {
 function importStudentNames(): void {
   const html = HtmlService.createHtmlOutputFromFile('FillSheet')
     .setTitle("Bank of Banderas - Fill Sheet")
-    .setWidth(550)
-    .setHeight(700);
+    .setWidth(350)
+    .setHeight(500);
 
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Fill Sheet");
 }
