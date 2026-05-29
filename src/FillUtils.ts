@@ -40,8 +40,9 @@ function parseCsvData(csvData: string): CSVData[] {
                     cleanRow = row.split(']')[1].trim();
                 }
 
-                const identifierPart = row.split(headerStrContains)[0].trim();
+                const identifierPart = cleanRow.split(headerStrContains)[0].trim();
                 const identifier = parseInt(identifierPart, 10);
+
                 if (!isNaN(identifier)) {
                     if (currentSheet) {
                         data.push(currentSheet);
@@ -90,9 +91,9 @@ function parseCsvData(csvData: string): CSVData[] {
 /**
  * Fills the sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet.
  * @param data  The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
- * @returns {string}
+ * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-function fillSheetsWithData(data: string): string {
+function fillSheetsWithData(data: string): boolean {
     try {
         const parsedData: CSVData[] = parseCsvData(data);
         const spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -129,10 +130,10 @@ function fillSheetsWithData(data: string): string {
                 targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, 1).clearContent();
             }
 
-            const maxRows = targetSheet.getMaxRows();
-            if (startRow + lengthParsed > maxRows) {
-                const rowsToAdd = (startRow + lengthParsed) - maxRows;
-                targetSheet.insertRowsAfter(maxRows, rowsToAdd);
+            const currentMaxRows = targetSheet.getMaxRows();
+            if (startRow + lengthParsed > currentMaxRows) {
+                const rowsToAdd = (startRow + lengthParsed) - currentMaxRows;
+                targetSheet.insertRowsAfter(currentMaxRows, rowsToAdd);
             }
 
             // Set header name safely
@@ -146,15 +147,19 @@ function fillSheetsWithData(data: string): string {
             const outputValues = entry.individuals.map(name => [name]);
             targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
 
-            const lastRow = targetSheet.getLastRow();
+            const updatedMaxRows = targetSheet.getMaxRows();
+            const lastActiveRow = targetSheet.getLastRow();
 
-            if (maxRows - lastRow != 0) targetSheet.deleteRows(lastRow + 1, maxRows - lastRow);
+            if (updatedMaxRows > lastActiveRow) {
+                const rowsToDelete = updatedMaxRows - lastActiveRow;
+                targetSheet.deleteRows(lastActiveRow + 1, rowsToDelete);
+            }
         }
 
-        return JSON.stringify(parsedData, null, 2);
+        return true;
     } catch (err: any) {
         Logger.log(`An error occurred in function fillSheetsWithData: ${err as string}`);
         console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
-        return "";
+        return false;
     }
 }

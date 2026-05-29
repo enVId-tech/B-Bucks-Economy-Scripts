@@ -464,7 +464,7 @@
           callServer('fillSheetsWithData', csvData,
             (success) => {
               if (success) {
-                showStatusMessage(`Data imported successfully! ${success}`, "success");
+                showStatusMessage(`Data imported successfully!`, "success");
                 closeModal();
                 clearFileSelection();
               } else {
