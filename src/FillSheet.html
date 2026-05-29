@@ -349,6 +349,39 @@
       color: #0366d6;
       display: block;
     }
+
+    .progress-container {
+      display: none;
+      margin-bottom: 12px;
+    }
+
+    .progress-container.active {
+      display: block;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background-color: #e1e4e8;
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0366d6 0%, #0256c7 100%);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 8px rgba(3, 102, 214, 0.3);
+    }
+
+    .progress-text {
+      font-size: 10px;
+      color: #586069;
+      margin-top: 6px;
+      font-weight: 500;
+    }
   </style>
 </head>
 
@@ -388,6 +421,12 @@
       <div class="modal-content">
         <p>This action will import the selected CSV data into your spreadsheet.</p>
         <p style="margin-top: 8px; color: #d73a49;">This cannot be undone easily. Please review the preview above.</p>
+      </div>
+      <div id="progressBar" class="progress-container">
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <p id="progressText" class="progress-text">Periods processed: 0 / 0</p>
       </div>
       <div class="modal-buttons">
         <button id="cancelBtn" onclick="closeModal()">Cancel</button>
@@ -442,6 +481,9 @@
 
     function closeModal() {
       document.getElementById('confirmModal').classList.remove('active');
+      document.getElementById('progressBar').classList.remove('active');
+      document.getElementById('confirmBtn').disabled = false;
+      document.getElementById('cancelBtn').disabled = false;
     }
 
     function sendCsvToBackend() {
@@ -461,20 +503,23 @@
         reader.onload = (e) => {
           let csvData = e.target.result;
 
-          callServer('fillSheetsWithData', csvData,
-            (success) => {
-              if (success) {
-                showStatusMessage(`Data imported successfully!`, "success");
-                closeModal();
-                clearFileSelection();
-              } else {
-                showStatusMessage("Import completed with warnings. Please check your data and try again.", "info");
-              }
-            },
-            (error) => {
-              showStatusMessage("An error occurred during import: " + error.message, "error");
-            }
-          )
+          // Parse the file data right here in the browser instantly!
+          let parsedQueue = parseCsvData(csvData);
+
+          if (parsedQueue.length === 0) {
+            showStatusMessage("No valid roster metrics parsed from file structure.", "error");
+            return;
+          }
+
+          // Disable closing modal or interrupting during execution sequence
+          document.getElementById('confirmBtn').disabled = true;
+          document.getElementById('cancelBtn').disabled = true;
+
+          // Show progress bar
+          document.getElementById('progressBar').classList.add('active');
+
+          // Start processing our queue index 0
+          processQueueItem(parsedQueue, 0);
         };
 
         reader.onerror = (e) => {
@@ -491,6 +536,108 @@
       const statusDiv = document.getElementById('statusMessage');
       statusDiv.textContent = message;
       statusDiv.className = `status-message ${type}`;
+    }
+
+    // --- Code to process CSV data in the browser for previewing before import ---
+
+    /**
+     * Parses CSV data into an array of objects.
+     * @param csvData The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
+     * @returns {CSVData[]} An array of objects, each containing an identifier and an array of associated individuals.
+     */
+    function parseCsvData(csvData) {
+      try {
+        if (!csvData) return [];
+
+        // Split once, but don't mutate the array elements in place
+        const rows = csvData.split('\n');
+        const data = [];
+        // Initialize the first block container
+        let currentSheet = null;
+
+        const headerStrContains = " - "
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i].trim();
+          if (!row) continue;
+
+          // Check for Identifier Row (e.g., "1 - Header Group")
+          if (row.includes(headerStrContains)) {
+            let cleanRow = row;
+            if (row.includes(']')) {
+              cleanRow = row.split(']')[1].trim();
+            }
+
+            const identifierPart = cleanRow.split(headerStrContains)[0].trim();
+            const identifier = parseInt(identifierPart, 10);
+
+            if (!isNaN(identifier)) {
+              if (currentSheet) {
+                data.push(currentSheet);
+              }
+
+              currentSheet = {
+                identifier: identifier,
+                individuals: []
+              };
+              continue;
+            }
+          }
+
+          if (!row.includes('"')) {
+            continue;
+          }
+
+          if (currentSheet) {
+            const partsByQuotes = row.split('"');
+            if (partsByQuotes.length >= 3) {
+              const name = partsByQuotes[1].trim();
+              currentSheet.individuals.push(name);
+            }
+          }
+        }
+
+        // Push the final sheet if it exists
+        if (currentSheet) {
+          data.push(currentSheet);
+        }
+
+        // Sort the individuals inside each group
+        // Time complexity here depends on the number of individuals per group: O(K log K)
+        for (const entry of data) {
+          entry.individuals.sort((a, b) => a.localeCompare(b));
+        }
+
+        return data;
+      } catch (err) {
+        Logger.log(`An error occured in parseCsvData: ${err}`);
+        console.error(`An error occurred in function fillSheetsWithData: ${err}`);
+        return [];
+      }
+    }
+
+    function processQueueItem(queue, index) {
+      document.getElementById('progressText').textContent = `Periods processed: ${index} / ${queue.length}`;
+      if (index >= queue.length) {
+        showStatusMessage("Data import completed successfully!", "success");
+        closeModal();
+        return;
+      }
+
+      const currentItem = queue[index];
+      callServer('fillSheetsWithData', JSON.stringify(currentItem), (response) => {
+        setTimeout(() => {
+          document.getElementById('progressFill').style.width = `${((index + 1) / queue.length) * 100}%`;
+          document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
+          
+          processQueueItem(queue, index + 1);
+        }, 100);
+      }, (error) => {
+        showStatusMessage("Error processing data: " + error.message, "error");
+        console.error("Error processing data:", error);
+        document.getElementById('confirmBtn').disabled = false;
+        document.getElementById('cancelBtn').disabled = false;
+      });
     }
   </script>
 </body>
