@@ -11,6 +11,7 @@ enum Operation {
   MULTIPLY = "MULTIPLY",
   DIVIDE = "DIVIDE"
 }
+
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
@@ -68,29 +69,28 @@ function applyMathToSelection(operation: Operation | string, value: number, rang
       return false;
     }
 
-    for (let r = 0; r < values.length; r++) {
-      for (let c = 0; c < values[r].length; c++) {
-        let cellValue = values[r][c];
-        if (typeof cellValue === 'number' && !isNaN(cellValue)) {
-          switch (operation) {
-            case Operation.ADD:
-              values[r][c] = cellValue + value;
-              break;
-            case Operation.SUBTRACT:
-              values[r][c] = cellValue - value;
-              break;
-            case Operation.MULTIPLY:
-              values[r][c] = cellValue * value;
-              break;
-            case Operation.DIVIDE:
-              values[r][c] = cellValue / value;
-              break;
-          }
-        }
-      }
-    }
+    // Define the operations in a more structured map instead of looping
+    // Maps the operation enum to a function that takes a number and returns the result of applying the operation with the provided value
+    const operations: Record<Operation, (n: number) => number> = {
+      [Operation.ADD]: (n) => n + value,
+      [Operation.SUBTRACT]: (n) => n - value,
+      [Operation.MULTIPLY]: (n) => n * value,
+      [Operation.DIVIDE]: (n) => n / value,
+    };
 
-    activeRange.setValues(values);
+    // Use a const function to apply the operation to the cell
+    const operationFunc = operations[operation as Operation];
+
+    const updatedValues = values.map(row => row.map(cell => {
+      if (typeof cell === 'number' && !isNaN(cell)) {
+        return operationFunc(cell);
+      } else {
+        Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
+        return cell; // Return the original value if it's not a number
+      }
+    }));
+
+    activeRange.setValues(updatedValues);
   } catch (error: any) {
     SpreadsheetApp.getUi().alert(error.message);
     return false;

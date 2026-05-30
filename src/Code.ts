@@ -13,7 +13,7 @@ function onOpen(): void {
   const ui = SpreadsheetApp.getUi();
 
   ui.createMenu('The Central Bank of Banderas')
-    .addItem('Open Manual B-Bucks Modifier', 'openAccountingManager')
+    .addItem('Open Manual B-Bucks Modifier', 'openManualBalanceManager')
     .addItem('Open Service Provider', 'showIncomeConsumables')
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
@@ -31,8 +31,8 @@ function onOpen(): void {
 /**
  * Opens a dialog for manually modifying B-Bucks balances, allowing users to add or subtract amounts from specific cells.
  */
-function openAccountingManager(): void {
-  const html = HtmlService.createHtmlOutputFromFile('AccountingManager')
+function openManualBalanceManager(): void {
+  const html = HtmlService.createHtmlOutputFromFile('BalanceManager')
     .setTitle("Bank of Banderas - Manual Balance Manager")
     .setWidth(500)
     .setHeight(650);
@@ -56,12 +56,12 @@ function openInvestmentsManager(): void {
  * Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses.
  */
 function showIncomeConsumables() {
-  const html = HtmlService.createHtmlOutputFromFile('PricingManager')
-    .setTitle('Bank of Banderas - Income / Consumables Menu')
+  const html = HtmlService.createHtmlOutputFromFile('ServicesManager')
+    .setTitle('Bank of Banderas - Services Menu')
     .setWidth(500)
     .setHeight(700);
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Income / Consumables");
+  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Services Menu");
 }
 
 /**
@@ -136,8 +136,8 @@ function placeholderFunction(): void {
 /**
  * Helper functions for page navigation in modeless dialogs
  */
-function switchToAccountingManager(): void {
-  openAccountingManager();
+function switchToManualBalanceManager(): void {
+  openManualBalanceManager();
 }
 
 function switchToInvestmentsManager(): void {
