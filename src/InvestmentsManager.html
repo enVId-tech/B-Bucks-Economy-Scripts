@@ -411,6 +411,9 @@
       margin-bottom: 8px;
     }
   </style>
+
+  <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
+  <?!= include('utils/ClientToServer'); ?>
 </head>
 
 <body>
@@ -554,19 +557,33 @@
   </div>
 
   <script>
-    // Use to call server functions from client-side with optional success and failure handlers
-    function callServer(serverFunctionName, data, onSuccess, onFailure) {
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        // Dynamically call the server function
-        google.script.run
-          .withSuccessHandler(onSuccess || function () { })
-          .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
-      } else {
-        // Local development fallback
-        console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
-        if (onSuccess) onSuccess("Mock Local Success Response");
-      }
-    }
+        document.addEventListener('DOMContentLoaded', () => {
+            // Handle click-to-select for all log items
+            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.classList.toggle('selected');
+                    updateUndoButtonState();
+                });
+            });
+
+            // Update undo button enabled state based on selected items
+            function updateUndoButtonState() {
+                const undoBtn = document.getElementById('undoSelectedBtn');
+                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+                undoBtn.disabled = selectedItems.length === 0;
+            }
+
+            // Deselect all when clicking outside
+            document.addEventListener('click', () => {
+                if (event.target === document.body || event.target === document.documentElement) {
+                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                    updateUndoButtonState();
+                }
+            });
+        });
   </script>
 </body>
 

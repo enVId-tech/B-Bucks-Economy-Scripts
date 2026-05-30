@@ -32,7 +32,7 @@ function onOpen(): void {
  * Opens a dialog for manually modifying B-Bucks balances, allowing users to add or subtract amounts from specific cells.
  */
 function openManualBalanceManager(): void {
-  const html = HtmlService.createHtmlOutputFromFile('BalanceManager')
+  const html = HtmlService.createTemplateFromFile('BalanceManager').evaluate()
     .setTitle("Bank of Banderas - Manual Balance Manager")
     .setWidth(500)
     .setHeight(650);
@@ -156,11 +156,11 @@ function switchToBankingSettings(): void {
   openBankingSettings();
 }
 
-// Trigger authorization flow for necessary scopes when the script is first run
-// Run this ONCE to force Google to ask for permissions
-// Only necessary to pre-authorize the script without having to run any of the main functions first
-function forceAuthorizationTrigger() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const cell = sheet.getRange("A1");
-  Logger.log("Permissions triggered successfully.");
+/**
+ * Includes the content of a specified HTML file.
+ * @param filename The name of the HTML file to include.
+ * @returns The content of the HTML file.
+ */
+function include(filename: string) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }

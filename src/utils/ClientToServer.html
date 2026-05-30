@@ -1,0 +1,22 @@
+<!-- Coded by Erick Tran for Mr. Banderas, 2026 -->
+<!-- Copyright (c) 2026 Erick Tran. All rights reserved. -->
+<!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
+
+<!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
+<!-- This HTML file provides a utility function for client-side code to call server-side functions in Google Apps Script. It includes error handling and a fallback for local development. -->
+ 
+<script>
+    // Use to call server functions from client-side with optional success and failure handlers
+    function callServer(serverFunctionName, data, onSuccess, onFailure) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+            // Dynamically call the server function
+            google.script.run
+                .withSuccessHandler(onSuccess || function () { })
+                .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+        } else {
+            // Local development fallback
+            console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
+            if (onSuccess) onSuccess("Mock Local Success Response");
+        }
+    }
+</script>

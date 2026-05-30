@@ -381,6 +381,9 @@
             cursor: not-allowed;
         }
     </style>
+
+    <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
+    <?!= include('utils/ClientToServer'); ?>
 </head>
 
 <body>
@@ -569,25 +572,6 @@
                 }
             });
         })
-
-        // Use to call server functions from client-side with optional success and failure handlers
-        function callServer(serverFunctionName, data, onSuccess, onFailure) {
-            try {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    // Dynamically call the server function
-                    google.script.run
-                        .withSuccessHandler(onSuccess || function () { })
-                        .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
-                } else {
-                    // Local development fallback
-                    console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
-                    if (onSuccess) onSuccess("Mock Local Success Response");
-                }
-            } catch (err) {
-                console.error("Error in callServer:", err);
-                if (onFailure) onFailure(err);
-            }
-        }
 
         function applyValue(operation, amount) {
             try {
