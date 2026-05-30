@@ -19,54 +19,46 @@ enum Operation {
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, value: number, range?: GoogleAppsScript.Spreadsheet.Range): boolean {
+function applyMathToSelection(operation: Operation | string, value: number, range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
   try {
     if (!operation || !value) {
-      Logger.log("You must have an operation and a value.");
-      return false;
+      Logger.log(`You must have an operation and a value. Received operation: ${operation}, value: ${value}`);
+      return `You must have an operation and a value. Received operation: ${operation}, value: ${value}`;
     }
 
     if (typeof value !== 'number' || isNaN(value)) {
       Logger.log("Value must be a number.");
-      return false;
+      return "Value must be a number.";
     }
 
     if (typeof operation === 'string') {
-      switch (operation.toUpperCase()) {
-        case "ADD":
-          operation = Operation.ADD;
-          break;
-        case "SUBTRACT":
-          operation = Operation.SUBTRACT;
-          break;
-        case "MULTIPLY":
-          operation = Operation.MULTIPLY;
-          break;
-        case "DIVIDE":
-          operation = Operation.DIVIDE;
-          break;
-        default:
-          Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
-          return false;
-      }
+      operation = {
+        "ADD": Operation.ADD,
+        "SUBTRACT": Operation.SUBTRACT,
+        "MULTIPLY": Operation.MULTIPLY,
+        "DIVIDE": Operation.DIVIDE
+      }[operation.toUpperCase() as keyof typeof Operation];
     }
 
     if (!Object.values(Operation).includes(operation as Operation)) {
       Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
-      return false;
+      return "Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.";
     }
 
     let sheet = SpreadsheetApp.getActiveSpreadsheet();
 
     let activeRange = range || sheet.getActiveRange();
 
-    if (!activeRange) throw new Error("You must select a cell.");
+    if (!activeRange) {
+      Logger.log("No active range found. Please select a cell to apply the operation to.");
+      throw new Error("You must select a cell.");
+    }
 
     let values = activeRange.getValues();
 
     if (operation === Operation.DIVIDE && value === 0) {
       Logger.log("You cannot divide by zero.");
-      return false;
+      return "You cannot divide by zero.";
     }
 
     // Define the operations in a more structured map instead of looping
@@ -93,7 +85,7 @@ function applyMathToSelection(operation: Operation | string, value: number, rang
     activeRange.setValues(updatedValues);
   } catch (error: any) {
     SpreadsheetApp.getUi().alert(error.message);
-    return false;
+    return error.message;
   }
   return true;
 }

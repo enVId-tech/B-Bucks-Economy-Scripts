@@ -46,6 +46,7 @@ function fillSheetsWithData(data: string): boolean {
         targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
 
         if (lengthParsed === 0) {
+            Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
             return true;
         }
 

@@ -386,7 +386,8 @@
 <body>
     <!-- Navigation Header -->
     <div class="nav-header">
-        <button class="nav-link active" onclick="callServer('switchToManualBalanceManager')">💰 Manual B-Bucks Modifier</button>
+        <button class="nav-link active" onclick="callServer('switchToManualBalanceManager')">💰 Manual B-Bucks
+            Modifier</button>
         <button class="nav-link" onclick="callServer('switchToPricingManager')">💸 Income / Consumables</button>
         <button class="nav-link" onclick="callServer('switchToInvestmentsManager')">📈 Investment
             Banking</button>
@@ -571,75 +572,77 @@
 
         // Use to call server functions from client-side with optional success and failure handlers
         function callServer(serverFunctionName, data, onSuccess, onFailure) {
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                // Dynamically call the server function
-                google.script.run
-                    .withSuccessHandler(onSuccess || function () { })
-                    .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
-            } else {
-                // Local development fallback
-                console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
-                if (onSuccess) onSuccess("Mock Local Success Response");
+            try {
+                if (typeof google !== 'undefined' && google.script && google.script.run) {
+                    // Dynamically call the server function
+                    google.script.run
+                        .withSuccessHandler(onSuccess || function () { })
+                        .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+                } else {
+                    // Local development fallback
+                    console.warn(`Local Mode: Simulated call to '${serverFunctionName}' with data:`, data);
+                    if (onSuccess) onSuccess("Mock Local Success Response");
+                }
+            } catch (err) {
+                console.error("Error in callServer:", err);
+                if (onFailure) onFailure(err);
             }
         }
 
         function applyValue(operation, amount) {
-            if (!operation || amount === undefined || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
-                Logger.log("You must have an operation and an amount.");
-                return;
-            }
+            try {
+                if (!operation || !amount || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
+                    console.error("You must have an operation and an amount.");
+                    return;
+                }
 
-            switch (operation) {
-                case "ADD":
-                    callServer("applyMathToSelection", { operation: "ADD", amount: amount });
-                    break;
-                case "SUBTRACT":
-                    callServer("applyMathToSelection", { operation: "SUBTRACT", amount: amount });
-                    break;
-                case "MULTIPLY":
-                    callServer("applyMathToSelection", { operation: "MULTIPLY", amount: amount });
-                    break;
-                case "DIVIDE":
-                    callServer("applyMathToSelection", { operation: "DIVIDE", amount: amount });
-                    break;
-                default:
-                    Logger.log("Invalid operation: " + operation);
+                const validOperations = ["ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"];
+                if (!validOperations.includes(operation)) {
+                    console.error("Invalid operation: " + operation);
+                    return;
+                }
+
+                // Must stringify the payload to ensure consistent data format when sent to the server
+                // Prevents an illegal value error
+                const payload = JSON.stringify({ operation: operation, amount: amount });
+
+                callServer('executeBalanceAction', payload, (response) => {
+                    console.log("Server Response:", response);
+                }, (error) => {
+                    console.error("Server Error:", error);
+                });
+            } catch (err) {
+                console.error("Error in applyValue:", err);
             }
         }
 
         function handleCustomInput() {
-            const input = document.getElementById('customInput');
-            const value = input.value.trim();
-            if (!value) return;
+            try {
+                const input = document.getElementById('customInput');
+                const value = input.value.trim();
+                if (!value) return;
 
-            const autoSubmit = document.getElementById('enterToggle').checked;
-            if (autoSubmit) {
-                const match = value.match(/^([+\-*/])?\s*(\d+(\.\d{1,2})?)$/);
-                if (!match) {
-                    Logger.log("Invalid input format. Use +10, -5, *2, /4, etc.");
-                    return;
+                const autoSubmit = document.getElementById('enterToggle').checked;
+                if (autoSubmit) {
+                    const match = value.match(/^([+\-*/])?\s*(\d+(\.\d{1,2})?)$/);
+                    if (!match) {
+                        console.error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
+                        throw new Error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
+                    }
+                    const operator = match[1] || "ADD";
+                    const amount = parseFloat(match[2]);
+                    let operation = {
+                        "+": "ADD",
+                        "-": "SUBTRACT",
+                        "*": "MULTIPLY",
+                        "/": "DIVIDE"
+                    }[operator] || "ADD";
+
+                    applyValue(operation, amount);
+                    input.value = "";
                 }
-                const operator = match[1] || "ADD";
-                const amount = parseFloat(match[2]);
-                let operation;
-                switch (operator) {
-                    case "+":
-                        operation = "ADD";
-                        break;
-                    case "-":
-                        operation = "SUBTRACT";
-                        break;
-                    case "*":
-                        operation = "MULTIPLY";
-                        break;
-                    case "/":
-                        operation = "DIVIDE";
-                        break;
-                    default:
-                        operation = "ADD";
-                }
-                applyValue(operation, amount);
-                input.value = "";
+            } catch (err) {
+                console.error("Error in handleCustomInput:", err);
             }
         }
     </script>
