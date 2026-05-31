@@ -44,7 +44,6 @@ function fillSheetsWithData(data: string): boolean {
         // Attempt to add with the Google Sheets API first, only if it fails run the fallback
         try {
             const startRow = targetSheet.getRange(cellToStartFrom).getRow();
-            const startColumn = targetSheet.getRange(cellToStartFrom).getColumn();
             const lengthParsed = entry.individuals.length;
             if (lengthParsed === 0) {
                 Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
@@ -80,21 +79,13 @@ function fillSheetsWithData(data: string): boolean {
                 values: [[`Period ${entry.identifier}`]]
             });
 
-            // If no data to fill, just clear and set the name
-            if (lengthParsed === 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
-                Sheets.Spreadsheets!.batchUpdate({ requests }, spreadsheetId);
-                Sheets.Spreadsheets!.Values!.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
-                Logger.log(`Length parsed is 0 for identifier: ${entry.identifier}. Cleared content.`);
-                return true;
-            }
-
             const maxRowsNeeded = startRow + lengthParsed - 1;
             if (maxRowsNeeded > currentMaxRows) {
                 requests.push({
                     insertRange: {
                         range: {
                             sheetId: targetSheetId,
-                            startRowIndex: currentMaxRows,
+                            startRowIndex: startRow,
                             endRowIndex: maxRowsNeeded,
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
@@ -140,18 +131,19 @@ function fillSheetsWithData(data: string): boolean {
 
             const outputValues = entry.individuals.map(name => [name]);
             valueUpdates.push({
-                range: `${targetSheet.getName()}!${cellToStartFrom}`,
+                range: `'Period ${entry.identifier}'!A${startRow}:A${maxRowsNeeded}`,
                 values: outputValues
             });
-
-            if (valueUpdates.length > 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
-                Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
-            }
 
             if (requests.length > 0 && Sheets && Sheets.Spreadsheets) {
                 Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
             }
 
+            // Send matrix values configurations
+            if (valueUpdates.length > 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+                Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
+            }
+            
             return true;
         } catch (err: any) {
             const startRow = targetSheet.getRange(cellToStartFrom).getRow();
@@ -173,7 +165,7 @@ function fillSheetsWithData(data: string): boolean {
             const currentMaxRows = targetSheet.getMaxRows();
             if (startRow + lengthParsed > currentMaxRows) {
                 const rowsToAdd = (startRow + lengthParsed) - currentMaxRows;
-                targetSheet.insertRowsAfter(currentMaxRows, rowsToAdd);
+                targetSheet.insertRowsAfter(startRow, rowsToAdd);
             }
 
             // Set header name safely
