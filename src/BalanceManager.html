@@ -380,6 +380,11 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+
+        .disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
@@ -583,21 +588,27 @@
             });
         })
 
+        /**
+         * Applies a balance modification based on the specified operation and amount. It validates the input, disables buttons during processing, and communicates with the server to execute the action. Error handling is included to manage invalid inputs and server errors gracefully.
+         * @param {string} operation - The type of operation to perform (e.g.,
+         * "ADD", "SUBTRACT", "MULTIPLY", "DIVIDE").
+         * @param {number} amount - The amount to apply in the operation.
+         */
         function applyValue(operation, amount) {
             try {
                 const getButtons = document.querySelectorAll('.btn, .btn-math');
 
-                getButtons.forEach(btn => btn.disabled = true);
+                getButtons.forEach(btn => btn.classList.add('disabled'));
                 if (!operation || !amount || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
                     console.error("You must have an operation and an amount.");
-                    getButtons.forEach(btn => btn.disabled = false);
+                    getButtons.forEach(btn => btn.classList.remove('disabled'));
                     return;
                 }
 
                 const validOperations = ["ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"];
                 if (!validOperations.includes(operation)) {
                     console.error("Invalid operation: " + operation);
-                    getButtons.forEach(btn => btn.disabled = false);
+                    getButtons.forEach(btn => btn.classList.remove('disabled'));
                     return;
                 }
 
@@ -609,14 +620,17 @@
                     console.log("Server Response:", response);
                 }, (error) => {
                     console.error("Server Error:", error);
-                    getButtons.forEach(btn => btn.disabled = false);
+                    getButtons.forEach(btn => btn.classList.remove('disabled'));
                 });
             } catch (err) {
                 console.error("Error in applyValue:", err);
-                getButtons.forEach(btn => btn.disabled = false);
+                getButtons.forEach(btn => btn.classList.remove('disabled'));
             }
         }
 
+        /**
+         * Handles the custom input submission, parsing the input for an optional operator and amount. It validates the format, determines the operation type, and applies the value accordingly. Error handling is included to manage invalid input formats gracefully.
+         */
         function handleCustomInput() {
             try {
                 const input = document.getElementById('customInput');

@@ -440,6 +440,9 @@
   </div>
 
   <script>
+    /**
+     * Handles the file input change event, updating the UI with the selected file name and enabling the import button.
+     */
     function processUpload() {
       const fileInput = document.getElementById('csvFile');
       if (fileInput.files.length === 0) {
@@ -451,6 +454,9 @@
       document.getElementById('importBtn').disabled = false;
     }
 
+    /**
+     * Clears the file selection, resets the UI, and disables the import button.
+     */
     function clearFileSelection() {
       const fileInput = document.getElementById('csvFile');
       fileInput.value = "";
@@ -460,6 +466,9 @@
       hideStatusMessage();
     }
 
+    /**
+     * Opens the confirmation modal when the user clicks the import button, ensuring a file is selected before proceeding.
+     */
     function openConfirmModal() {
       const fileInput = document.getElementById('csvFile');
       if (fileInput.files.length === 0) {
@@ -469,6 +478,9 @@
       document.getElementById('confirmModal').classList.add('active');
     }
 
+    /**
+     * Closes the confirmation modal and resets the progress bar and buttons to their default state.
+     */
     function closeModal() {
       document.getElementById('confirmModal').classList.remove('active');
       document.getElementById('progressBar').classList.remove('active');
@@ -476,6 +488,9 @@
       document.getElementById('cancelBtn').disabled = false;
     }
 
+    /**
+     * Reads the selected CSV file, parses its content, and sends it to the backend for processing. It also manages the UI state during the import process, including showing progress and handling errors.
+     */
     function sendCsvToBackend() {
       try {
         const fileInput = document.getElementById('csvFile');
@@ -522,6 +537,11 @@
       }
     }
 
+    /**
+     * Displays a status message in the UI, updating its content and styling based on the type.
+     * @param message The message to display.
+     * @param type The type of the message (e.g., "success", "error").
+     */
     function showStatusMessage(message, type) {
       const statusDiv = document.getElementById('statusMessage');
       statusDiv.textContent = message;
@@ -606,6 +626,12 @@
       }
     }
 
+    /**
+     * Recursively processes each item in the queue by sending it to the server function. It updates the progress bar and text after each item is processed, and handles any errors that may occur during processing.
+     * @param queue An array of data items to be processed, where each item contains an
+     * identifier and an array of associated individuals. The identifier is used to determine which sheet to fill, and the individuals are the data to be imported into that sheet.
+     * @param index The current index in the queue that is being processed. This is used to track progress and update the UI accordingly.
+     */
     function processQueueItem(queue, index) {
       try {
         document.getElementById('progressText').textContent = `Periods processed: ${index} / ${queue.length}`;
