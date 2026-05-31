@@ -18,6 +18,7 @@ function executeBalanceAction(payloadStr: string): string | void {
         const payload = JSON.parse(payloadStr);
         const operation = payload.operation;
         const value = payload.amount;
+        const transactionReason: string | undefined = payload.transactionReason;
 
         if (!operation || !value || typeof value !== 'number') {
             Logger.log("Invalid payload. Please provide a valid operation and amount.");
@@ -25,7 +26,7 @@ function executeBalanceAction(payloadStr: string): string | void {
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
-        return applyMathToSelection(operation, value).toString();
+        return applyMathToSelection(operation, value, true, transactionReason).toString();
     } catch (error: any) {
         SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
         return `Error occurred in executeBalanceAction: ${error.message}`;

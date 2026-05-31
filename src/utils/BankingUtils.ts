@@ -15,7 +15,7 @@ enum Operation {
 
 // Transaction record interface
 interface TransactionRecord {
-  name: string;
+  individual: string;
   type: "Income" | "Expense" | "Investment";
   service: string;
   initialAmount: number;
@@ -29,15 +29,16 @@ interface TransactionRecord {
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
  * @param value The value to use in the mathematical operation on the selected cells. Must be a number.
+ * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, value: number, range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
+function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason: string = "Not Specified", range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
   try {
-    if (!operation || !value) {
-      Logger.log(`You must have an operation and a value. Received operation: ${operation}, value: ${value}`);
-      SpreadsheetApp.getUi().alert(`You must have an operation and a value. Received operation: ${operation}, value: ${value}`);
-      return `You must have an operation and a value. Received operation: ${operation}, value: ${value}`;
+    if (!operation || !value || !isManualTransaction) {
+      Logger.log(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
+      SpreadsheetApp.getUi().alert(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
+      return `You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`;
     }
 
     if (typeof value !== 'number' || isNaN(value)) {
@@ -101,10 +102,28 @@ function applyMathToSelection(operation: Operation | string, value: number, rang
         const rangeA1 = range.getA1Notation();
         const sheetName = range.getSheet().getName();
         const values = range.getValues();
+        const individualName = range.getSheet().getRange(range.getRow(), 1).getValue();
 
         const updatedValues = values.map(row => row.map(cell => {
           if (typeof cell === 'number' && !isNaN(cell)) {
-            return operationFunc(cell);
+            const result = operationFunc(cell);
+            Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+            if (result && typeof result === 'number' && !isNaN(result)) {
+              addTransactionRecord({
+                individual: individualName,
+                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
+                initialAmount: cell,
+                tenderedAmount: value,
+                finalAmount: result,
+                quantityOfServices: 1,
+                timestamp: new Date()
+              });
+            } else {
+              Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+            }
+
+            return result;
           }
           Logger.log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`);
           return cell; // Return the original value if it's not a number
@@ -163,7 +182,26 @@ function applyMathToSelection(operation: Operation | string, value: number, rang
 
           const updatedValues = values.map(row => row.map(cell => {
             if (typeof cell === 'number' && !isNaN(cell)) {
-              return operationFunc(cell);
+              const result = operationFunc(cell);
+              Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+
+              if (result && typeof result === 'number' && !isNaN(result)) {
+                const individualName = subRange.getSheet().getRange(subRange.getRow(), 1).getValue();
+                addTransactionRecord({
+                  individual: individualName,
+                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
+                  initialAmount: cell,
+                  tenderedAmount: value,
+                  finalAmount: result,
+                  quantityOfServices: 1,
+                  timestamp: new Date()
+                });
+              } else {
+                Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+              }
+
+              return result;
             }
             Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
             return cell; // Return the original value if it's not a number
@@ -265,8 +303,74 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
 /**
  * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
  */
-function addTransactionRecord({ name, type, service, initialAmount, tenderedAmount, finalAmount, quantityOfServices, timestamp }: TransactionRecord): boolean | string {
+function addTransactionRecord({individual, type, service, initialAmount, tenderedAmount, finalAmount, quantityOfServices, timestamp}: TransactionRecord): boolean | string {
   try {
+    const SHEET_NAME = "Transactions"
+
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    
+    // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
+    if (!sheet) {
+      Logger.log(`Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`);
+      SpreadsheetApp.getUi().alert(`Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`);
+      return `Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`;
+    }
+
+    if (!individual || !type || !service || initialAmount === undefined || tenderedAmount === undefined || finalAmount === undefined || quantityOfServices === undefined || !timestamp) {
+      Logger.log("All fields are required and must be valid.");
+      SpreadsheetApp.getUi().alert("All fields are required and must be valid.");
+      return "All fields are required and must be valid.";
+    }
+
+    if (typeof initialAmount !== 'number' || isNaN(initialAmount) || typeof tenderedAmount !== 'number' || isNaN(tenderedAmount) || typeof finalAmount !== 'number' || isNaN(finalAmount) || typeof quantityOfServices !== 'number' || isNaN(quantityOfServices)) {
+      Logger.log("All amount fields must be valid numbers.");
+      SpreadsheetApp.getUi().alert("All amount fields must be valid numbers.");
+      return "All amount fields must be valid numbers.";
+    }
+
+    if (typeof timestamp === 'string') {
+      timestamp = new Date(timestamp);
+    }
+
+    if (!(timestamp instanceof Date) || isNaN(timestamp.getTime())) {
+      Logger.log("Timestamp must be a valid date.");
+      SpreadsheetApp.getUi().alert("Timestamp must be a valid date.");
+      return "Timestamp must be a valid date.";
+    }
+    
+    if (type !== "Income" && type !== "Expense" && type !== "Investment") {
+      Logger.log("Type must be one of 'Income', 'Expense', or 'Investment'.");
+      SpreadsheetApp.getUi().alert("Type must be one of 'Income', 'Expense', or 'Investment'.");
+      return "Type must be one of 'Income', 'Expense', or 'Investment'.";
+    }
+
+    if (typeof individual !== 'string' || typeof service !== 'string') {
+      Logger.log("Individual and service must be strings.");
+      SpreadsheetApp.getUi().alert("Individual and service must be strings.");
+      return "Individual and service must be strings.";
+    }
+
+    if (individual.length === 0 || service.length === 0) {
+      Logger.log("Individual and service cannot be empty.");
+      SpreadsheetApp.getUi().alert("Individual and service cannot be empty.");
+      return "Individual and service cannot be empty.";
+    }
+
+    const prevTransactionId = sheet.getLastRow() > 1 ? sheet.getRange(sheet.getLastRow(), 1).getValue() : 0;
+    const newTransactionId = prevTransactionId + 1;
+
+    sheet.appendRow([
+      newTransactionId,
+      individual,
+      type,
+      service,
+      initialAmount,
+      tenderedAmount,
+      finalAmount,
+      quantityOfServices,
+      timestamp
+    ]);
+
     return true;
   } catch (error: any) {
     SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);

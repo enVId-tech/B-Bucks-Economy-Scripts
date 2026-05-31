@@ -225,9 +225,15 @@
                     return;
                 }
 
+                const transactionReason = document.getElementById('transactionReason').value;
+
                 // Must stringify the payload to ensure consistent data format when sent to the server
                 // Prevents an illegal value error
-                const payload = JSON.stringify({ operation: operation, amount: amount });
+                const payload = JSON.stringify({ 
+                    operation: operation, 
+                    amount: amount,
+                    transactionReason: transactionReason
+                });
 
                 callServer('executeBalanceAction', payload, (response) => {
                     console.log("Server Response:", response);
