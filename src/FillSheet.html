@@ -607,27 +607,37 @@
     }
 
     function processQueueItem(queue, index) {
-      document.getElementById('progressText').textContent = `Periods processed: ${index} / ${queue.length}`;
-      if (index >= queue.length) {
-        showStatusMessage("Data import completed successfully!", "success");
-        closeModal();
-        return;
-      }
+      try {
+        document.getElementById('progressText').textContent = `Periods processed: ${index} / ${queue.length}`;
+        if (index >= queue.length) {
+          showStatusMessage("Data import completed successfully!", "success");
+          closeModal();
+          return;
+        }
 
-      const currentItem = queue[index];
-      callServer('fillSheetsWithData', JSON.stringify(currentItem), (response) => {
-        setTimeout(() => {
-          document.getElementById('progressFill').style.width = `${((index + 1) / queue.length) * 100}%`;
-          document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
+        const currentItem = queue[index];
 
-          processQueueItem(queue, index + 1);
-        }, 100);
-      }, (error) => {
-        showStatusMessage("Error processing data: " + error.message, "error");
-        console.error("Error processing data:", error);
+        const stringifiedData = JSON.stringify(currentItem);
+
+        callServer('fillSheetsWithData', stringifiedData, (response) => {
+          setTimeout(() => {
+            document.getElementById('progressFill').style.width = `${((index + 1) / queue.length) * 100}%`;
+            document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
+
+            processQueueItem(queue, index + 1);
+          }, 100);
+        }, (error) => {
+          showStatusMessage("Error processing data: " + error.message, "error");
+          console.error("Error processing data:", error);
+          document.getElementById('confirmBtn').disabled = false;
+          document.getElementById('cancelBtn').disabled = false;
+        });
+      } catch (err) {
+        showStatusMessage("An unexpected error occurred during processing: " + err.message, "error");
+        console.error("An unexpected error occurred during processing:", err);
         document.getElementById('confirmBtn').disabled = false;
         document.getElementById('cancelBtn').disabled = false;
-      });
+      }
     }
   </script>
 </body>

@@ -21,6 +21,7 @@ function fillSheetsWithData(data: string): boolean {
     try {
         const entry: CSVData = JSON.parse(data);
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const spreadsheetId = spreadsheet.getId();
         let sheets = spreadsheet.getSheets();
 
         const cellToStartFrom = "A7"; // Starting cell for filling data
@@ -40,48 +41,161 @@ function fillSheetsWithData(data: string): boolean {
             }
         }
 
-        const startRow = targetSheet.getRange(cellToStartFrom).getRow();
-        let lengthParsed = entry.individuals.length;
+        // Attempt to add with the Google Sheets API first, only if it fails run the fallback
+        try {
+            const startRow = targetSheet.getRange(cellToStartFrom).getRow();
+            const startColumn = targetSheet.getRange(cellToStartFrom).getColumn();
+            const lengthParsed = entry.individuals.length;
+            if (lengthParsed === 0) {
+                Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
+                return true;
+            }
 
-        targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
+            const lastRowWithData = targetSheet.getLastRow();
+            const currentMaxRows = targetSheet.getMaxRows();
+            const maxColumns = targetSheet.getMaxColumns();
+            const targetSheetId = targetSheet.getSheetId();
 
-        if (lengthParsed === 0) {
-            Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
+            const requests: GoogleAppsScript.Sheets.Schema.Request[] = [];
+            const valueUpdates: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+
+            // Clear existing content from row (startRow) down.
+            if (lastRowWithData >= startRow) {
+                requests.push({
+                    updateCells: {
+                        range: {
+                            sheetId: targetSheetId,
+                            startRowIndex: startRow - 1,
+                            endRowIndex: lastRowWithData,
+                            startColumnIndex: 0,
+                            endColumnIndex: maxColumns
+                        },
+                        fields: "userEnteredValue"
+                    }
+                });
+            }
+
+            valueUpdates.push({
+                range: `${targetSheet.getName()}!${cellToSetName}`,
+                values: [[`Period ${entry.identifier}`]]
+            });
+
+            // If no data to fill, just clear and set the name
+            if (lengthParsed === 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+                Sheets.Spreadsheets!.batchUpdate({ requests }, spreadsheetId);
+                Sheets.Spreadsheets!.Values!.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
+                Logger.log(`Length parsed is 0 for identifier: ${entry.identifier}. Cleared content.`);
+                return true;
+            }
+
+            const maxRowsNeeded = startRow + lengthParsed - 1;
+            if (maxRowsNeeded > currentMaxRows) {
+                requests.push({
+                    insertRange: {
+                        range: {
+                            sheetId: targetSheetId,
+                            startRowIndex: currentMaxRows,
+                            endRowIndex: maxRowsNeeded,
+                            startColumnIndex: 0,
+                            endColumnIndex: maxColumns
+                        },
+                        shiftDimension: "ROWS"
+                    }
+                });
+            } else if (currentMaxRows > maxRowsNeeded) {
+                requests.push({
+                    deleteRange: {
+                        range: {
+                            sheetId: targetSheetId,
+                            startRowIndex: maxRowsNeeded,
+                            endRowIndex: currentMaxRows,
+                            startColumnIndex: 0,
+                            endColumnIndex: maxColumns
+                        }
+                    }
+                });
+            }
+
+            if (lengthParsed > 1) {
+                requests.push({
+                    copyPaste: {
+                        source: {
+                            sheetId: targetSheetId,
+                            startRowIndex: startRow - 1,
+                            endRowIndex: startRow - 1,
+                            startColumnIndex: 0,
+                            endColumnIndex: maxColumns
+                        },
+                        destination: {
+                            sheetId: targetSheetId,
+                            startRowIndex: startRow,
+                            endRowIndex: startRow + lengthParsed - 1,
+                            startColumnIndex: 0,
+                            endColumnIndex: maxColumns
+                        },
+                        pasteType: "PASTE_FORMAT"
+                    }
+                });
+            }
+
+            const outputValues = entry.individuals.map(name => [name]);
+            valueUpdates.push({
+                range: `${targetSheet.getName()}!${cellToStartFrom}`,
+                values: outputValues
+            });
+
+            if (valueUpdates.length > 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+                Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
+            }
+
+            if (requests.length > 0 && Sheets && Sheets.Spreadsheets) {
+                Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
+            }
+
             return true;
+        } catch (err: any) {
+            const startRow = targetSheet.getRange(cellToStartFrom).getRow();
+            let lengthParsed = entry.individuals.length;
+
+            targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
+
+            if (lengthParsed === 0) {
+                Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
+                return true;
+            }
+
+            // Clear existing content from row A7 down.
+            const lastRowWithData = targetSheet.getLastRow();
+            if (lastRowWithData >= startRow) {
+                targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, 1).clearContent();
+            }
+
+            const currentMaxRows = targetSheet.getMaxRows();
+            if (startRow + lengthParsed > currentMaxRows) {
+                const rowsToAdd = (startRow + lengthParsed) - currentMaxRows;
+                targetSheet.insertRowsAfter(currentMaxRows, rowsToAdd);
+            }
+
+            // Set header name safely
+            if (lengthParsed > 1) {
+                const sourceRange = targetSheet.getRange(startRow, 1, 1, targetSheet.getMaxColumns());
+                const destinationRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, targetSheet.getMaxColumns());
+                sourceRange.copyTo(destinationRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+            }
+
+            // Fill data cleanly in a single network call
+            const outputValues = entry.individuals.map(name => [name]);
+            targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
+
+            // Dynamically removing excess rows after filling data to keep sheets tidy
+            const updatedMaxRows = targetSheet.getMaxRows();
+            const lastActiveRow = targetSheet.getLastRow();
+
+            if (updatedMaxRows > lastActiveRow) {
+                const rowsToDelete = updatedMaxRows - lastActiveRow;
+                targetSheet.deleteRows(lastActiveRow + 1, rowsToDelete);
+            }
         }
-
-        // Clear existing content from row A7 down.
-        const lastRowWithData = targetSheet.getLastRow();
-        if (lastRowWithData >= startRow) {
-            targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, 1).clearContent();
-        }
-
-        const currentMaxRows = targetSheet.getMaxRows();
-        if (startRow + lengthParsed > currentMaxRows) {
-            const rowsToAdd = (startRow + lengthParsed) - currentMaxRows;
-            targetSheet.insertRowsAfter(currentMaxRows, rowsToAdd);
-        }
-
-        // Set header name safely
-        if (lengthParsed > 1) {
-            const sourceRange = targetSheet.getRange(startRow, 1, 1, targetSheet.getMaxColumns());
-            const destinationRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, targetSheet.getMaxColumns());
-            sourceRange.copyTo(destinationRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-        }
-
-        // Fill data cleanly in a single network call
-        const outputValues = entry.individuals.map(name => [name]);
-        targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
-
-        // Dynamically removing excess rows after filling data to keep sheets tidy
-        const updatedMaxRows = targetSheet.getMaxRows();
-        const lastActiveRow = targetSheet.getLastRow();
-
-        if (updatedMaxRows > lastActiveRow) {
-            const rowsToDelete = updatedMaxRows - lastActiveRow;
-            targetSheet.deleteRows(lastActiveRow + 1, rowsToDelete);
-        }
-
         return true;
     } catch (err: any) {
         Logger.log(`An error occurred in function fillSheetsWithData: ${err as string}`);
