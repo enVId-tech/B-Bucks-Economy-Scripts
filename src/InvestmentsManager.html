@@ -557,33 +557,33 @@
   </div>
 
   <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Handle click-to-select for all log items
-            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.classList.toggle('selected');
-                    updateUndoButtonState();
-                });
-            });
-
-            // Update undo button enabled state based on selected items
-            function updateUndoButtonState() {
-                const undoBtn = document.getElementById('undoSelectedBtn');
-                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-                undoBtn.disabled = selectedItems.length === 0;
-            }
-
-            // Deselect all when clicking outside
-            document.addEventListener('click', () => {
-                if (event.target === document.body || event.target === document.documentElement) {
-                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-                        item.classList.remove('selected');
-                    });
-                    updateUndoButtonState();
-                }
-            });
+    document.addEventListener('DOMContentLoaded', () => {
+      // Handle click-to-select for all log items
+      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.classList.toggle('selected');
+          updateUndoButtonState();
         });
+      });
+
+      // Update undo button enabled state based on selected items
+      function updateUndoButtonState() {
+        const undoBtn = document.getElementById('undoSelectedBtn');
+        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+        undoBtn.disabled = selectedItems.length === 0;
+      }
+
+      // Deselect all when clicking outside
+      document.addEventListener('click', () => {
+        if (event.target === document.body || event.target === document.documentElement) {
+          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+            item.classList.remove('selected');
+          });
+          updateUndoButtonState();
+        }
+      });
+    });
   </script>
 </body>
 

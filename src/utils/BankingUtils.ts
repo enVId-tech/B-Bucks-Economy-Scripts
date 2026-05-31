@@ -17,74 +17,154 @@ enum Operation {
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
  * @param value The value to use in the mathematical operation on the selected cells. Must be a number.
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
- * @returns {boolean} Returns true if the operation was successful, false otherwise.
+ * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
  */
 function applyMathToSelection(operation: Operation | string, value: number, range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
   try {
     if (!operation || !value) {
       Logger.log(`You must have an operation and a value. Received operation: ${operation}, value: ${value}`);
+      SpreadsheetApp.getUi().alert(`You must have an operation and a value. Received operation: ${operation}, value: ${value}`);
       return `You must have an operation and a value. Received operation: ${operation}, value: ${value}`;
     }
 
     if (typeof value !== 'number' || isNaN(value)) {
       Logger.log("Value must be a number.");
+      SpreadsheetApp.getUi().alert("Value must be a number.");
       return "Value must be a number.";
     }
 
+    // Ensure the operation is in an enum format
+    // Edge case handling
+    let normalMapping: Operation;
     if (typeof operation === 'string') {
-      operation = {
+      normalMapping = {
         "ADD": Operation.ADD,
         "SUBTRACT": Operation.SUBTRACT,
         "MULTIPLY": Operation.MULTIPLY,
         "DIVIDE": Operation.DIVIDE
-      }[operation.toUpperCase() as keyof typeof Operation];
+      }[operation.toUpperCase()] as Operation;
+    } else {
+      normalMapping = operation;
     }
 
-    if (!Object.values(Operation).includes(operation as Operation)) {
+    if (!Object.values(Operation).includes(normalMapping)) {
       Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
+      SpreadsheetApp.getUi().alert("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
       return "Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.";
     }
 
-    let sheet = SpreadsheetApp.getActiveSpreadsheet();
-
-    let activeRange = range || sheet.getActiveRange();
-
-    if (!activeRange) {
-      Logger.log("No active range found. Please select a cell to apply the operation to.");
-      throw new Error("You must select a cell.");
-    }
-
-    let values = activeRange.getValues();
-
     if (operation === Operation.DIVIDE && value === 0) {
       Logger.log("You cannot divide by zero.");
+      SpreadsheetApp.getUi().alert("You cannot divide by zero.");
       return "You cannot divide by zero.";
     }
 
-    // Define the operations in a more structured map instead of looping
-    // Maps the operation enum to a function that takes a number and returns the result of applying the operation with the provided value
-    const operations: Record<Operation, (n: number) => number> = {
-      [Operation.ADD]: (n) => n + value,
-      [Operation.SUBTRACT]: (n) => n - value,
-      [Operation.MULTIPLY]: (n) => n * value,
-      [Operation.DIVIDE]: (n) => n / value,
-    };
-
-    // Use a const function to apply the operation to the cell
-    const operationFunc = operations[operation as Operation];
-
-    const updatedValues = values.map(row => row.map(cell => {
-      if (typeof cell === 'number' && !isNaN(cell)) {
-        return operationFunc(cell);
-      } else {
-        Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
-        return cell; // Return the original value if it's not a number
+    // First try the faster, API efficient method using the Sheets API, with error handling to fall back to the slower method
+    try {
+      const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+      if (!activeRangeList) {
+        Logger.log("No active range found. Please select cells to apply the operation to.");
+        SpreadsheetApp.getUi().alert("No active range found. Please select cells to apply the operation to.");
+        return "No active range found. Please select cells to apply the operation to.";
       }
-    }));
 
-    activeRange.setValues(updatedValues);
+      const ranges = activeRangeList.getRanges();
+      const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+
+      // Use the Sheets API to apply the operation to all cells in the active range list
+      const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+
+      const operations: Record<Operation, (n: number) => number> = {
+        [Operation.ADD]: (n) => n + value,
+        [Operation.SUBTRACT]: (n) => n - value,
+        [Operation.MULTIPLY]: (n) => n * value,
+        [Operation.DIVIDE]: (n) => n / value,
+      };
+
+      const operationFunc = operations[normalMapping];
+
+      ranges.forEach(range => {
+        // Get the current values of the range
+        const rangeA1 = range.getA1Notation();
+        const sheetName = range.getSheet().getName();
+        const values = range.getValues();
+
+        const updatedValues = values.map(row => row.map(cell => {
+          if (typeof cell === 'number' && !isNaN(cell)) {
+            return operationFunc(cell);
+          }
+          Logger.log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`);
+          return cell; // Return the original value if it's not a number
+        }));
+
+        requests.push({
+          range: `${sheetName}!${rangeA1}`,
+          values: updatedValues
+        });
+      });
+
+
+      // Send ONE batchUpdate request to the Sheets API to update all ranges at once
+      if (requests.length > 0 && Sheets) {
+        Sheets.Spreadsheets.Values.batchUpdate({
+          valueInputOption: "USER_ENTERED",
+          data: requests
+        }, spreadsheetId);
+      }
+
+      return true;
+    } catch (error: any) {
+      // Try using the slower, API heavy method if the faster Sheets API doesn't work, with error handling for both methods
+      SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
+
+      try {
+        let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
+        if (range) {
+          rangesToProcess.push(range);
+        } else {
+          const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+          if (activeRangeList) {
+            rangesToProcess = activeRangeList.getRanges();
+          } else {
+            Logger.log("No active range found. Please select cells to apply the operation to.");
+            SpreadsheetApp.getUi().alert("No active range found. Please select cells to apply the operation to.");
+            return "No active range found. Please select cells to apply the operation to.";
+          }
+        }
+
+        // Define the operations in a more structured map instead of looping
+        // Maps the operation enum to a function that takes a number and returns the result of applying the operation with the provided value
+        const operations: Record<Operation, (n: number) => number> = {
+          [Operation.ADD]: (n) => n + value,
+          [Operation.SUBTRACT]: (n) => n - value,
+          [Operation.MULTIPLY]: (n) => n * value,
+          [Operation.DIVIDE]: (n) => n / value,
+        };
+
+        // Use a const function to apply the operation to the cell
+        const operationFunc = operations[normalMapping];
+
+        // Apply the operation to each cell in each range, with error handling for non-numeric cells
+        rangesToProcess.forEach(subRange => {
+          const values = subRange.getValues();
+
+          const updatedValues = values.map(row => row.map(cell => {
+            if (typeof cell === 'number' && !isNaN(cell)) {
+              return operationFunc(cell);
+            }
+            Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
+            return cell; // Return the original value if it's not a number
+          }));
+
+          subRange.setValues(updatedValues);
+        });
+      } catch (error: any) {
+        SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
+        return `Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`;
+      }
+    }
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(error.message);
+    SpreadsheetApp.getUi().alert(`Error occured in applyMathToSelection: ${error.message}`);
     return error.message;
   }
   return true;
@@ -131,7 +211,7 @@ function moveToSelection(amount: number, finalCells: GoogleAppsScript.Spreadshee
     sourceCells.setValue(sourceValues - amount);
     finalCells.setValue(finalValues + amount);
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(error.message);
+    SpreadsheetApp.getUi().alert(`Error occured in moveToSelection: ${error.message}`);
   }
   return true;
 }
@@ -164,7 +244,7 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
 
     cells.getValue().setComment(comment);
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(error.message);
+    SpreadsheetApp.getUi().alert(`Error occured in commentOnSelection: ${error.message}`);
   }
   return true;
 }

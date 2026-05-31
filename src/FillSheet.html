@@ -619,7 +619,7 @@
         setTimeout(() => {
           document.getElementById('progressFill').style.width = `${((index + 1) / queue.length) * 100}%`;
           document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
-          
+
           processQueueItem(queue, index + 1);
         }, 100);
       }, (error) => {
