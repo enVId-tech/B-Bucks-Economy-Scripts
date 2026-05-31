@@ -111,7 +111,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
             if (result && typeof result === 'number' && !isNaN(result)) {
               addTransactionRecord({
                 individual: individualName,
-                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
                 service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
                 initialAmount: cell,
                 tenderedAmount: value,
@@ -189,7 +189,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                 const individualName = subRange.getSheet().getRange(subRange.getRow(), 1).getValue();
                 addTransactionRecord({
                   individual: individualName,
-                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
                   service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
                   initialAmount: cell,
                   tenderedAmount: value,
