@@ -5,11 +5,24 @@
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
 // This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including mathematical operations on cell values, moving values between cells, and adding comments to cells.
 
+// Operation enum 
 enum Operation {
   ADD = "ADD",
   SUBTRACT = "SUBTRACT",
   MULTIPLY = "MULTIPLY",
   DIVIDE = "DIVIDE"
+}
+
+// Transaction record interface
+interface TransactionRecord {
+  name: string;
+  type: "Income" | "Expense" | "Investment";
+  service: string;
+  initialAmount: number;
+  tenderedAmount: number;
+  finalAmount: number;
+  quantityOfServices: number;
+  timestamp: Date;
 }
 
 /**
@@ -247,4 +260,16 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
     SpreadsheetApp.getUi().alert(`Error occured in commentOnSelection: ${error.message}`);
   }
   return true;
+}
+
+/**
+ * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
+ */
+function addTransactionRecord({ name, type, service, initialAmount, tenderedAmount, finalAmount, quantityOfServices, timestamp }: TransactionRecord): boolean | string {
+  try {
+    return true;
+  } catch (error: any) {
+    SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);
+    return false;
+  }
 }

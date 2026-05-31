@@ -436,7 +436,17 @@
                 </div>
             </div>
 
-            <!-- CARD 3: Custom Input -->
+            <!-- CARD 3: Custom Reason -->
+            <div
+                style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
+                <div
+                    style="font-weight: 700; font-size: 13px; color: #24292e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    📝 Transaction Reason</div>
+                <div style="font-size: 9px; color: #6a737d; margin-bottom: 4px;">Optional note for activity log</div>
+                <input type="text" id="transactionReason" placeholder="Enter reason for this transaction...">
+            </div>
+
+            <!-- CARD 4: Custom Input -->
             <div
                 style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
                 <div
@@ -453,7 +463,7 @@
                     Custom Amount</button>
             </div>
 
-            <!-- CARD 4: Format Guide -->
+            <!-- CARD 5: Format Guide -->
             <div
                 style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);">
                 <div
@@ -465,7 +475,7 @@
                 </div>
             </div>
 
-            <!-- CARD 5: History Control -->
+            <!-- CARD 6: History Control -->
             <div
                 style="background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e1e4e8; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); margin-top: auto;">
                 <div
@@ -575,14 +585,19 @@
 
         function applyValue(operation, amount) {
             try {
+                const getButtons = document.querySelectorAll('.btn, .btn-math');
+
+                getButtons.forEach(btn => btn.disabled = true);
                 if (!operation || !amount || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
                     console.error("You must have an operation and an amount.");
+                    getButtons.forEach(btn => btn.disabled = false);
                     return;
                 }
 
                 const validOperations = ["ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"];
                 if (!validOperations.includes(operation)) {
                     console.error("Invalid operation: " + operation);
+                    getButtons.forEach(btn => btn.disabled = false);
                     return;
                 }
 
@@ -594,9 +609,11 @@
                     console.log("Server Response:", response);
                 }, (error) => {
                     console.error("Server Error:", error);
+                    getButtons.forEach(btn => btn.disabled = false);
                 });
             } catch (err) {
                 console.error("Error in applyValue:", err);
+                getButtons.forEach(btn => btn.disabled = false);
             }
         }
 
