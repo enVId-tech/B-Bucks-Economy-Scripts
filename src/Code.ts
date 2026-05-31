@@ -44,7 +44,7 @@ function openManualBalanceManager(): void {
  * Opens a dialog for managing investments, allowing users to view and modify investment records.
  */
 function openInvestmentsManager(): void {
-  const html = HtmlService.createHtmlOutputFromFile('InvestmentsManager')
+  const html = HtmlService.createTemplateFromFile('InvestmentsManager').evaluate()
     .setTitle("Bank of Banderas - Investments Manager")
     .setWidth(600)
     .setHeight(700);
@@ -56,7 +56,7 @@ function openInvestmentsManager(): void {
  * Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses.
  */
 function showIncomeConsumables() {
-  const html = HtmlService.createHtmlOutputFromFile('ServicesManager')
+  const html = HtmlService.createTemplateFromFile('ServicesManager').evaluate()
     .setTitle('Bank of Banderas - Services Menu')
     .setWidth(500)
     .setHeight(700);
@@ -68,7 +68,7 @@ function showIncomeConsumables() {
  * Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions.
  */
 function openTransactionsRecords(): void {
-  const html = HtmlService.createHtmlOutputFromFile('TransactionsRecords')
+  const html = HtmlService.createTemplateFromFile('TransactionsRecords').evaluate()
     .setTitle("Bank of Banderas - Transaction Records")
     .setWidth(700)
     .setHeight(650);
@@ -80,7 +80,7 @@ function openTransactionsRecords(): void {
  * Opens a dialog for configuring banking settings, including interest rates, restrictions, and maintenance options.
  */
 function openBankingSettings(): void {
-  const html = HtmlService.createHtmlOutputFromFile('BankingSettings')
+  const html = HtmlService.createTemplateFromFile('BankingSettings').evaluate()
     .setTitle("Bank of Banderas - Banking Settings")
     .setWidth(550)
     .setHeight(700);
@@ -89,7 +89,7 @@ function openBankingSettings(): void {
 }
 
 function importStudentNames(): void {
-  const html = HtmlService.createHtmlOutputFromFile('FillSheet')
+  const html = HtmlService.createTemplateFromFile('FillSheet').evaluate()
     .setTitle("Bank of Banderas - Fill Sheet")
     .setWidth(350)
     .setHeight(500);
