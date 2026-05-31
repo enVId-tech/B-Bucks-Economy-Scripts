@@ -13,406 +13,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Investments Manager</title>
-  <style>
-    * {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-sizing: border-box;
-      user-select: none;
-    }
+  <?!= include('styles/InvestmentsManager'); ?>
 
-    input[type="text"],
-    input[type="number"],
-    select {
-      user-select: text;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100vh;
-      display: flex;
-      flex-direction: row;
-      overflow: hidden;
-      background: #fafbfc;
-      font-size: 12px;
-      color: #24292e;
-    }
-
-    .nav-header {
-      background: #fff;
-      border-bottom: 1px solid #e1e4e8;
-      display: flex;
-      gap: 0;
-      padding: 0;
-      overflow-x: auto;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
-
-    .nav-link {
-      padding: 10px 14px;
-      border: none;
-      background: #fff;
-      color: #6a737d;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 500;
-      text-decoration: none;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .nav-link:hover {
-      color: #24292e;
-      background: #f6f8fa;
-    }
-
-    .nav-link.active {
-      color: #0366d6;
-      border-bottom-color: #0366d6;
-    }
-
-    .main-content {
-      display: flex;
-      width: 100%;
-      height: 100vh;
-    }
-
-    .left-panel,
-    .right-panel {
-      width: 50%;
-      height: 100vh;
-      padding: 10px;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-
-    .left-panel {
-      border-right: 1px solid #e1e4e8;
-      background: #fff;
-    }
-
-    .right-panel {
-      background: #fafbfc;
-    }
-
-    .section-title {
-      font-weight: 700;
-      font-size: 13px;
-      color: #24292e;
-      border-bottom: 2px solid #6f42c1;
-      padding-bottom: 6px;
-      margin: 0 0 8px 0;
-    }
-
-    .section-title::before {
-      content: "💎 ";
-      margin-right: 4px;
-    }
-
-    .form-section,
-    .calc-section {
-      background: #fff;
-      padding: 8px;
-      border-radius: 4px;
-      border: 1px solid #e1e4e8;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      margin-bottom: 8px;
-    }
-
-    .calc-section {
-      background: #f6f8fa;
-      border-color: #e1e4e8;
-    }
-
-    .form-title,
-    .calc-title {
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #586069;
-      margin-bottom: 6px;
-    }
-
-    label {
-      display: block;
-      font-size: 10px;
-      color: #586069;
-      font-weight: 600;
-      text-transform: uppercase;
-      margin: 6px 0 2px 0;
-      letter-spacing: 0.3px;
-    }
-
-    label:first-of-type {
-      margin-top: 0;
-    }
-
-    input,
-    select {
-      width: 100%;
-      padding: 5px 6px;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-      font-size: 11px;
-      transition: border 0.1s;
-    }
-
-    input:focus,
-    select:focus {
-      border-color: #0366d6;
-      outline: none;
-      box-shadow: inset 0 0 0 1px #0366d6;
-    }
-
-    .info-box,
-    .deadline-box,
-    .warning-box,
-    .current-earnings {
-      padding: 6px;
-      border-radius: 3px;
-      margin: 6px 0;
-      border-left: 3px solid #6f42c1;
-      font-size: 10px;
-    }
-
-    .info-box {
-      background: #f6f3ff;
-      border-left-color: #6f42c1;
-    }
-
-    .info-label {
-      font-size: 9px;
-      color: #586069;
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    .info-value {
-      font-size: 13px;
-      font-weight: 700;
-      color: #24292e;
-      margin-top: 2px;
-      font-family: monospace;
-    }
-
-    .deadline-box {
-      background: #fff3d5;
-      border-left-color: #f39c12;
-      color: #856404;
-      display: none;
-    }
-
-    .deadline-label {
-      font-size: 9px;
-      color: #856404;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-
-    .deadline-value {
-      font-size: 12px;
-      color: #721c24;
-      font-weight: 700;
-      margin-top: 2px;
-    }
-
-    .warning-box {
-      background: #fff3d5;
-      border-left-color: #f39c12;
-      color: #856404;
-      display: none;
-    }
-
-    .error-box {
-      background: #fde8e8;
-      border-left-color: #d73a49;
-      color: #721c24;
-      display: none;
-      padding: 6px;
-      border-radius: 3px;
-      font-size: 10px;
-    }
-
-    .current-earnings {
-      background: #f3ffe3;
-      border-left-color: #28a745;
-      display: none;
-    }
-
-    .projection-container {
-      max-height: 350px;
-      overflow-y: auto;
-      background: #fff;
-      border: 1px solid #e1e4e8;
-      border-radius: 3px;
-    }
-
-    .projection-item {
-      padding: 6px 8px;
-      border-bottom: 1px solid #e1e4e8;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 10px;
-    }
-
-    .projection-item:hover {
-      background: #f6f8fa;
-    }
-
-    .projection-week {
-      font-weight: 600;
-      color: #6f42c1;
-      font-family: monospace;
-    }
-
-    .projection-amount {
-      font-weight: 600;
-      color: #28a745;
-      font-size: 11px;
-      font-family: monospace;
-    }
-
-    .projection-rate {
-      font-size: 9px;
-      color: #6a737d;
-      margin-left: 4px;
-    }
-
-    .btn {
-      color: white;
-      border: none;
-      padding: 7px 10px;
-      border-radius: 3px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 11px;
-      transition: all 0.15s;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-      width: 100%;
-      margin-top: 5px;
-    }
-
-    .btn:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-    }
-
-    .btn:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: #0366d6;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: #0256c7;
-    }
-
-    .btn-deposit {
-      background: #28a745;
-    }
-
-    .btn-deposit:hover:not(:disabled) {
-      background: #218838;
-    }
-
-    .btn-withdraw {
-      background: #d73a49;
-    }
-
-    .btn-withdraw:hover:not(:disabled) {
-      background: #cb2431;
-    }
-
-    .btn-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 6px;
-    }
-
-    .checkbox-container {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      margin: 6px 0;
-    }
-
-    .checkbox-container input {
-      width: auto;
-      accent-color: #0366d6;
-    }
-
-    .checkbox-container label {
-      margin: 0;
-      font-weight: normal;
-      text-transform: none;
-      font-size: 10px;
-    }
-
-    .info-text {
-      color: #6a737d;
-      line-height: 1.5;
-      background: #f6f8fa;
-      border: 1px solid #e1e4e8;
-      padding: 6px;
-      border-radius: 3px;
-      margin: 6px 0;
-      font-size: 10px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 6px;
-      border: 1px solid #0366d6;
-      background: white;
-      color: #0366d6;
-      border-radius: 3px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 10px;
-      transition: all 0.15s;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-
-    .tab-btn:hover:not(:disabled) {
-      background: #f1f8ff;
-    }
-
-    .tab-btn.active {
-      background: #0366d6;
-      color: white;
-    }
-
-    .tab-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      background: #f6f8fa;
-      color: #6a737d;
-      border-color: #e1e4e8;
-    }
-
-    .tab-container {
-      display: flex;
-      gap: 5px;
-      margin-bottom: 8px;
-    }
-  </style>
-
-  <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
+      <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
   <?!= include('utils/ClientToServer'); ?>
 </head>
 
@@ -446,14 +49,14 @@
         </select>
 
         <!-- Deadline Warning (integrated into card) -->
-        <div class="deadline-box" id="deadlineBox" style="margin-top: 8px;">
+        <div class="deadline-box deadline-margin" id="deadlineBox">
           <div class="deadline-label">⚠️ CoD Final Deadline</div>
           <div class="deadline-value" id="deadlineDate">--</div>
         </div>
       </div>
 
       <!-- Card 2: Account Overview -->
-      <div class="form-section" id="studentInfoSection" style="display: none;">
+      <div class="form-section hidden-display" id="studentInfoSection">
         <div class="form-title">Account Overview</div>
         <div class="info-box">
           <div class="info-label">Available Cash</div>
@@ -463,25 +66,25 @@
           <div class="info-label">Current CoD</div>
           <div class="info-value" id="codAmount">$0.00</div>
         </div>
-        <div class="info-box" id="purchaseDateBox" style="display: none;">
+        <div class="info-box hidden-display" id="purchaseDateBox">
           <div class="info-label">Purchase Date</div>
           <div class="info-value" id="purchaseDate">--</div>
         </div>
-        <div class="current-earnings info-box" id="currentEarningsBox" style="display: none;">
+        <div class="current-earnings info-box hidden-display" id="currentEarningsBox">
           <div class="info-label">💰 Withdrawal Value</div>
           <div class="info-value" id="currentEarnings">$0.00</div>
-          <div id="currentEarningsDetail" style="font-size: 11px; margin-top: 5px; color: #155724;"></div>
+          <div id="currentEarningsDetail" class="current-earnings-detail"></div>
         </div>
         <div class="warning-box" id="warningBox"></div>
         <div class="error-box" id="errorBox"></div>
       </div>
 
       <!-- Card 3: CoD Operations -->
-      <div class="form-section" id="depositSection" style="display: none;">
+      <div class="form-section hidden-display" id="depositSection">
         <div class="form-title">Deposit to CoD</div>
         <label for="depositAmount">Amount ($)</label>
         <input type="number" id="depositAmount" placeholder="Enter amount" step="0.01" min="0">
-        <button class="btn btn-primary" style="width: 100%; margin-top: 5px;">Deposit All Cash</button>
+        <button class="btn btn-primary deposit-button-full">Deposit All Cash</button>
 
         <!-- Override Checkbox -->
         <div class="checkbox-container">
@@ -522,14 +125,14 @@
         <div id="customAmountInput">
           <label for="customAmount">Principal Amount ($)</label>
           <input type="number" id="customAmount" placeholder="Enter amount" step="0.01" min="0">
-          <label for="customWeek" style="margin-top: 10px;">Starting Week</label>
+          <label for="customWeek" class="margin-top-10">Starting Week</label>
           <input type="number" id="customWeek" min="0" max="52" value="1">
-          <label for="customRate" style="margin-top: 10px;">Total Interest Rate</label>
-          <input type="text" id="customRate" readonly style="background: #f5f5f5; cursor: not-allowed;">
+          <label for="customRate" class="margin-top-10">Total Interest Rate</label>
+          <input type="text" id="customRate" readonly class="readonly-input">
         </div>
 
         <!-- Deposit Input Info -->
-        <div id="depositInputInfo" style="display: none;">
+        <div id="depositInputInfo" class="hidden-display">
           <div class="info-box">
             <div class="info-label">Projecting based on Deposit Input</div>
             <div class="info-value" id="depositInputValue">$0.00</div>
@@ -537,17 +140,16 @@
         </div>
 
         <!-- Current Projection -->
-        <div id="projectionCurrentBox"
-          style="display: none; background: #e8f5e9; border: 2px solid #4caf50; padding: 12px; border-radius: 6px; margin-top: 12px;">
-          <div style="font-size: 11px; color: #2e7d32; font-weight: bold;">Value at Week <span
+        <div id=\"projectionCurrentBox\" class=\"projection-success-box\">
+          <div class=\"projection-success-label\">Value at Week <span
               id="projectionWeeks">0</span></div>
-          <div id="projectionCurrentValue" style="font-size: 16px; font-weight: bold; color: #1b5e20; margin-top: 5px;">
+          <div id="projectionCurrentValue" class="projection-success-value">
           </div>
         </div>
       </div>
 
       <!-- Projections List -->
-      <div class="calc-section" id="projectionsSection" style="display: none;">
+      <div class="calc-section hidden-display" id="projectionsSection">
         <div class="calc-title">📈 52-Week Earnings Projections</div>
         <div class="projection-container">
           <div id="projectionContainer"></div>
