@@ -64,7 +64,7 @@ function fillSheetsWithData(data: string): boolean {
                     updateCells: {
                         range: {
                             sheetId: targetSheetId,
-                            startRowIndex: startRow - 1,
+                            startRowIndex: startRow,
                             endRowIndex: lastRowWithData,
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
@@ -79,7 +79,9 @@ function fillSheetsWithData(data: string): boolean {
                 values: [[`Period ${entry.identifier}`]]
             });
 
+            // The total number of rows needed is the starting row plus the length of the individuals list minus one (since the starting row is inclusive)
             const maxRowsNeeded = startRow + lengthParsed - 1;
+
             if (maxRowsNeeded > currentMaxRows) {
                 requests.push({
                     insertRange: {
@@ -90,7 +92,7 @@ function fillSheetsWithData(data: string): boolean {
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
                         },
-                        shiftDimension: "ROWS"
+                        shiftDimension: "ROWS",
                     }
                 });
             } else if (currentMaxRows > maxRowsNeeded) {
@@ -113,7 +115,7 @@ function fillSheetsWithData(data: string): boolean {
                         source: {
                             sheetId: targetSheetId,
                             startRowIndex: startRow - 1,
-                            endRowIndex: startRow - 1,
+                            endRowIndex: startRow,
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
                         },
@@ -124,7 +126,8 @@ function fillSheetsWithData(data: string): boolean {
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
                         },
-                        pasteType: "PASTE_FORMAT"
+                        pasteType: "PASTE_NORMAL",
+                        pasteOrientation: "NORMAL"
                     }
                 });
             }
@@ -141,9 +144,9 @@ function fillSheetsWithData(data: string): boolean {
 
             // Send matrix values configurations
             if (valueUpdates.length > 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
-                Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
+                Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'USER_ENTERED', data: valueUpdates }, spreadsheetId);
             }
-            
+
             return true;
         } catch (err: any) {
             const startRow = targetSheet.getRange(cellToStartFrom).getRow();
