@@ -6,7 +6,7 @@
 // This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including functions related to investments management and other financial operations.
 
 function myFunction() {
-  
+
 }
 
 // const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');

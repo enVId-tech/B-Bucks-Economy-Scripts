@@ -1,3 +1,10 @@
+// Coded by Erick Tran for Mr. Banderas, 2026
+// Copyright (c) 2026 Erick Tran. 
+// This file is licensed under the MIT License, check the LICENSE file for details.
+
+// GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+// This file contains functions related to the manual balance manager, allowing users to perform operations on selected cells in the Google Sheets UI based on a provided payload that specifies the operation and amount to apply.
+
 function executeBalanceAction(payloadStr: string): string | void {
     try {
         // Check if a string payload was provided
