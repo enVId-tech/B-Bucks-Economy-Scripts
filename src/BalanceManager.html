@@ -208,9 +208,12 @@
                 const getButtons = document.querySelectorAll('.btn, .btn-math');
 
                 getButtons.forEach(btn => btn.classList.add('disabled'));
+                getButtons.forEach(btn => btn.disabled = true);
+
                 if (!operation || !amount || typeof operation !== 'string' || isNaN(amount) || amount === 0) {
                     console.error("You must have an operation and an amount.");
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
+                    getButtons.forEach(btn => btn.disabled = false);
                     return;
                 }
 
@@ -218,6 +221,7 @@
                 if (!validOperations.includes(operation)) {
                     console.error("Invalid operation: " + operation);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
+                    getButtons.forEach(btn => btn.disabled = false);
                     return;
                 }
 
@@ -228,13 +232,16 @@
                 callServer('executeBalanceAction', payload, (response) => {
                     console.log("Server Response:", response);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
+                    getButtons.forEach(btn => btn.disabled = false);
                 }, (error) => {
                     console.error("Server Error:", error);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
+                    getButtons.forEach(btn => btn.disabled = false);
                 });
             } catch (err) {
                 console.error("Error in applyValue:", err);
                 getButtons.forEach(btn => btn.classList.remove('disabled'));
+                getButtons.forEach(btn => btn.disabled = false);
             }
         }
 
@@ -247,25 +254,21 @@
                 const value = input.value.trim();
                 if (!value) return;
 
-                const autoSubmit = document.getElementById('enterToggle').checked;
-                if (autoSubmit) {
-                    const match = value.match(/^([+\-*/])?\s*(\d+(\.\d{1,2})?)$/);
-                    if (!match) {
-                        console.error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
-                        throw new Error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
-                    }
-                    const operator = match[1] || "ADD";
-                    const amount = parseFloat(match[2]);
-                    let operation = {
-                        "+": "ADD",
-                        "-": "SUBTRACT",
-                        "*": "MULTIPLY",
-                        "/": "DIVIDE"
-                    }[operator] || "ADD";
-
-                    applyValue(operation, amount);
-                    input.value = "";
+                const match = value.match(/^([+\-*/])?\s*(\d+(\.\d{1,2})?)$/);
+                if (!match) {
+                    console.error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
+                    throw new Error("Invalid input format. Please enter a valid amount with an optional operator (+, -, *, /).");
                 }
+                const operator = match[1] || "ADD";
+                const amount = parseFloat(match[2]);
+                let operation = {
+                    "+": "ADD",
+                    "-": "SUBTRACT",
+                    "*": "MULTIPLY",
+                    "/": "DIVIDE"
+                }[operator] || "ADD";
+
+                applyValue(operation, amount);
             } catch (err) {
                 console.error("Error in handleCustomInput:", err);
             }

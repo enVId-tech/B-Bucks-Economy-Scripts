@@ -88,6 +88,9 @@ function openBankingSettings(): void {
   SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Banking Settings");
 }
 
+/**
+ * Opens a dialog for importing student names from a CSV file, allowing users to fill sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet.
+ */
 function importStudentNames(): void {
   const html = HtmlService.createTemplateFromFile('FillSheet').evaluate()
     .setTitle("Bank of Banderas - Fill Sheet")
