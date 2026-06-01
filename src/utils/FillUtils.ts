@@ -29,12 +29,15 @@ function fillSheetsWithData(data: string): boolean {
 
         let targetSheet = sheets.find(s => s.getName() === "Period " + entry.identifier);
 
+        let isFreshlyCreated = false;
+
         if (!targetSheet) {
             const templateSheet = sheets.find(s => s.getName() === "Template");
             if (templateSheet) {
                 targetSheet = templateSheet.copyTo(spreadsheet);
                 targetSheet.setName("Period " + entry.identifier);
                 sheets = spreadsheet.getSheets();
+                isFreshlyCreated = true;
             } else {
                 Logger.log("Template sheet not found. Skipping period: " + entry.identifier);
                 return false;
@@ -59,12 +62,12 @@ function fillSheetsWithData(data: string): boolean {
             const valueUpdates: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
             // Clear existing content from row (startRow) down.
-            if (lastRowWithData >= startRow) {
+            if (!isFreshlyCreated && lastRowWithData >= (startRow + 1)) {
                 requests.push({
                     updateCells: {
                         range: {
                             sheetId: targetSheetId,
-                            startRowIndex: startRow,
+                            startRowIndex: startRow, // Index 7 = Row 8 (0-indexed boundary)
                             endRowIndex: lastRowWithData,
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
@@ -79,31 +82,35 @@ function fillSheetsWithData(data: string): boolean {
                 values: [[`Period ${entry.identifier}`]]
             });
 
+            if (lengthParsed === 0) {
+                if (Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+                    Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
+                    Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'RAW', data: valueUpdates }, spreadsheetId);
+                }
+                return true;
+            }
+
             // The total number of rows needed is the starting row plus the length of the individuals list minus one (since the starting row is inclusive)
             const maxRowsNeeded = startRow + lengthParsed - 1;
 
             if (maxRowsNeeded > currentMaxRows) {
                 requests.push({
-                    insertRange: {
-                        range: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow,
-                            endRowIndex: maxRowsNeeded,
-                            startColumnIndex: 0,
-                            endColumnIndex: maxColumns
-                        },
-                        shiftDimension: "ROWS",
+                    appendCells: {
+                        sheetId: targetSheetId,
+                        rows: Array(maxRowsNeeded - currentMaxRows).fill({
+                            values: Array(maxColumns).fill({ userEnteredValue: {} })
+                        }),
+                        fields: "userEnteredValue"
                     }
                 });
             } else if (currentMaxRows > maxRowsNeeded) {
                 requests.push({
-                    deleteRange: {
+                    deleteDimension: {
                         range: {
                             sheetId: targetSheetId,
-                            startRowIndex: maxRowsNeeded,
-                            endRowIndex: currentMaxRows,
-                            startColumnIndex: 0,
-                            endColumnIndex: maxColumns
+                            dimension: "ROWS",
+                            startIndex: maxRowsNeeded,
+                            endIndex: currentMaxRows
                         }
                     }
                 });
@@ -122,11 +129,32 @@ function fillSheetsWithData(data: string): boolean {
                         destination: {
                             sheetId: targetSheetId,
                             startRowIndex: startRow,
-                            endRowIndex: startRow + lengthParsed - 1,
+                            endRowIndex: maxRowsNeeded,
                             startColumnIndex: 0,
                             endColumnIndex: maxColumns
                         },
-                        pasteType: "PASTE_NORMAL",
+                        pasteType: "PASTE_FORMAT",
+                        pasteOrientation: "NORMAL"
+                    }
+                });
+
+                requests.push({
+                    copyPaste: {
+                        source: {
+                            sheetId: targetSheetId,
+                            startRowIndex: startRow - 1,
+                            endRowIndex: startRow,
+                            startColumnIndex: 1,
+                            endColumnIndex: maxColumns
+                        },
+                        destination: {
+                            sheetId: targetSheetId,
+                            startRowIndex: startRow,
+                            endRowIndex: maxRowsNeeded,
+                            startColumnIndex: 1,
+                            endColumnIndex: maxColumns
+                        },
+                        pasteType: "PASTE_FORMULA",
                         pasteOrientation: "NORMAL"
                     }
                 });
