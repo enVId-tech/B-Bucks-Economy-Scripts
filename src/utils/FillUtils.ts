@@ -30,6 +30,7 @@ function fillSheetsWithData(data: string): boolean {
         let targetSheet = sheets.find(s => s.getName() === "Period " + entry.identifier);
 
         let isFreshlyCreated = false;
+        let forceUnideFreshSheet = false;
 
         if (!targetSheet) {
             const templateSheet = sheets.find(s => s.getName() === "Template");
@@ -38,6 +39,7 @@ function fillSheetsWithData(data: string): boolean {
                 targetSheet.setName("Period " + entry.identifier);
                 sheets = spreadsheet.getSheets();
                 isFreshlyCreated = true;
+                forceUnideFreshSheet = true;
             } else {
                 Logger.log("Template sheet not found. Skipping period: " + entry.identifier);
                 return false;
@@ -73,6 +75,18 @@ function fillSheetsWithData(data: string): boolean {
                             endColumnIndex: maxColumns
                         },
                         fields: "userEnteredValue"
+                    }
+                });
+            }
+
+            if (forceUnideFreshSheet) {
+                requests.push({
+                    updateSheetProperties: {
+                        properties: {
+                            sheetId: targetSheetId,
+                            hidden: false
+                        },
+                        fields: "hidden"
                     }
                 });
             }
@@ -182,6 +196,8 @@ function fillSheetsWithData(data: string): boolean {
 
             targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
 
+            targetSheet.showSheet();
+            
             if (lengthParsed === 0) {
                 Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
                 return true;
