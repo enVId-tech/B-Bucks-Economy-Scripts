@@ -72,8 +72,8 @@ function fetchServicesData(): ItemData[] | { error: string } {
                 }
             });
 
-            // Only include items that have a name and category
-            if (itemName && category) {
+            // Only include items that have a name, category, and at least one pricing
+            if (itemName && category && Object.keys(pricing).length > 0) {
                 servicesData.push({
                     itemName,
                     category,
