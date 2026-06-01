@@ -1,0 +1,67 @@
+<!-- Coded by Erick Tran for Mr. Banderas, 2026 -->
+<!-- Copyright (c) 2026 Erick Tran. All rights reserved. -->
+<!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
+
+<!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
+<!-- This file contains the HTML structure for the Caching Layer, which serves as a utility to store and manage client-side cached data for the B-Bucks Economy Scripts. It provides a simple interface for storing and retrieving data across different sections of the application without needing to repeatedly fetch from the server. -->
+
+<script>
+    // Clear duplicate or outdated cache entries on load to prevent stale data issues (e.g., after deployments or updates)
+    [sessionStorage, localStorage].forEach(storage => {
+        Object.keys(storage).forEach(key => {
+            if (key.startsWith("https://") || key.includes("_data")) {
+                storage.removeItem(key);
+            }
+        });
+    });
+
+    // Initialize ultra-fast in-memory client state cache
+    window.appStateCache = window.appStateCache || {};
+
+    /**
+     * Fast-access data engine routing backend updates through the callServer wrapper.
+     * @param {string} cacheKey - Unique structural storage key (e.g., 'period_3_data')
+     * @param {string} serverFunctionName - The name of the server function to call
+     * @param {boolean} forceRefresh - Forces an active server-side roundtrip update if true
+     * @returns {Promise<Object>} The requested backend data object
+     */
+    function fetchClientData(cacheKey, serverFunctionName, forceRefresh = false) {
+        // Check instantaneous in-memory variables first
+        if (!forceRefresh && window.appStateCache[cacheKey] !== undefined && window.appStateCache[cacheKey] !== null) {
+            console.log(`Cache hit: ${cacheKey} (Memory)`);
+            return Promise.resolve(window.appStateCache[cacheKey]);
+        }
+
+        // Check sessionStorage (Instant loading, survives browser tab reloads)
+        if (!forceRefresh && sessionStorage.getItem(cacheKey) !== null && sessionStorage.getItem(cacheKey) !== undefined) {
+            console.log(`Cache miss: ${cacheKey} (Memory). Checking sessionStorage...`);
+            const sessionCached = sessionStorage.getItem(cacheKey);
+            if (sessionCached !== null && sessionCached !== undefined) {
+                try {
+                    const parsedData = JSON.parse(sessionCached);
+                    window.appStateCache[cacheKey] = parsedData; // Hydrate memory cache
+                    return Promise.resolve(parsedData);
+                } catch (e) {
+                    console.error("Session cache corrupted, falling back to server...", e);
+                }
+            }
+        }
+
+        // Final fallback: Fetch from server and update caches
+        return new Promise((resolve, reject) => {
+            console.log(`Cache miss: ${cacheKey} (Memory & Session). Fetching from server...`);
+            callServer(
+                serverFunctionName,
+                null,
+                (serverData) => {
+                    window.appStateCache[cacheKey] = serverData;
+                    sessionStorage.setItem(cacheKey, JSON.stringify(serverData));
+                    resolve(serverData);
+                }, (error) => {
+                    console.error(`callServer backend update failed for key: ${cacheKey}`, error);
+                    reject(error);
+                }
+            );
+        });
+    }
+</script>

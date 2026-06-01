@@ -12,7 +12,7 @@
             // Dynamically call the server function
             google.script.run
                 .withSuccessHandler(onSuccess || function () { })
-                .withFailureHandler(onFailure || function (err) { console.error(err); })[serverFunctionName](data);
+                .withFailureHandler(onFailure || function (err) { console.error(err.error || err); })[serverFunctionName](data);
         } else {
             // Local development fallback
             if (onSuccess) onSuccess("Mock Local Success Response");
