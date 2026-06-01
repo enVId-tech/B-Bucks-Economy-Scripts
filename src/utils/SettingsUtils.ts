@@ -64,32 +64,58 @@ function fetchSettingsData(): SettingsData | { error: string } {
 
         if (!settingsSheet) {
             Logger.log("Settings sheet not found.");
-            SpreadsheetApp.getUi().alert("Settings sheet not found.");
+            try { SpreadsheetApp.getUi().alert("Settings sheet not found."); } catch (e) { }
             return { error: "Settings sheet not found." };
         }
 
-        const bRange: any[][] = settingsSheet.getRange("B2:B13").getValues();
-        const dRange: any[][] = settingsSheet.getRange("D2:D4").getValues();
-        const fRange: any[][] = settingsSheet.getRange("F2:F4").getValues();
-        const hRange: any[][] = settingsSheet.getRange("H2:H6").getValues();
-        const jRange: any[][] = settingsSheet.getRange("J2:J4").getValues();
+        const rawGrid: any[][] = settingsSheet.getDataRange().getValues();
+        /**
+         * Safely extracts and maps paired columns from the monolithic raw grid block.
+         * Handles native string typecasts for flags, floating numbers, and timestamps.
+         * @param keyColIdx Column Index for Keys (e.g., Column A = 0, C = 2, E = 4)
+         * @param valColIdx Column Index for Values (e.g., Column B = 1, D = 3, F = 5)
+         * @param maxRows The boundary limit of configurations inside this subgroup
+         */
+        const extractGroup = (keyColIdx: number, valColIdx: number, maxRows: number): any => {
+            const resultObject: any = {};
+            for (let i = 0; i < maxRows; i++) {
+                const row = rawGrid[i];
+                if (!row) break;
 
-        const mapColumnToObject = (range: any[][]): any => {
-            return range.reduce((obj: any, row: any[]) => {
-                const key = row[0];
-                const value = row[1];
-                if (key !== undefined && value !== undefined) {
-                    obj[key] = value;
+                const key = row[keyColIdx];
+                let val = row[valColIdx];
+
+                // Ensure key exists and isn't whitespace padding
+                if (key !== undefined && key !== null && String(key).trim() !== "") {
+                    const cleanKey = String(key).trim();
+
+                    // Handle native Spreadsheet Boolean Conversions
+                    if (val === true || String(val).toUpperCase() === "TRUE") {
+                        val = true;
+                    } else if (val === false || String(val).toUpperCase() === "FALSE") {
+                        val = false;
+                    } else if (val instanceof Date) {
+                        // Handle Native Timestamp Date strings
+                        val = val.toISOString();
+                    } else if (cleanKey.toLowerCase().includes("date") && val) {
+                        const parsedDate = new Date(val);
+                        val = isNaN(parsedDate.getTime()) ? val : parsedDate.toISOString();
+                    } else if (typeof val === 'number' && !isNaN(val)) {
+                        // Handle absolute numeric handling
+                        val = Number(val);
+                    }
+
+                    resultObject[cleanKey] = val;
                 }
-                return obj;
-            }, {});
+            }
+            return resultObject;
         };
 
-        const importantDates = mapColumnToObject(bRange);
-        const standardPercentages = mapColumnToObject(dRange);
-        const mandatedPolicies = mapColumnToObject(fRange);
-        const ledgersAndRecords = mapColumnToObject(hRange);
-        const limits = mapColumnToObject(jRange);
+        const importantDates = extractGroup(0, 1, 12) as ImportantDates;
+        const standardPercentages = extractGroup(2, 3, 5) as StandardPercentages;
+        const mandatedPolicies = extractGroup(4, 5, 3) as MandatedPolicies;
+        const ledgersAndRecords = extractGroup(6, 7, 5) as LedgersAndRecords;
+        const limits = extractGroup(8, 9, 3) as Limits;
 
         return {
             importantDates,
@@ -100,7 +126,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
         };
     } catch (err: any) {
         Logger.log(`Error in fetchSettingsData: ${err.message}`);
-        SpreadsheetApp.getUi().alert(`Error in fetchSettingsData: ${err.message}`);
+        try { SpreadsheetApp.getUi().alert(`Error in fetchSettingsData: ${err.message}`); } catch (e) { }
         return { error: `Error in fetchSettingsData: ${err.message}` };
     }
 }
