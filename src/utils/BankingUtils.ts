@@ -33,7 +33,7 @@ interface TransactionRecord {
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason: string = "Not Specified", range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
+function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
   try {
     if (!operation || !value || !isManualTransaction) {
       Logger.log(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
@@ -73,6 +73,17 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       return "You cannot divide by zero.";
     }
 
+    const operations: Record<Operation, (n: number) => number> = {
+      [Operation.ADD]: (n) => n + value,
+      [Operation.SUBTRACT]: (n) => n - value,
+      [Operation.MULTIPLY]: (n) => n * value,
+      [Operation.DIVIDE]: (n) => n / value,
+    };
+
+    const operationFunc = operations[normalMapping];
+
+    const transactionRecords: TransactionRecord[] = [];
+
     // First try the faster, API efficient method using the Sheets API, with error handling to fall back to the slower method
     try {
       const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
@@ -88,15 +99,6 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       // Use the Sheets API to apply the operation to all cells in the active range list
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
-      const operations: Record<Operation, (n: number) => number> = {
-        [Operation.ADD]: (n) => n + value,
-        [Operation.SUBTRACT]: (n) => n - value,
-        [Operation.MULTIPLY]: (n) => n * value,
-        [Operation.DIVIDE]: (n) => n / value,
-      };
-
-      const operationFunc = operations[normalMapping];
-
       ranges.forEach(range => {
         // Get the current values of the range
         const rangeA1 = range.getA1Notation();
@@ -109,10 +111,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
             const result = operationFunc(cell);
             Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
             if (result && typeof result === 'number' && !isNaN(result)) {
-              addTransactionRecord({
+              transactionRecords.push({
                 individual: individualName,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
+                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
                 initialAmount: cell,
                 tenderedAmount: value,
                 finalAmount: result,
@@ -143,6 +145,9 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           data: requests
         }, spreadsheetId);
       }
+
+      // After successfully applying the operations, add the transaction records
+      addTransactionRecords(transactionRecords);
 
       return true;
     } catch (error: any) {
@@ -187,10 +192,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
               if (result && typeof result === 'number' && !isNaN(result)) {
                 const individualName = subRange.getSheet().getRange(subRange.getRow(), 1).getValue();
-                addTransactionRecord({
+                transactionRecords.push({
                   individual: individualName,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason}`,
+                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
                   initialAmount: cell,
                   tenderedAmount: value,
                   finalAmount: result,
@@ -208,6 +213,8 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           }));
 
           subRange.setValues(updatedValues);
+
+          addTransactionRecords(transactionRecords);
         });
       } catch (error: any) {
         SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
@@ -302,76 +309,109 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
 
 /**
  * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
+ * Uses the Google Sheets API for efficient appending of transaction records, with error handling to fall back to the slower method if the API call fails.
+ * @param records An array of transaction records to be added, where each record includes the individual's name, transaction type (Income, Expense, or Investment), service description, initial amount, tendered amount, final amount, quantity of services, and timestamp. All fields are required for each record.
+ * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-function addTransactionRecord({individual, type, service, initialAmount, tenderedAmount, finalAmount, quantityOfServices, timestamp}: TransactionRecord): boolean | string {
+function addTransactionRecords(records: TransactionRecord[]): boolean {
   try {
-    const SHEET_NAME = "Transactions"
+    const SHEET_NAME = "Transactions";
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = spreadsheet.getSheetByName(SHEET_NAME);
+    const ROW_TO_START_FROM = 3;
 
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-    
     // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
     if (!sheet) {
-      Logger.log(`Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`);
-      SpreadsheetApp.getUi().alert(`Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`);
-      return `Sheet "${SHEET_NAME}" not found. Please ensure the sheet exists.`;
+      Logger.log(`Sheet "${SHEET_NAME}" not found.`);
+      SpreadsheetApp.getUi().alert(`Sheet "${SHEET_NAME}" not found.`);
+      return false;
     }
 
-    if (!individual || !type || !service || initialAmount === undefined || tenderedAmount === undefined || finalAmount === undefined || quantityOfServices === undefined || !timestamp) {
-      Logger.log("All fields are required and must be valid.");
-      SpreadsheetApp.getUi().alert("All fields are required and must be valid.");
-      return "All fields are required and must be valid.";
+    if (!records || records.length === 0) {
+      Logger.log("No records provided to add.");
+      return true;
     }
 
-    if (typeof initialAmount !== 'number' || isNaN(initialAmount) || typeof tenderedAmount !== 'number' || isNaN(tenderedAmount) || typeof finalAmount !== 'number' || isNaN(finalAmount) || typeof quantityOfServices !== 'number' || isNaN(quantityOfServices)) {
-      Logger.log("All amount fields must be valid numbers.");
-      SpreadsheetApp.getUi().alert("All amount fields must be valid numbers.");
-      return "All amount fields must be valid numbers.";
+    const requiredFields: (keyof TransactionRecord)[] = [
+      "individual", "type", "service", "initialAmount",
+      "tenderedAmount", "finalAmount", "quantityOfServices", "timestamp"
+    ];
+
+    for (const record of records) {
+      for (const field of requiredFields) {
+        if (record[field] === undefined || record[field] === null) {
+          const errMsg = `Field "${field}" is required but missing.`;
+          Logger.log(`${errMsg} Record: ${JSON.stringify(record)}`);
+          SpreadsheetApp.getUi().alert(errMsg);
+          return false;
+        }
+      }
     }
 
-    if (typeof timestamp === 'string') {
-      timestamp = new Date(timestamp);
+    let lastRowWithData: number = sheet.getLastRow();
+    let biggestId: number = 0;
+
+    // Guard against entirely empty sheets or headers to prevent index 0 errors
+    if (lastRowWithData >= (ROW_TO_START_FROM - 1) && lastRowWithData > 0) {
+      const rawIdValue = sheet.getRange(lastRowWithData, 1).getValue();
+      const parsedId = parseInt(rawIdValue, 10);
+      biggestId = isNaN(parsedId) ? 0 : parsedId;
     }
 
-    if (!(timestamp instanceof Date) || isNaN(timestamp.getTime())) {
-      Logger.log("Timestamp must be a valid date.");
-      SpreadsheetApp.getUi().alert("Timestamp must be a valid date.");
-      return "Timestamp must be a valid date.";
-    }
-    
-    if (type !== "Income" && type !== "Expense" && type !== "Investment") {
-      Logger.log("Type must be one of 'Income', 'Expense', or 'Investment'.");
-      SpreadsheetApp.getUi().alert("Type must be one of 'Income', 'Expense', or 'Investment'.");
-      return "Type must be one of 'Income', 'Expense', or 'Investment'.";
+    const insertStartRow = Math.max(lastRowWithData + 1, ROW_TO_START_FROM);
+    const rowsNeeded = records.length;
+    const currentMaxRows = sheet.getMaxRows();
+
+    // Ensure grid space before writing values
+    if ((insertStartRow - 1) + rowsNeeded > currentMaxRows) {
+      const rowsToAdd = ((insertStartRow - 1) + rowsNeeded) - currentMaxRows;
+      sheet.insertRowsAfter(currentMaxRows, rowsToAdd);
     }
 
-    if (typeof individual !== 'string' || typeof service !== 'string') {
-      Logger.log("Individual and service must be strings.");
-      SpreadsheetApp.getUi().alert("Individual and service must be strings.");
-      return "Individual and service must be strings.";
-    }
-
-    if (individual.length === 0 || service.length === 0) {
-      Logger.log("Individual and service cannot be empty.");
-      SpreadsheetApp.getUi().alert("Individual and service cannot be empty.");
-      return "Individual and service cannot be empty.";
-    }
-
-    const prevTransactionId = sheet.getLastRow() > 1 ? sheet.getRange(sheet.getLastRow(), 1).getValue() : 0;
-    const newTransactionId = prevTransactionId + 1;
-
-    sheet.appendRow([
-      newTransactionId,
-      individual,
-      type,
-      service,
-      initialAmount,
-      tenderedAmount,
-      finalAmount,
-      quantityOfServices,
-      timestamp
+    const values = records.map((record: TransactionRecord, index: number) => [
+      biggestId + index + 1,
+      record.individual,
+      record.type,
+      record.service,
+      record.initialAmount,
+      record.tenderedAmount,
+      record.finalAmount,
+      record.quantityOfServices,
+      record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
     ]);
 
-    return true;
+    // Use the Sheets API to efficiently add the record in one request, with error handling to fall back to the slower method if the API call fails
+    try {
+      if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+        const spreadsheetId = spreadsheet.getId();
+
+        const resource: GoogleAppsScript.Sheets.Schema.ValueRange = {
+          values: values
+        };
+
+        // Standardized append structure targeting structural range boundary lookup
+        Sheets.Spreadsheets.Values.append(
+          resource,
+          spreadsheetId,
+          `${SHEET_NAME}!A${insertStartRow}`,
+          { valueInputOption: "USER_ENTERED" }
+        );
+        return true;
+      } else {
+        throw new Error("Advanced Sheets API service not enabled in script settings.");
+      }
+    } catch (apiError: any) {
+      Logger.log(`Advanced API pipeline bypassed/failed. Error: ${apiError.message}. Running native fallback setup...`);
+
+      sheet.getRange(
+        insertStartRow,
+        1,
+        values.length,
+        values[0].length
+      ).setValues(values);
+
+      return true;
+    }
   } catch (error: any) {
     SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);
     return false;

@@ -18,6 +18,7 @@ function onOpen(): void {
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
     .addItem('View Transactions Records', 'openTransactionsRecords')
+    .addItem('Clear Transactions Records', 'placeholderFunction')
     .addSeparator()
     .addItem('Manual Timestamp Update', 'updateTimestamps')
     .addItem('Record Daily Data', 'recordDailyData')
