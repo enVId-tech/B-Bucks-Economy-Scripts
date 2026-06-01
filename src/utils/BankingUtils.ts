@@ -73,6 +73,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       return "You cannot divide by zero.";
     }
 
+    // Define the operations in a mapping for cleaner code
     const operations: Record<Operation, (n: number) => number> = {
       [Operation.ADD]: (n) => n + value,
       [Operation.SUBTRACT]: (n) => n - value,
@@ -104,32 +105,42 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
         const rangeA1 = range.getA1Notation();
         const sheetName = range.getSheet().getName();
         const values = range.getValues();
-        const individualName = range.getSheet().getRange(range.getRow(), 1).getValue();
 
-        const updatedValues = values.map(row => row.map(cell => {
-          if (typeof cell === 'number' && !isNaN(cell)) {
-            const result = operationFunc(cell);
-            Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
-            if (result && typeof result === 'number' && !isNaN(result)) {
-              transactionRecords.push({
-                individual: individualName,
-                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                initialAmount: cell,
-                tenderedAmount: value,
-                finalAmount: result,
-                quantityOfServices: 1,
-                timestamp: new Date()
-              });
-            } else {
-              Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+        const startRowIndex = range.getRow();
+
+        const updatedValues = values.map((row, rowIndex) => {
+
+          const absoluteRowIndex = startRowIndex + rowIndex;
+
+          return row.map(cell => {
+            if (typeof cell === 'number' && !isNaN(cell)) {
+              const result = operationFunc(cell);
+
+              Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+
+              const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
+
+              if (result && typeof result === 'number' && !isNaN(result)) {
+                transactionRecords.push({
+                  individual: individualName,
+                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
+                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                  initialAmount: cell,
+                  tenderedAmount: value,
+                  finalAmount: result,
+                  quantityOfServices: 1,
+                  timestamp: new Date()
+                });
+              } else {
+                Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+              }
+
+              return result;
             }
-
-            return result;
-          }
-          Logger.log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`);
-          return cell; // Return the original value if it's not a number
-        }));
+            Logger.log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`);
+            return cell; // Return the original value if it's not a number
+          });
+        });
 
         requests.push({
           range: `${sheetName}!${rangeA1}`,
@@ -147,7 +158,9 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       }
 
       // After successfully applying the operations, add the transaction records
-      addTransactionRecords(transactionRecords);
+      if (transactionRecords.length > 0) {
+        addTransactionRecords(transactionRecords);
+      }
 
       return true;
     } catch (error: any) {
@@ -156,6 +169,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
       try {
         let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
+
         if (range) {
           rangesToProcess.push(range);
         } else {
@@ -169,52 +183,50 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           }
         }
 
-        // Define the operations in a more structured map instead of looping
-        // Maps the operation enum to a function that takes a number and returns the result of applying the operation with the provided value
-        const operations: Record<Operation, (n: number) => number> = {
-          [Operation.ADD]: (n) => n + value,
-          [Operation.SUBTRACT]: (n) => n - value,
-          [Operation.MULTIPLY]: (n) => n * value,
-          [Operation.DIVIDE]: (n) => n / value,
-        };
-
-        // Use a const function to apply the operation to the cell
-        const operationFunc = operations[normalMapping];
-
         // Apply the operation to each cell in each range, with error handling for non-numeric cells
         rangesToProcess.forEach(subRange => {
           const values = subRange.getValues();
+          const targetSheet = subRange.getSheet();
+          const startRowIndex = subRange.getRow();
 
-          const updatedValues = values.map(row => row.map(cell => {
-            if (typeof cell === 'number' && !isNaN(cell)) {
-              const result = operationFunc(cell);
-              Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+          const updatedValues = values.map((row, rowIndex) => {
+            const absoluteRowIndex = startRowIndex + rowIndex;
+            
+            return row.map(cell => {
+              if (typeof cell === 'number' && !isNaN(cell)) {
+                const result = operationFunc(cell);
 
-              if (result && typeof result === 'number' && !isNaN(result)) {
-                const individualName = subRange.getSheet().getRange(subRange.getRow(), 1).getValue();
-                transactionRecords.push({
-                  individual: individualName,
-                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                  initialAmount: cell,
-                  tenderedAmount: value,
-                  finalAmount: result,
-                  quantityOfServices: 1,
-                  timestamp: new Date()
-                });
-              } else {
-                Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+                Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+
+                if (result && typeof result === 'number' && !isNaN(result)) {
+                  const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
+                  
+                  transactionRecords.push({
+                    individual: individualName,
+                    type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
+                    service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                    initialAmount: cell,
+                    tenderedAmount: value,
+                    finalAmount: result,
+                    quantityOfServices: 1,
+                    timestamp: new Date()
+                  });
+                } else {
+                  Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
+                }
+
+                return result;
               }
-
-              return result;
-            }
-            Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
-            return cell; // Return the original value if it's not a number
-          }));
+              Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
+              return cell; // Return the original value if it's not a number
+            });
+          });
 
           subRange.setValues(updatedValues);
 
-          addTransactionRecords(transactionRecords);
+          if (transactionRecords.length > 0) {
+            addTransactionRecords(transactionRecords);
+          }
         });
       } catch (error: any) {
         SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
