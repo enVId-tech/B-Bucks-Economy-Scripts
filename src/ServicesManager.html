@@ -157,11 +157,10 @@
         </div>
     </div>
     <script>
+        // Execute as soon as the DOM frame paints to configure UI components
         document.addEventListener('DOMContentLoaded', async () => {
             await autoConfigureCurrentQuarter();
-            await updateItemList('Expense');
-            await updateItemList('Income');
-            await updateSpendingList();
+            await populateLists();
         });
 
         /**
@@ -223,71 +222,93 @@
         }
 
         /**
-         * Generic function to update either the Income or Expense item list based on the selected quarter.
-         * It fetches the services data from the cache (or server if forced), filters it by category and quarter availability, and populates the corresponding drop-down.
-         * @param {string} type - "Income" or "Expense" to determine which list to update
+         * Populates both the Income and Expense item lists based on the selected quarter.
          */
-        async function updateItemList(type) {
-            // Determine which quarter select element to read from based on the type
-            const quarterSelect = document.getElementById(type === 'Expense' ? 'quarterSelectSpending' : 'quarterSelectIncome');
-            if (!quarterSelect) return;
+        async function populateLists(targetType = null) {
+            const quarterSelectSpending = document.getElementById('quarterSelectSpending');
+            const quarterSelectIncome = document.getElementById('quarterSelectIncome');
+            const incomeSelect = document.getElementById('itemSelectIncome');
+            const expenseSelect = document.getElementById('itemSelectSpending');
 
-            const quarter = quarterSelect.value || getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates);
-            console.log("Updating " + type.toLowerCase() + " list for quarter:", quarter);
+            if (!quarterSelectSpending || !quarterSelectIncome) {
+                console.error("One or more required DOM elements for populating item lists are missing.");
+                return;
+            }
 
-            const itemSelect = document.getElementById(type === 'Expense' ? 'itemSelectSpending' : 'itemSelectIncome');
-            if (!itemSelect) return;
+            let quarter = "Q1";
 
-            // Clear existing options except the placeholder
-            itemSelect.innerHTML = '<option value="">Select an item...</option>';
-
+            if (targetType === 'Income') {
+                quarter = quarterSelectIncome.value;
+            } else if (targetType === 'Expense') {
+                quarter = quarterSelectSpending.value;
+            } else {
+                quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates);
+            }
             try {
                 const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', false);
 
-                console.log("Fetched services data for " + type.toLowerCase() + " update:", response);
+                console.log("Fetched services data for initial population:", response);
 
                 if (!response || response.error) {
                     console.error("Error fetching services data:", response ? response.error : "Empty response");
                     return;
                 }
 
-                // Filter items by category and quarter availability
-                const filteredItems = response.filter(item => item.category === type && item.pricing && item.pricing[quarter] !== undefined && item.pricing[quarter] !== null);
+                let incomeHtml = '<option value="">Select an item...</option>';
+                let expenseHtml = '<option value="">Select an item...</option>';
 
-                const fragment = document.createDocumentFragment();
+                // Use for loop for optimal performance on larger datasets, minimizing DOM interactions and maximizing JS execution speed
+                // Runs O(n) with minimal overhead
+                for (let i = 0; i < response.length; i++) {
+                    const item = response[i];
 
-                // Populate the drop-down with filtered items, showing price and limit info
-                filteredItems.forEach((item) => {
-                    // Clean, combined validation checks
-                    if (!item.itemName || !item.category || item.category !== type) return;
-                    if (!item.pricing || item.pricing[quarter] === undefined || item.pricing[quarter] === null) return;
+                    if (!item.itemName || !item.category) continue;
+                    if (!item.pricing || item.pricing[quarter] === undefined || item.pricing[quarter] === null) continue;
 
                     const price = item.pricing[quarter];
                     const limit = (item.limit && item.limit[quarter]) ? ` | Max: ${item.limit[quarter]}` : '';
+                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}">${item.itemName} (${price} B-Bucks${limit})</option>`;
 
-                    const option = document.createElement('option');
-                    option.value = item.itemName;
-                    option.textContent = `${item.itemName} (${price} B-Bucks${limit})`;
-                    option.setAttribute('data-price', price);
+                    if (item.category === 'Income' && incomeSelect) {
+                        incomeHtml += optionMarkup;
+                    } else if (item.category === 'Expense' && expenseSelect) {
+                        expenseHtml += optionMarkup;
+                    }
+                }
 
-                    // Natively super fast: Appending to an isolated virtual fragment takes 0ms
-                    fragment.appendChild(option);
-                });
+                // Batch flush the constructed HTML to the DOM in one operation per list for maximum efficiency
+                if ((targetType === null || targetType === 'Income') && incomeSelect) {
+                    incomeSelect.innerHTML = incomeHtml;
+                }
+                if ((targetType === null || targetType === 'Expense') && expenseSelect) {
+                    expenseSelect.innerHTML = expenseHtml;
+                }
 
-                console.log(`Rendered ${filteredItems.length} ${type.toLowerCase()} items from cache for quarter: ${quarter}`);
+                console.log(`Successfully populated income and expense lists with ${response.length} items from cache for quarter: ${quarter}`);
             } catch (error) {
-                console.error("Failed to update " + type.toLowerCase() + " list:", error);
+                console.error("Error populating item lists:", error);
             }
         }
 
+        /**
+          * Forces a network clear-through to refresh backend server arrays.
+          */
         async function updateExpenses() {
-            await updateItemList('Expense');
+            // Instant render from RAM for snappy UI response
+            await populateLists('Expense');
+            // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
+            // Refresh with the verified backend values
+            await populateLists('Expense');
         }
 
         async function updateIncomes() {
-            await updateItemList('Income');
+            // Instant render from RAM for snappy UI response
+            await populateLists('Income');
+            // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
+            // Refresh with the verified backend values
+            await populateLists('Income');
         }
     </script>
 </body>
