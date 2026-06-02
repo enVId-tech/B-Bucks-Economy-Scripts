@@ -57,23 +57,24 @@
                 </select>
 
                 <label class="label">Item</label>
-                <select id="itemSelectIncome">
+                <select id="itemSelectIncome" onchange="updatePreview()">
                     <option value="">Select an item...</option>
                 </select>
 
                 <label class="label">Quantity</label>
-                <input type="number" id="multiplierIncome" value="1" min="1">
+                <input type="number" id="multiplierIncome" value="1" min="1" oninput="updatePreview()">
 
                 <div class="preview-container">
                     <div class="preview-text" id="previewIncome">--</div>
                 </div>
 
-                <button class="btn-submit btn-income margin-top-4" id="submitIncomeBtn">Add Income</button>
+                <button class="btn-submit btn-income margin-top-4" id="submitIncomeBtn" onclick="submitIncome()">Add
+                    Income</button>
             </div>
 
             <!-- CARD 2: SPENDING SECTION -->
             <div class="card card-margin-top-6">
-                <div class="header-title header-title-reset">💸 Add Spending</div>
+                <div class="header-title header-title-reset">💸 Add Expense</div>
                 <div class="header-subtitle header-subtitle-margin">Consumable items to Column G</div>
 
                 <!-- Balance Display - Prominent -->
@@ -91,12 +92,12 @@
                 </select>
 
                 <label class="label">Item</label>
-                <select id="itemSelectSpending">
+                <select id="itemSelectSpending" onchange="updatePreview()">
                     <option value="">Select an item...</option>
                 </select>
 
                 <label class="label">Quantity</label>
-                <input type="number" id="multiplierSpending" value="1" min="1">
+                <input type="number" id="multiplierSpending" value="1" min="1" oninput="updatePreview()">
 
                 <!-- Insufficient Funds Warning -->
                 <div id="insufficientWarning" class="insufficient-warning hidden-display">
@@ -113,8 +114,9 @@
                     <div class="preview-text" id="previewSpending">--</div>
                 </div>
 
-                <button class="btn-submit btn-spending margin-top-4" id="submitSpendingBtn">Add
-                    Spending</button>
+                <button class="btn-submit btn-spending margin-top-4" id="submitSpendingBtn"
+                    onclick="submitSpending()">Add
+                    Expense</button>
 
                 <div class="auto-refresh-indicator" id="refreshIndicator">● Auto-refreshing</div>
                 <div id="errorContainer"></div>
@@ -162,6 +164,113 @@
             await autoConfigureCurrentQuarter();
             await populateLists();
         });
+
+        /** Updates the income and spending preview boxes based on current selections and quantities. */
+        function updatePreview() {
+            try {
+                const incomeSelect = document.getElementById('itemSelectIncome');
+                const spendingSelect = document.getElementById('itemSelectSpending');
+
+                // Use unary plus (+) for faster, cleaner integer conversions than parseInt
+                const multiplierIncome = +document.getElementById('multiplierIncome').value || 1;
+                const multiplierSpending = +document.getElementById('multiplierSpending').value || 1;
+
+                const previewIncome = document.getElementById('previewIncome');
+                const previewSpending = document.getElementById('previewSpending');
+
+                const selectedIncomeOption = incomeSelect.options[incomeSelect.selectedIndex];
+                const selectedSpendingOption = spendingSelect.options[spendingSelect.selectedIndex];
+
+                const incomePrice = selectedIncomeOption && selectedIncomeOption.value ? +selectedIncomeOption.getAttribute('data-price') || 0 : 0;
+                const spendingPrice = selectedSpendingOption && selectedSpendingOption.value ? +selectedSpendingOption.getAttribute('data-price') || 0 : 0;
+
+                if (incomeSelect.value && incomePrice >= 0 && multiplierIncome > 0) {
+                    previewIncome.textContent = `Item: ${incomeSelect.value} | Base: $${incomePrice} x ${multiplierIncome} = +$${(incomePrice * multiplierIncome)}`;
+                } else {
+                    previewIncome.textContent = '--';
+                }
+
+                if (spendingSelect.value && spendingPrice >= 0 && multiplierSpending > 0) {
+                    previewSpending.textContent = `Item: ${spendingSelect.value} | Base: $${spendingPrice} x ${multiplierSpending} = -$${(spendingPrice * multiplierSpending)}`;
+                } else {
+                    previewSpending.textContent = '--';
+                }
+            } catch (error) {
+                console.error("Error updating preview:", error);
+            }
+        }
+
+        async function addBalance(type = null) {
+            try {
+                if (!type || (type !== 'Income' && type !== 'Spending')) {
+                    alert("Invalid operation type. Must be 'Income' or 'Spending'.");
+                    console.error("addBalance called with invalid type:", type);
+                    return;
+                }
+
+                // Standardized lookups based on context branch
+                const isIncome = type === "Income";
+                const selectId = isIncome ? 'itemSelectIncome' : 'itemSelectSpending';
+                const multiplierId = isIncome ? 'multiplierIncome' : 'multiplierSpending';
+
+                const selectElement = document.getElementById(selectId);
+                const name = selectElement ? selectElement.value : '';
+
+                if (!name) {
+                    alert("Please select an item before submitting.");
+                    console.error("No item selected for type:", type);
+                    return;
+                }
+
+                const multiplier = +document.getElementById(multiplierId).value || 1;
+
+                // Dynamic option attribute extraction targeting the correct context element
+                const selectedOption = selectElement.options[selectElement.selectedIndex];
+                const price = selectedOption ? +selectedOption.getAttribute('data-price') || 0 : 0;
+
+                let payload = {
+                    operation: isIncome ? "ADD" : "SUBTRACT",
+                    amount: price * (multiplier > 0 ? multiplier : 1),
+                    transactionReason: `$${price} - ${name} (x${multiplier})`
+                };
+
+                try {
+                    document.getElementById("submitIncomeBtn").disabled = true;
+                    document.getElementById("submitSpendingBtn").disabled = true;
+                    document.getElementById("submitIncomeBtn").classList.add("disabled");
+                    document.getElementById("submitSpendingBtn").classList.add("disabled");
+                    
+                    // Forward payload securely to your backend execution router
+                    callServer('executeBalanceAction', JSON.stringify(payload), (response) => {
+                        const balanceElement = document.getElementById('balanceAmount');
+                        if (balanceElement) {
+                            balanceElement.textContent = `$${response.newBalance}`;
+                        }
+
+                        console.log(`Transaction successful: ${payload.transactionReason}`);
+
+                    }, (error) => {
+                        console.error("Error executing balance action on server:", error);
+                        alert(`Failed to execute transaction: ${error.message || error}`);
+                    });
+                } catch (error) {
+                    console.error("Server execution exception on addBalance path:", error);
+                    alert(`Failed to execute transaction: ${error.message}`);
+                } finally {
+                    document.getElementById("submitIncomeBtn").disabled = false;
+                    document.getElementById("submitSpendingBtn").disabled = false;
+                    document.getElementById("submitIncomeBtn").classList.remove("disabled");
+                    document.getElementById("submitSpendingBtn").classList.remove("disabled");
+                }
+            } catch (error) {
+                console.error("Unexpected parsing error in addBalance closure logic:", error);
+            }
+        }
+
+        /** Submits the income form, validating inputs and then calling the server to process the transaction. */
+        function submitIncome() { addBalance('Income') }
+        /** Submits the spending form, validating inputs and then calling the server to process the transaction. */
+        function submitSpending() { addBalance('Spending') }
 
         /**
          * Inspects the cached banking configuration dates and automatically updates
@@ -267,7 +376,7 @@
 
                     const price = item.pricing[quarter];
                     const limit = (item.limit && item.limit[quarter]) ? ` | Max: ${item.limit[quarter]}` : '';
-                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}">${item.itemName} (${price} B-Bucks${limit})</option>`;
+                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}">${item.itemName} ($${price})</option>`;
 
                     if (item.category === 'Income' && incomeSelect) {
                         incomeHtml += optionMarkup;
