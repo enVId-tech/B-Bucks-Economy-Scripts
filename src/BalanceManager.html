@@ -20,6 +20,10 @@
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
+
+    <!-- Include Caching Layer Utility for efficient client-side data management -->
+    <!-- IMPORTANT!!!1!1!1!1!! The import for the cache file MUST come AFTER the Client-to-Server utility, CachingLayer.html uses functions from it -->
+    <?!= include('utils/CachingLayer'); ?>
 </head>
 
 <body>

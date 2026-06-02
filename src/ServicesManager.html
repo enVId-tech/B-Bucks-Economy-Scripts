@@ -158,66 +158,6 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            function initFetchAndPopulateItems() {
-                const targetKey = 'servicesData';
-                const quarterSettingsKey = 'settingsData';
-
-                fetchClientData(quarterSettingsKey, 'fetchSettingsData', false)
-                    .then((settings) => {
-                        console.log(settings);
-                        if (settings.error) {
-                            console.error("Error fetching quarter settings:", settings);
-                            return;
-                        }
-
-                        settings.importantDates.forEach(date => {
-                            console.log(`Important Date - ${date}`);
-                        });
-                        // // Set the quarter selects to the current quarter from settings
-                        // document.getElementById('quarterSelectIncome').value = settings.currentQuarter;
-                        // document.getElementById('quarterSelectSpending').value = settings.currentQuarter;
-                    })
-                    .catch((error) => {
-                        console.error("Failed to fetch quarter settings:", error.error || error);
-                    });
-
-                // Load from cache first for instant UI population
-                fetchClientData(targetKey, 'fetchServicesData', false)
-                    .then((response) => {
-                        if (response.error) {
-                            console.error("Error fetching services data:", response.error);
-                            return;
-                        }
-
-                        const itemSelectIncome = document.getElementById('itemSelectIncome');
-                        const itemSelectSpending = document.getElementById('itemSelectSpending');
-
-                        // Clear existing options except the placeholder
-                        itemSelectIncome.innerHTML = '<option value="">Select an item...</option>';
-                        itemSelectSpending.innerHTML = '<option value="">Select an item...</option>';
-
-                        response.forEach((item) => {
-                            const option = document.createElement('option');
-                            option.value = item.itemName;
-                            option.textContent = `${item.itemName} (${item.category})`;
-
-                            if (item.category === "Income") {
-                                itemSelectIncome.appendChild(option);
-                            } else if (item.category === "Expense") {
-                                itemSelectSpending.appendChild(option);
-                            }
-                        });
-                    })
-                    .catch((error) => {
-                        console.error("Failed to fetch services data:", error.error || error);
-                    });
-
-                // Call server to update cache in the background for next time
-                fetchClientData(targetKey, 'fetchServicesData', true).catch((error) => {
-                    console.error("Failed to refresh services data cache:", error.error || error);
-                });
-            }
-
             initFetchAndPopulateItems();
             // Handle click-to-select for all log items
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
@@ -246,6 +186,54 @@
             });
         });
 
+        function initFetchAndPopulateItems() {
+            // Fetch services data from cache (or fetch if not available)
+            fetchClientData('cachedServices', 'fetchServicesDataCached', false)
+                .then((response) => {
+                    if (response.error) {
+                        console.error("Error fetching services data:", response.error);
+                        return;
+                    }
+
+                    // Populate income items for the default selected quarter
+                    const quarterSelectIncome = document.getElementById('quarterSelectIncome');
+                    const itemSelectIncome = document.getElementById('itemSelectIncome');
+
+                    function populateIncomeItems() {
+                        const selectedQuarter = quarterSelectIncome.value;
+                        itemSelectIncome.innerHTML = '<option value="">Select an item...</option>';
+                        const filteredItems = response.filter(item => item.category === "Income" && item.quarter === selectedQuarter);
+                        filteredItems.forEach((item) => {
+                            const option = document.createElement('option');
+                            option.value = item.itemName;
+                            option.textContent = `${item.itemName} (${item.price})`;
+                            itemSelectIncome.appendChild(option);
+                        });
+                    }
+
+                    quarterSelectIncome.addEventListener('change', populateIncomeItems);
+                    populateIncomeItems(); // Initial population
+                })
+                .catch((error) => {
+                    console.error("Failed to fetch services data:", error);
+                });
+
+            // After loading, refresh the spending items list for the default selected quarter as well, since it depends on the same data
+            fetchClientData('cachedServices', 'fetchServicesDataCached', true)
+                .then((response) => {
+                    if (response.error) {
+                        console.error("Error fetching services data:", response.error);
+                        return;
+                    }
+                    // Store the fetched data in a global variable for use in the updateSpendingList function
+                    window.cachedServicesData = response;
+                    updateSpendingList(); // Initial population of spending items
+                })
+                .catch((error) => {
+                    console.error("Failed to fetch services data:", error);
+                });
+        }
+
         function updateSpendingList() {
             // Get selected quarter
             const quarter = document.getElementById('quarterSelectSpending').value;
@@ -256,16 +244,14 @@
             // Clear existing options except the placeholder
             itemSelectSpending.innerHTML = '<option value="">Select an item...</option>';
             // Get services data from cache (or fetch if not available)
-            fetchClientData('servicesData', 'fetchServicesData', false)
+            fetchClientData('cachedServices', 'fetchServicesDataCached', false)
                 .then((response) => {
                     if (response.error) {
                         console.error("Error fetching services data:", response.error);
                         return;
                     }
 
-                    // Filter for expenses in the selected quarter
-                    const filteredItems = response.filter(item => item.category === "Expense" && item.quarter === quarter);
-
+                    const filteredItems = response.filter(item => item.category === "Spending" && item.quarter === quarter);
                     filteredItems.forEach((item) => {
                         const option = document.createElement('option');
                         option.value = item.itemName;
