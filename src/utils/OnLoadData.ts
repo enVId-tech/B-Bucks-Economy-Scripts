@@ -31,6 +31,42 @@ function getCachedData(cacheKey: string): string {
 }
 
 /**
+ * Centralized setter
+ * Handles mutex locking to prevent concurrent write collisions.
+ * @param cacheKey The key for the cached data to update. This should correspond to a specific dataset like "cachedIndividuals", "cachedServices", etc.
+ * @param data The data to cache, which will be stringified and stored in both the in-memory cache and the script properties for persistence. The structure of this data should align with what is expected for the given cacheKey, such as arrays of individuals, services, settings objects, or transaction records.
+ * @returns {boolean} True if the cache was successfully updated, false otherwise.
+ */
+function setCachedData(cacheKey: string, data: any): boolean {
+    try {
+        const serializedData = JSON.stringify(data);
+        const lock = LockService.getScriptLock();
+
+        try {
+            // Attempt to acquire the lock with a timeout to prevent indefinite waiting in case of issues
+            lock.waitLock(5000);
+
+            // Update the cache and properties within the lock simultaneously to ensure consistency
+            CacheService.getScriptCache().put(cacheKey, serializedData, 1500);
+            PropertiesService.getScriptProperties().setProperty(cacheKey, serializedData);
+        } catch (lockError: any) {
+            Logger.log(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`);
+            SpreadsheetApp.getUi().alert(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`);
+            return false;
+        } finally {
+            lock.releaseLock();
+            return true;
+        }
+    } catch (error: any) {
+        Logger.log(`Error in setCachedData for key ${cacheKey}: ${error.message}`);
+        try {            SpreadsheetApp.getUi().alert(`Error updating cached data for key ${cacheKey}: ${error.message}`);
+        } catch (uiError: any) {
+            Logger.log(`Additionally, failed to show alert for cache update error: ${uiError.message}`);
+        }
+        return false;
+    }
+}
+/**
  * Launches a modeless dialog in the Google Sheets UI using a specified HTML template. The dialog is populated with initial data fetched from the cache, which includes individuals, services, settings, and transactions. The function takes parameters for the template name, dialog title, and dimensions (width and height) to customize the appearance of the dialog. This utility function centralizes the logic for opening various dialogs across the application, ensuring consistency in how data is passed and how dialogs are displayed.
  * @param templateName The name of the HTML template file (without the .html extension) to use for the dialog's content. This should correspond to a file in the project's HTML directory, such as "BalanceManager", "InvestmentsManager", etc.
  * @param title The title to display on the dialog window. This should be descriptive of the dialog's purpose, such as "Bank of Banderas - Manual Balance Manager".
@@ -42,8 +78,8 @@ function launchModelessDialog(templateName: string, title: string, width: number
 
     const globalData = {
         "individuals": JSON.parse(getCachedData("cachedIndividuals")),
-        "services": JSON.parse(getCachedData("cachedServices")),
-        "settings": JSON.parse(getCachedData("cachedSettings")),
+        "services": fetchServicesDataCached(),
+        "settings": fetchSettingsDataCached(),
         "transactions": JSON.parse(getCachedData("cachedTransactions"))
     }
 

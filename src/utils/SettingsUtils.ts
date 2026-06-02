@@ -54,6 +54,41 @@ interface SettingsData {
     limits: Limits;
 }
 
+/**
+ * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
+ * @param forceRefresh A boolean flag indicating whether to bypass the cache and fetch fresh data from the sheet. Defaults to false, meaning it will use cached data if available for faster access. Setting this to true will force the function to read directly from the sheet and update the cache with the new data.
+ * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
+ */
+function fetchSettingsDataCached(forceRefresh: boolean = false): SettingsData | { error: string } {
+    try {
+        const CACHE_KEY = "cachedSettings";
+
+        if (!forceRefresh) {
+            const cachedString = getCachedData(CACHE_KEY);
+            if (cachedString && cachedString !== "{}" && cachedString !== "") {
+                // SpreadsheetApp.getUi().alert(`Cache hit: Settings data loaded from cache. String: ${cachedString}`);
+                return JSON.parse(cachedString) as SettingsData;
+            }
+        }
+
+        console.log("Cache miss: Re-calculating policy vectors from Settings sheet cells...");
+        // SpreadsheetApp.getUi().alert("Cache miss: Re-calculating policy vectors from Settings sheet cells...");
+        const freshSettings = fetchSettingsData();
+
+        if (freshSettings && !('error' in freshSettings)) {
+            setCachedData(CACHE_KEY, freshSettings);
+        }
+
+        return freshSettings;
+    } catch (error: any) {
+        // SpreadsheetApp.getUi().alert(`Error occurred in fetchSettingsDataCached: ${error.message}`);
+        return { error: `Error occurred in fetchSettingsDataCached: ${error.message}` };
+    }
+}
+/**
+ * Fetches settings data from the "Settings" sheet in the active spreadsheet. It reads a predefined range of rows and columns to extract various configuration settings, including important dates, standard percentages, mandated policies, ledgers and records preferences, and limits. The function processes the raw grid data to construct structured objects for each category of settings, handling type conversions for booleans, numbers, and dates as needed. If the sheet is not found or an error occurs during processing, it returns an error message.
+ * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
+ */
 function fetchSettingsData(): SettingsData | { error: string } {
     try {
         const SHEET_NAME = "Settings";
