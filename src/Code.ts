@@ -29,95 +29,31 @@ function onOpen(): void {
     .addToUi();
 }
 
-/**
- * Opens a dialog for manually modifying B-Bucks balances, allowing users to add or subtract amounts from specific cells.
- */
-function openManualBalanceManager(): void {
-  const html = HtmlService.createTemplateFromFile('BalanceManager').evaluate()
-    .setTitle("Bank of Banderas - Manual Balance Manager")
-    .setWidth(500)
-    .setHeight(650);
+/** Opens a dialog for manually modifying B-Bucks balances, allowing users to add or subtract amounts from specific cells. */
+function openManualBalanceManager(): void { launchModelessDialog('BalanceManager', "Bank of Banderas - Manual Balance Manager", 500, 650) }
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Manual Balance Manager");
-}
+/** Opens a dialog for managing investments, allowing users to view and modify investment records. */
+function openInvestmentsManager(): void { launchModelessDialog('InvestmentsManager', "Bank of Banderas - Investments Manager", 600, 700) }
 
-/**
- * Opens a dialog for managing investments, allowing users to view and modify investment records.
- */
-function openInvestmentsManager(): void {
-  const html = HtmlService.createTemplateFromFile('InvestmentsManager').evaluate()
-    .setTitle("Bank of Banderas - Investments Manager")
-    .setWidth(600)
-    .setHeight(700);
+/** Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses. */
+function showIncomeConsumables() { launchModelessDialog('ServicesManager', "Bank of Banderas - Services Menu", 500, 700) }
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Investments Manager");
-}
+/** Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions. */
+function openTransactionsRecords(): void { launchModelessDialog('TransactionsRecords', "Bank of Banderas - Transaction Records", 700, 650) }
 
-/**
- * Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses.
- */
-function showIncomeConsumables() {
-  const html = HtmlService.createTemplateFromFile('ServicesManager').evaluate()
-    .setTitle('Bank of Banderas - Services Menu')
-    .setWidth(500)
-    .setHeight(700);
+/** Opens a dialog for configuring banking settings, including interest rates, restrictions, and maintenance options. */
+function openBankingSettings(): void { launchModelessDialog('BankingSettings', "Bank of Banderas - Banking Settings", 550, 700) }
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Services Menu");
-}
+/** Opens a dialog for importing student names from a CSV file, allowing users to fill sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet. */
+function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of Banderas - Fill Sheet", 350, 500) }
 
-/**
- * Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions.
- */
-function openTransactionsRecords(): void {
-  const html = HtmlService.createTemplateFromFile('TransactionsRecords').evaluate()
-    .setTitle("Bank of Banderas - Transaction Records")
-    .setWidth(700)
-    .setHeight(650);
+/** Updates timestamps for all records in the spreadsheet. */
+function updateTimestamps(): void { SpreadsheetApp.getUi().alert("✅ All timestamps have been updated to current time.") }
 
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Transaction Records");
-}
+/** Records a daily data snapshot to preserve historical information. */
+function recordDailyData(): void { SpreadsheetApp.getUi().alert("✅ Daily data snapshot has been recorded.") }
 
-/**
- * Opens a dialog for configuring banking settings, including interest rates, restrictions, and maintenance options.
- */
-function openBankingSettings(): void {
-  const html = HtmlService.createTemplateFromFile('BankingSettings').evaluate()
-    .setTitle("Bank of Banderas - Banking Settings")
-    .setWidth(550)
-    .setHeight(700);
-
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Banking Settings");
-}
-
-/**
- * Opens a dialog for importing student names from a CSV file, allowing users to fill sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet.
- */
-function importStudentNames(): void {
-  const html = HtmlService.createTemplateFromFile('FillSheet').evaluate()
-    .setTitle("Bank of Banderas - Fill Sheet")
-    .setWidth(350)
-    .setHeight(500);
-
-  SpreadsheetApp.getUi().showModelessDialog(html, "Bank of Banderas - Fill Sheet");
-}
-
-/**
- * Updates timestamps for all records in the spreadsheet.
- */
-function updateTimestamps(): void {
-  SpreadsheetApp.getUi().alert("✅ All timestamps have been updated to current time.");
-}
-
-/**
- * Records a daily data snapshot to preserve historical information.
- */
-function recordDailyData(): void {
-  SpreadsheetApp.getUi().alert("✅ Daily data snapshot has been recorded.");
-}
-
-/**
- * Resets all historical records (admin function requiring confirmation).
- */
+/** Resets all historical records (admin function requiring confirmation). */
 function resetHistoricalRecords(): void {
   const ui = SpreadsheetApp.getUi();
   const response = ui.alert(
@@ -130,41 +66,19 @@ function resetHistoricalRecords(): void {
   }
 }
 
-/**
- * A placeholder function for menu items that are not yet implemented.
- */
-function placeholderFunction(): void {
-  SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!");
-}
+/** A placeholder function for menu items that are not yet implemented. */
+function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!") }
 
-/**
- * Helper functions for page navigation in modeless dialogs
- */
-function switchToManualBalanceManager(): void {
-  openManualBalanceManager();
-}
-
-function switchToInvestmentsManager(): void {
-  openInvestmentsManager();
-}
-
-function switchToPricingManager(): void {
-  showIncomeConsumables();
-}
-
-function switchToTransactionsRecords(): void {
-  openTransactionsRecords();
-}
-
-function switchToBankingSettings(): void {
-  openBankingSettings();
-}
+/** Helper functions for page navigation in modeless dialogs */
+function switchToManualBalanceManager(): void { openManualBalanceManager() }
+function switchToInvestmentsManager(): void { openInvestmentsManager() }
+function switchToPricingManager(): void { showIncomeConsumables() }
+function switchToTransactionsRecords(): void { openTransactionsRecords() }
+function switchToBankingSettings(): void { openBankingSettings() }
 
 /**
  * Includes the content of a specified HTML file.
  * @param filename The name of the HTML file to include.
  * @returns The content of the HTML file.
  */
-function include(filename: string) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
+function include(filename: string) { return HtmlService.createHtmlOutputFromFile(filename).getContent() }
