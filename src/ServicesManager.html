@@ -50,10 +50,10 @@
 
                 <label class="label">Quarter</label>
                 <select id="quarterSelectIncome" onchange="updateIncomes()">
-                    <option value="1">Quarter 1</option>
-                    <option value="2">Quarter 2</option>
-                    <option value="3">Quarter 3</option>
-                    <option value="4">Quarter 4</option>
+                    <option value="Q1">Quarter 1</option>
+                    <option value="Q2">Quarter 2</option>
+                    <option value="Q3">Quarter 3</option>
+                    <option value="Q4">Quarter 4</option>
                 </select>
 
                 <label class="label">Item</label>
@@ -84,10 +84,10 @@
 
                 <label class="label">Quarter</label>
                 <select id="quarterSelectSpending" onchange="updateExpenses()">
-                    <option value="1">Quarter 1</option>
-                    <option value="2">Quarter 2</option>
-                    <option value="3">Quarter 3</option>
-                    <option value="4">Quarter 4</option>
+                    <option value="Q1">Quarter 1</option>
+                    <option value="Q2">Quarter 2</option>
+                    <option value="Q3">Quarter 3</option>
+                    <option value="Q4">Quarter 4</option>
                 </select>
 
                 <label class="label">Item</label>
@@ -159,7 +159,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             await autoConfigureCurrentQuarter();
-            await populateItems();
+            await updateItemList('Expense');
+            await updateItemList('Income');
             await updateSpendingList();
         });
 
@@ -168,8 +169,10 @@
          * the quarter select element to reflect the current real-world timeframe.
          */
         async function autoConfigureCurrentQuarter() {
-            const quarterSelect = document.getElementById('quarterSelectSpending');
-            if (!quarterSelect) return;
+            const expenseQuarterSelect = document.getElementById('quarterSelectSpending');
+            const incomeQuarterSelect = document.getElementById('quarterSelectIncome');
+
+            if (!expenseQuarterSelect || !incomeQuarterSelect) return;
 
             try {
                 const settings = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false);
@@ -180,7 +183,8 @@
                     const activeQuarter = getCurrentQuarter(settings.importantDates);
 
                     // Programmatically set the drop-down value
-                    quarterSelect.value = activeQuarter;
+                    expenseQuarterSelect.value = activeQuarter;
+                    incomeQuarterSelect.value = activeQuarter;
                     console.log(`Calendar bounds evaluated. Automatically localized to: ${activeQuarter}`);
                 }
             } catch (e) {
@@ -218,35 +222,46 @@
             return "Q1"
         }
 
-        async function populateItems(type) {
-            const expenseQuarterSelect = document.getElementById('quarterSelectSpending');
-            const incomeQuarterSelect = document.getElementById('quarterSelectIncome');
-            
-            const quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates) || (type === 'Income' ? incomeQuarterSelect.value : incomeQuarterSelect.value);
-            const itemSelectSpending = document.getElementById('itemSelectSpending');
-            const itemSelectIncome = document.getElementById('itemSelectIncome');
-            if (!itemSelectSpending || !itemSelectIncome) return;
+        /**
+         * Generic function to update either the Income or Expense item list based on the selected quarter.
+         * It fetches the services data from the cache (or server if forced), filters it by category and quarter availability, and populates the corresponding drop-down.
+         * @param {string} type - "Income" or "Expense" to determine which list to update
+         */
+        async function updateItemList(type) {
+            // Determine which quarter select element to read from based on the type
+            const quarterSelect = document.getElementById(type === 'Expense' ? 'quarterSelectSpending' : 'quarterSelectIncome');
+            if (!quarterSelect) return;
+
+            const quarter = quarterSelect.value || getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates);
+            console.log("Updating " + type.toLowerCase() + " list for quarter:", quarter);
+
+            const itemSelect = document.getElementById(type === 'Expense' ? 'itemSelectSpending' : 'itemSelectIncome');
+            if (!itemSelect) return;
 
             // Clear existing options except the placeholder
-            itemSelectSpending.innerHTML = '<option value="">Select an item...</option>';
-            itemSelectIncome.innerHTML = '<option value="">Select an item...</option>';
+            itemSelect.innerHTML = '<option value="">Select an item...</option>';
 
             try {
                 const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', false);
 
-                // Returns an array of item objects with their pricing and limits, filtered by the selected quarter's availability
-                console.log("Fetched services data for item population:", response);
+                console.log("Fetched services data for " + type.toLowerCase() + " update:", response);
 
                 if (!response || response.error) {
                     console.error("Error fetching services data:", response ? response.error : "Empty response");
                     return;
                 }
 
-                console.log("Quarter selected for item population:", quarter);
+                // Filter items by category and quarter availability
+                const filteredItems = response.filter(item => item.category === type && item.pricing && item.pricing[quarter] !== undefined && item.pricing[quarter] !== null);
 
-                const filteredItems = response.filter(item => item.pricing && item.pricing[quarter] !== undefined && item.pricing[quarter] !== null);
+                const fragment = document.createDocumentFragment();
 
+                // Populate the drop-down with filtered items, showing price and limit info
                 filteredItems.forEach((item) => {
+                    // Clean, combined validation checks
+                    if (!item.itemName || !item.category || item.category !== type) return;
+                    if (!item.pricing || item.pricing[quarter] === undefined || item.pricing[quarter] === null) return;
+
                     const price = item.pricing[quarter];
                     const limit = (item.limit && item.limit[quarter]) ? ` | Max: ${item.limit[quarter]}` : '';
 
@@ -255,26 +270,23 @@
                     option.textContent = `${item.itemName} (${price} B-Bucks${limit})`;
                     option.setAttribute('data-price', price);
 
-                    if (item.category === 'Income' || type === 'Income') {
-                        itemSelectIncome.appendChild(option);
-                    } else if (item.category === 'Expense' || type === 'Expense') {
-                        itemSelectSpending.appendChild(option);
-                    }
+                    // Natively super fast: Appending to an isolated virtual fragment takes 0ms
+                    fragment.appendChild(option);
                 });
 
-                console.log(`Rendered ${filteredItems.length} items from cache for timeframe: ${quarter}`);
+                console.log(`Rendered ${filteredItems.length} ${type.toLowerCase()} items from cache for quarter: ${quarter}`);
             } catch (error) {
-                console.error("Failed to execute layout render path:", error);
+                console.error("Failed to update " + type.toLowerCase() + " list:", error);
             }
         }
 
         async function updateExpenses() {
-            await populateItems('Expense');
+            await updateItemList('Expense');
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
         }
 
         async function updateIncomes() {
-            await populateItems('Income');
+            await updateItemList('Income');
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
         }
     </script>
