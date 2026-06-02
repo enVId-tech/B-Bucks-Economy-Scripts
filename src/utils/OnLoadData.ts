@@ -10,7 +10,7 @@
  * @param cacheKey The key for the cached data to retrieve. This should correspond to a specific dataset like "cachedIndividuals", "cachedServices", etc.
  * @returns A JSON string containing the cached data or an error message if no data is found. The expected structure of the returned data depends on the cacheKey used, but it generally includes relevant information for the application's operations, such as lists of individuals, services, settings, or transactions.
  */
-function getCachedData(cacheKey: string): string {
+function getCachedData(cacheKey: string): string | void {
     try {
         const cache = CacheService.getScriptCache();
 
@@ -23,10 +23,10 @@ function getCachedData(cacheKey: string): string {
             return permanentData;
         }
 
-        return JSON.stringify({ error: "No cached data found" });
+        return
     } catch (error: any) {
         Logger.log(`Error in getCachedData for key ${cacheKey}: ${error.message}`);
-        return JSON.stringify({ error: `Error retrieving cached data: ${error.message}` });
+        return
     }
 }
 
@@ -77,10 +77,10 @@ function launchModelessDialog(templateName: string, title: string, width: number
     const template = HtmlService.createTemplateFromFile(templateName);
 
     const globalData = {
-        "individuals": JSON.parse(getCachedData("cachedIndividuals")),
+        "individuals": JSON.parse(getCachedData("cachedIndividuals") || "[]"),
         "services": fetchServicesDataCached(),
         "settings": fetchSettingsDataCached(),
-        "transactions": JSON.parse(getCachedData("cachedTransactions"))
+        "transactions": JSON.parse(getCachedData("cachedTransactions") || "[]")
     }
 
     template.initialServerPayload = JSON.stringify(globalData);
