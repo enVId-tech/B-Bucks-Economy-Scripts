@@ -77,10 +77,10 @@ function launchModelessDialog(templateName: string, title: string, width: number
     const template = HtmlService.createTemplateFromFile(templateName);
 
     const globalData = {
-        "individuals": JSON.parse(getCachedData("cachedIndividuals") || "[]"),
-        "services": fetchServicesDataCached(),
-        "settings": fetchSettingsDataCached(),
-        "transactions": JSON.parse(getCachedData("cachedTransactions") || "[]")
+        "cachedIndividuals": JSON.parse(getCachedData("cachedIndividuals") || "[]"),
+        "cachedServices": fetchServicesDataCached(),
+        "cachedSettings": fetchSettingsDataCached(),
+        "cachedTransactions": JSON.parse(getCachedData("cachedTransactions") || "[]")
     }
 
     template.initialServerPayload = JSON.stringify(globalData);

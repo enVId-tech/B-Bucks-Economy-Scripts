@@ -49,7 +49,7 @@
                 <div class="header-subtitle header-subtitle-margin">Earnable items to Column D</div>
 
                 <label class="label">Quarter</label>
-                <select id="quarterSelectIncome">
+                <select id="quarterSelectIncome" onchange="updateIncomes()">
                     <option value="1">Quarter 1</option>
                     <option value="2">Quarter 2</option>
                     <option value="3">Quarter 3</option>
@@ -83,7 +83,7 @@
                 </div>
 
                 <label class="label">Quarter</label>
-                <select id="quarterSelectSpending" onchange="updateSpendingItemList()">
+                <select id="quarterSelectSpending" onchange="updateExpenses()">
                     <option value="1">Quarter 1</option>
                     <option value="2">Quarter 2</option>
                     <option value="3">Quarter 3</option>
@@ -157,111 +157,125 @@
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            initFetchAndPopulateItems();
-            // Handle click-to-select for all log items
-            document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.classList.toggle('selected');
-                    updateUndoButtonState();
-                });
-            });
-
-            // Update undo button enabled state based on selected items
-            function updateUndoButtonState() {
-                const undoBtn = document.getElementById('undoSelectedBtn');
-                const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-                undoBtn.disabled = selectedItems.length === 0;
-            }
-
-            // Deselect all when clicking outside
-            document.addEventListener('click', () => {
-                if (event.target === document.body || event.target === document.documentElement) {
-                    document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-                        item.classList.remove('selected');
-                    });
-                    updateUndoButtonState();
-                }
-            });
+        document.addEventListener('DOMContentLoaded', async () => {
+            await autoConfigureCurrentQuarter();
+            await populateItems();
+            await updateSpendingList();
         });
 
-        function initFetchAndPopulateItems() {
-            // Fetch services data from cache (or fetch if not available)
-            fetchClientData('cachedServices', 'fetchServicesDataCached', false)
-                .then((response) => {
-                    if (response.error) {
-                        console.error("Error fetching services data:", response.error);
-                        return;
-                    }
+        /**
+         * Inspects the cached banking configuration dates and automatically updates
+         * the quarter select element to reflect the current real-world timeframe.
+         */
+        async function autoConfigureCurrentQuarter() {
+            const quarterSelect = document.getElementById('quarterSelectSpending');
+            if (!quarterSelect) return;
 
-                    // Populate income items for the default selected quarter
-                    const quarterSelectIncome = document.getElementById('quarterSelectIncome');
-                    const itemSelectIncome = document.getElementById('itemSelectIncome');
+            try {
+                const settings = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false);
 
-                    function populateIncomeItems() {
-                        const selectedQuarter = quarterSelectIncome.value;
-                        itemSelectIncome.innerHTML = '<option value="">Select an item...</option>';
-                        const filteredItems = response.filter(item => item.category === "Income" && item.quarter === selectedQuarter);
-                        filteredItems.forEach((item) => {
-                            const option = document.createElement('option');
-                            option.value = item.itemName;
-                            option.textContent = `${item.itemName} (${item.price})`;
-                            itemSelectIncome.appendChild(option);
-                        });
-                    }
+                console.log("Fetched settings for auto-configuration:", settings);
 
-                    quarterSelectIncome.addEventListener('change', populateIncomeItems);
-                    populateIncomeItems(); // Initial population
-                })
-                .catch((error) => {
-                    console.error("Failed to fetch services data:", error);
-                });
+                if (settings && settings.importantDates) {
+                    const activeQuarter = getCurrentQuarter(settings.importantDates);
 
-            // After loading, refresh the spending items list for the default selected quarter as well, since it depends on the same data
-            fetchClientData('cachedServices', 'fetchServicesDataCached', true)
-                .then((response) => {
-                    if (response.error) {
-                        console.error("Error fetching services data:", response.error);
-                        return;
-                    }
-                    // Store the fetched data in a global variable for use in the updateSpendingList function
-                    window.cachedServicesData = response;
-                    updateSpendingList(); // Initial population of spending items
-                })
-                .catch((error) => {
-                    console.error("Failed to fetch services data:", error);
-                });
+                    // Programmatically set the drop-down value
+                    quarterSelect.value = activeQuarter;
+                    console.log(`Calendar bounds evaluated. Automatically localized to: ${activeQuarter}`);
+                }
+            } catch (e) {
+                console.error("Failed to auto-detect current active economic quarter:", e);
+            }
         }
 
-        function updateSpendingList() {
-            // Get selected quarter
-            const quarter = document.getElementById('quarterSelectSpending').value;
+        /**
+         * Pure logical helper that checks today's date against active configuration windows.
+         * @param {Object} dates - The importantDates object from your settings matrix
+         * @returns {string} "Q1" | "Q2" | "Q3" | "Q4" (Defaults to "Q1" if out-of-bounds)
+         */
+        function getCurrentQuarter(dates) {
+            const today = new Date();
 
-            // Filter items and pricing based on quarter
+            // FIXED: Helper to convert string stamps into true comparable Date objects
+            const parseDate = (dateVal) => {
+                if (!dateVal) return null;
+                const parsed = new Date(dateVal);
+                return isNaN(parsed.getTime()) ? null : parsed;
+            };
+
+            const q1Start = parseDate(dates.startQuarterOneDate), q1End = parseDate(dates.endQuarterOneDate);
+            const q2Start = parseDate(dates.startQuarterTwoDate), q2End = parseDate(dates.endQuarterTwoDate);
+            const q3Start = parseDate(dates.startQuarterThreeDate), q3End = parseDate(dates.endQuarterThreeDate);
+            const q4Start = parseDate(dates.startQuarterFourDate), q4End = parseDate(dates.endQuarterFourDate);
+
+            if (q1Start && q1End && today >= q1Start && today <= q1End) return "Q1";
+            if (q2Start && q2End && today >= q2Start && today <= q2End) return "Q2";
+            if (q3Start && q3End && today >= q3Start && today <= q3End) return "Q3";
+            if (q4Start && q4End && today >= q4Start && today <= q4End) return "Q4";
+
+            if (q4End && today > q4End) return "Q4";
+
+            return "Q1"
+        }
+
+        async function populateItems(type) {
+            const expenseQuarterSelect = document.getElementById('quarterSelectSpending');
+            const incomeQuarterSelect = document.getElementById('quarterSelectIncome');
+            
+            const quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates) || (type === 'Income' ? incomeQuarterSelect.value : incomeQuarterSelect.value);
             const itemSelectSpending = document.getElementById('itemSelectSpending');
+            const itemSelectIncome = document.getElementById('itemSelectIncome');
+            if (!itemSelectSpending || !itemSelectIncome) return;
 
             // Clear existing options except the placeholder
             itemSelectSpending.innerHTML = '<option value="">Select an item...</option>';
-            // Get services data from cache (or fetch if not available)
-            fetchClientData('cachedServices', 'fetchServicesDataCached', false)
-                .then((response) => {
-                    if (response.error) {
-                        console.error("Error fetching services data:", response.error);
-                        return;
-                    }
+            itemSelectIncome.innerHTML = '<option value="">Select an item...</option>';
 
-                    const filteredItems = response.filter(item => item.category === "Spending" && item.quarter === quarter);
-                    filteredItems.forEach((item) => {
-                        const option = document.createElement('option');
-                        option.value = item.itemName;
-                        option.textContent = `${item.itemName} (${item.price})`;
+            try {
+                const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', false);
+
+                // Returns an array of item objects with their pricing and limits, filtered by the selected quarter's availability
+                console.log("Fetched services data for item population:", response);
+
+                if (!response || response.error) {
+                    console.error("Error fetching services data:", response ? response.error : "Empty response");
+                    return;
+                }
+
+                console.log("Quarter selected for item population:", quarter);
+
+                const filteredItems = response.filter(item => item.pricing && item.pricing[quarter] !== undefined && item.pricing[quarter] !== null);
+
+                filteredItems.forEach((item) => {
+                    const price = item.pricing[quarter];
+                    const limit = (item.limit && item.limit[quarter]) ? ` | Max: ${item.limit[quarter]}` : '';
+
+                    const option = document.createElement('option');
+                    option.value = item.itemName;
+                    option.textContent = `${item.itemName} (${price} B-Bucks${limit})`;
+                    option.setAttribute('data-price', price);
+
+                    if (item.category === 'Income' || type === 'Income') {
+                        itemSelectIncome.appendChild(option);
+                    } else if (item.category === 'Expense' || type === 'Expense') {
                         itemSelectSpending.appendChild(option);
-                    });
-                })
-                .catch((error) => {
-                    console.error("Failed to fetch services data:", error);
+                    }
                 });
+
+                console.log(`Rendered ${filteredItems.length} items from cache for timeframe: ${quarter}`);
+            } catch (error) {
+                console.error("Failed to execute layout render path:", error);
+            }
+        }
+
+        async function updateExpenses() {
+            await populateItems('Expense');
+            await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
+        }
+
+        async function updateIncomes() {
+            await populateItems('Income');
+            await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
         }
     </script>
 </body>
