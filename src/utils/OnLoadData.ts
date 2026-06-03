@@ -80,7 +80,8 @@ function launchModelessDialog(templateName: string, title: string, width: number
         "cachedIndividuals": JSON.parse(getCachedData("cachedIndividuals") || "[]"),
         "cachedServices": fetchServicesDataCached(),
         "cachedSettings": fetchSettingsDataCached(),
-        "cachedTransactions": JSON.parse(getCachedData("cachedTransactions") || "[]")
+        "cachedTransactions": JSON.parse(getCachedData("cachedTransactions") || "[]"),
+        "cachedInvestmentsLedger": fetchInvestmentsDataCached()
     }
 
     template.initialServerPayload = JSON.stringify(globalData);
