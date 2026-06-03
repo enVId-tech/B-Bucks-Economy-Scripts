@@ -11,10 +11,10 @@ interface PeriodData {
 }
 
 interface InvestmentRecord {
-    date: Date;
+    date?: Date;
     individualName: string;
-    initAmount: number;
-    returnsAmount: number;
+    initAmount?: number;
+    returnsAmount?: number;
     currentAmount?: number;
 }
 
@@ -74,13 +74,13 @@ function fetchInvestmentsLedgerData(): PeriodData[] | void {
                 const dateValue = values[row][7];
                 const currentAmount = values[row][9];
 
-                if (individualName && !isNaN(returnsAmount) && !isNaN(initAmount) && dateValue instanceof Date) {
+                if (individualName) {
                     investments.push({
-                        date: dateValue,
+                        date: dateValue instanceof Date ? dateValue : undefined,
                         individualName: individualName,
-                        initAmount: initAmount,
-                        returnsAmount: returnsAmount,
-                        currentAmount: currentAmount
+                        initAmount: initAmount && typeof initAmount === 'number' ? initAmount : undefined,
+                        returnsAmount: returnsAmount && typeof returnsAmount === 'number' ? returnsAmount : undefined,
+                        currentAmount: currentAmount && typeof currentAmount === 'number' ? currentAmount : undefined
                     });
                 }
             }
@@ -92,7 +92,6 @@ function fetchInvestmentsLedgerData(): PeriodData[] | void {
         });
 
         // Cache the transactions data for use in the Investments Manager dialog
-        setCachedData("cachedInvestmentsLedger", periodDataArray);
         return periodDataArray;
     } catch (err) {
         Logger.log(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`);

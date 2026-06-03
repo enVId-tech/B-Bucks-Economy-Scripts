@@ -20,6 +20,10 @@
 
   <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
   <?!= include('utils/ClientToServer'); ?>
+
+  <!-- Include Caching Layer Utility for efficient client-side data management -->
+  <!-- IMPORTANT!!!1!1!1!1!! The import for the cache file MUST come AFTER the Client-to-Server utility, CachingLayer.html uses functions from it -->
+  <?!= include('utils/CachingLayer'); ?>
 </head>
 
 <body>
@@ -43,7 +47,7 @@
       <div class="form-section">
         <div class="form-title">Select Student</div>
         <label for="periodSelect">Period</label>
-        <select id="periodSelect">
+        <select id="periodSelect" onchange="handlePeriodChange()">
           <option value="">Loading...</option>
         </select>
         <label for="studentSelect">Student Name</label>
@@ -161,33 +165,62 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Handle click-to-select for all log items
-      document.querySelectorAll('[data-selectable="true"]').forEach(item => {
-        item.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.classList.toggle('selected');
-          updateUndoButtonState();
-        });
-      });
+    document.addEventListener('DOMContentLoaded', async () => {
+      const investmentsData = await fetchInitialData();
+      populatePeriodSelect(investmentsData || []);
+    });
 
-      // Update undo button enabled state based on selected items
-      function updateUndoButtonState() {
-        const undoBtn = document.getElementById('undoSelectedBtn');
-        const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
-        undoBtn.disabled = selectedItems.length === 0;
+    async function fetchInitialData() {
+      try {
+        const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', true);
+        console.log("Initial Investments Ledger Data:", investmentsData);
+        return investmentsData;
+        // populatePeriodSelect(investmentsData);
+      } catch (error) {
+        console.error("Error fetching initial data:", error);
       }
+    }
 
-      // Deselect all when clicking outside
-      document.addEventListener('click', () => {
-        if (event.target === document.body || event.target === document.documentElement) {
-          document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
-            item.classList.remove('selected');
+    function populatePeriodSelect(periods) {
+      const periodSelect = document.getElementById('periodSelect');
+      let periodHtml = '<option value="">-- Select a period --</option>';
+      periods.forEach(period => {
+        const periodName = period.periodName;
+        periodHtml += `<option value="${periodName}">${periodName}</option>`;
+      });
+      periodSelect.innerHTML = periodHtml;
+      populateStudentSelect(periods);
+    }
+
+    function populateStudentSelect(periods) {
+      const studentSelect = document.getElementById('studentSelect');
+      const periodSelected = document.getElementById('periodSelect').value;
+
+      let studentHtml = '<option value="">-- Select a student --</option>';
+      studentSelect.innerHTML = studentHtml;
+
+      periods.forEach(period => {
+        if (period.periodName === periodSelected) {
+          period.investments.forEach(student => {
+            const name = student.individualName;
+
+            studentHtml += `<option value="${name}">${name}</option>`;
           });
-          updateUndoButtonState();
         }
       });
-    });
+
+      studentSelect.innerHTML = studentHtml;
+    }
+
+    function handlePeriodChange() {
+      const investmentsData = fetchInitialData()
+        .then(data => {
+          populateStudentSelect(data);
+        })
+        .catch(error => {
+          console.error("Error fetching data on period change:", error);
+        });
+    }
   </script>
 </body>
 

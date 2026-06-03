@@ -40,7 +40,7 @@
             console.log(`🔄 Cache miss/refresh: ${cacheKey}. Fetching from server...`);
             callServer(
                 serverFunctionName,
-                null,
+                forceRefresh ? { forceRefresh: true } : null,
                 (serverData) => {
                     window.appStateCache[cacheKey] = serverData; // Keep local memory updated
                     resolve(serverData);
