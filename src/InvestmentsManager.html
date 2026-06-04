@@ -183,12 +183,18 @@
 
     function populatePeriodSelect(periods) {
       const periodSelect = document.getElementById('periodSelect');
-      let periodHtml = '<option value="">-- Select a period --</option>';
-      periods.forEach(period => {
-        const periodName = period.periodName;
-        periodHtml += `<option value="${periodName}">${periodName}</option>`;
-      });
-      periodSelect.innerHTML = periodHtml;
+
+      // Map the periods to option elements for the select dropdown
+      const periodOptions = periods.map(p => `<option value="${p.periodName}">${p.periodName}</option>`);
+
+      // Always include the default option at the top, and then append any period options if available. This ensures that the select box is never empty and always prompts the user to make a selection.
+      // The periodSelect will start with a default "Loading..." option until the data is fetched, and then it will be replaced with the actual period options. If there are no periods available, it will show "-- Select a period --" as the only option, prompting the user to make a selection once periods are available.
+      // Equivalent to looping through the periods and appending options one by one, but done in a more efficient way by mapping all periods to options first and then joining them into a single string to set the innerHTML in one operation.
+      periodSelect.innerHTML = [
+        '<option value="">-- Select a period --</option>',
+        ...periodOptions
+      ].join('');
+
       populateStudentSelect(periods);
     }
 
@@ -196,20 +202,18 @@
       const studentSelect = document.getElementById('studentSelect');
       const periodSelected = document.getElementById('periodSelect').value;
 
-      let studentHtml = '<option value="">-- Select a student --</option>';
-      studentSelect.innerHTML = studentHtml;
+      // Find the selected period's data to populate the student select options
+      const targetPeriod = periods.find(p => p.periodName === periodSelected);
 
-      periods.forEach(period => {
-        if (period.periodName === periodSelected) {
-          period.investments.forEach(student => {
-            const name = student.individualName;
+      // If no period is selected or if the selected period has no investments data, show default option only
+      // Equivalent to looping through to find the right period and then looping through its investments to populate the student options, but done in a more efficient way by directly finding the target period first and then mapping its investments to options if it exists.
+      const studentOptions = (targetPeriod?.investments || []).map(student => `<option value="${student.individualName}">${student.individualName}</option>`);
 
-            studentHtml += `<option value="${name}">${name}</option>`;
-          });
-        }
-      });
-
-      studentSelect.innerHTML = studentHtml;
+      // Always include the default option at the top, and then append any student options if available. This ensures that the select box is never empty and always prompts the user to make a selection.
+      studentSelect.innerHTML = [
+        '<option value="">-- Select a student --</option>',
+        ...studentOptions
+      ].join('');
     }
 
     function handlePeriodChange() {
