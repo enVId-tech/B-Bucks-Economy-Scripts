@@ -52,13 +52,29 @@
                 serverFunctionName,
                 forceRefresh ? { forceRefresh: true } : null,
                 (serverData) => {
+                    // Protect against malformed data/empty responses
+                    if (!serverData || serverData.error || (Array.isArray(serverData) && serverData.length === 0) || (typeof serverData === 'object' && Object.keys(serverData).length === 0)) {
+                        const errorMsg = serverData && serverData.error ? serverData.error : "Received empty or invalid data from server.";
+                        console.warn(`Cache fetch warning for ${cacheKey}:`, errorMsg);
+                        resolve(errorMsg);
+                        return;
+                    }
                     // Sync the data frame back to local RAM instantly
                     window.appStateCache[cacheKey] = serverData;
 
-                    // Cache the data raw payload directly on Google's backend server cache memory
-                    // This makes sure other dialogs can tap into it instantly without querying sheets again
-                    if (serverData && !serverData.error) {
-                        callServer('setServerCacheValue', cacheKey, JSON.stringify(serverData));
+                    // Ensure strings are stringified before caching to prevent serialization issues, and to maintain consistency in cache storage format across different layers
+                    try {
+                        const serializedData = typeof serverData === 'string' ? serverData : JSON.stringify(serverData);
+
+                        // Double check that the data isn't about to overwrite good, existing data
+                        if (serializedData !== 'null' && serializedData !== '[null]' && serializedData !== '{}') {
+                            callServer('setServerCacheValue', cacheKey, serializedData);
+                            console.log(`Successfully updated cache for ${cacheKey} across all layers.`);
+                        } else {
+                            console.warn(`Aborting cache update for ${cacheKey} due to invalid data format:`, serverData);
+                        }
+                    } catch (serializationError) {
+                        console.error(`Failed to serialize data for cache update on ${cacheKey}:`, serializationError, "Original data:", serverData);
                     }
 
                     resolve(serverData);
