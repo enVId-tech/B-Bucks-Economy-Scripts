@@ -320,26 +320,6 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
 }
 
 /**
- * Invalidates the cache for a given key.
- * @param cacheKey The key for which to invalidate the cache.
- */
-function invalidateCache(cacheKey: string): void {
-  try {
-    if (!cacheKey) {
-      Logger.log("Cache key is required to invalidate cache.");
-      return;
-    }
-
-    // Invalidate the cache by setting the value to null (or you could choose to delete the key entirely)
-    CacheService.getScriptCache().remove(cacheKey);
-    PropertiesService.getScriptProperties().deleteProperty(cacheKey);
-  } catch (error: any) {
-    Logger.log(`Error occurred in invalidateCache: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`Error occurred in invalidateCache: ${error.message}`);
-  }
-}
-
-/**
  * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
  * Uses the Google Sheets API for efficient appending of transaction records, with error handling to fall back to the slower method if the API call fails.
  * @param records An array of transaction records to be added, where each record includes the individual's name, transaction type (Income, Expense, or Investment), service description, initial amount, tendered amount, final amount, quantity of services, and timestamp. All fields are required for each record.
@@ -430,7 +410,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         );
 
         // Cache invalidation so that transaction records will be refetched
-        invalidateCache("transactionRecords");
+        clearGlobalCache(["transactionRecords"]);
 
         return true;
       } else {
@@ -447,7 +427,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       ).setValues(values);
 
       // Cache invalidation so that transaction records will be refetched
-      invalidateCache("transactionRecords");
+      clearGlobalCache(["transactionRecords"]);
 
       return true;
     }

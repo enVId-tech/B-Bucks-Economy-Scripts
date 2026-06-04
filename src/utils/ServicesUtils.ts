@@ -27,12 +27,20 @@ interface ItemData {
 function fetchServicesDataCached(forceRefresh: boolean = false): ItemData[] | { error: string } {
     try {
         const CACHE_KEY = "cachedServices";
+        const cache = CacheService.getScriptCache();
+        const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
             const cachedString = getCachedData(CACHE_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Services data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as ItemData[];
+            }
+
+            const savedProperties = props.getProperty(CACHE_KEY);
+            if (savedProperties) {
+                cache.put(CACHE_KEY, savedProperties, 21600);
+                return JSON.parse(savedProperties);
             }
         }
 

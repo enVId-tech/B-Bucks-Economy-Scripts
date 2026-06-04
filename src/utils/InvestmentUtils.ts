@@ -26,6 +26,8 @@ interface InvestmentRecord {
 function fetchInvestmentsDataCached(forceRefresh: boolean = false): PeriodData[] | { error: string } {
     try {
         const CACHE_KEY = "cachedInvestmentsLedger";
+        const cache = CacheService.getScriptCache();
+        const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
             const cachedData = getCachedData(CACHE_KEY);
@@ -34,6 +36,17 @@ function fetchInvestmentsDataCached(forceRefresh: boolean = false): PeriodData[]
                 return JSON.parse(cachedData) as PeriodData[];
             }
         }
+
+        if (!forceRefresh) {
+            const savedProperties = props.getProperty(CACHE_KEY);
+            if (savedProperties) {
+                Logger.log(`Server Cache Hit (Properties) for ${CACHE_KEY}`);
+                // Repopulate fast RAM cache so the next window open loads even faster
+                cache.put(CACHE_KEY, savedProperties, 21600);
+                return JSON.parse(savedProperties);
+            }
+        }
+
         console.log("Cache miss: Re-extracting items from Investments sheet rows...");
         // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting items from Investments sheet rows...");
         const periodDataArray: PeriodData[] | { error: string } = fetchInvestmentsLedgerData();

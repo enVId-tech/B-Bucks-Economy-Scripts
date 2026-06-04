@@ -62,12 +62,22 @@ interface SettingsData {
 function fetchSettingsDataCached(forceRefresh: boolean = false): SettingsData | { error: string } {
     try {
         const CACHE_KEY = "cachedSettings";
+        const cache = CacheService.getScriptCache();
+        const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
             const cachedString = getCachedData(CACHE_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Settings data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as SettingsData;
+            }
+
+            const savedProperties = props.getProperty(CACHE_KEY);
+            if (savedProperties) {
+                Logger.log(`Server Cache Hit (Properties) for ${CACHE_KEY}`);
+                // Repopulate fast RAM cache so the next window open loads even faster
+                cache.put(CACHE_KEY, savedProperties, 21600);
+                return JSON.parse(savedProperties);
             }
         }
 

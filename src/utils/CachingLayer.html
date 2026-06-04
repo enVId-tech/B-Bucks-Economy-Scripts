@@ -3,52 +3,93 @@
 <!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
 
 <!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
-<!-- This file contains the HTML structure for the Caching Layer, which serves as a utility to store and manage client-side cached data for the B-Bucks Economy Scripts. It provides a simple interface for storing and retrieving data across different sections of the application without needing to repeatedly fetch from the server. -->
+<!-- This HTML file implements a client-side caching layer for the B-Bucks Economy Scripts. It provides a multi-tiered caching strategy to optimize data retrieval and minimize server calls, utilizing in-memory storage, Google Apps Script CacheService, and Spreadsheet cell parsing as fallback. -->
 
 <script>
-    // Initialize ultra-fast in-memory client state cache
     if (!window.appStateCache) {
         window.appStateCache = {};
     }
 
-    // Hydrate local RAM instantly using the server-side cache on initial load (if available) to minimize latency for the first interactions
+    // Parse initial payload passed down securely when the template compiles
     try {
-        const initialPayload = '<?!= typeof initialServerPayload !== "undefined" ? initialServerPayload : "{}" ?>';
+        const initialPayload = '<?!= typeof initialServerPayload !== "undefined" ? initialServerPayload : "{}" ?>'
         Object.keys(initialPayload).forEach(key => {
             window.appStateCache[key] = initialPayload[key];
         });
+        console.log("Volatile RAM Layer Synchronized:", Object.keys(window.appStateCache));
+    
+        // Clear duplicate payload from server cache layer to free up memory, since it's now safely stored in local RAM and accessible to all child scopes without additional parsing
+        callServer('clearServerCacheValue', Object.keys(initialPayload));
     } catch (e) {
-        console.error("Failed to hydrate initial client data.", e);
+        console.error("Failed primary compilation payload sync:", e);
     }
 
     /**
-     * Fast-access data engine routing backend updates through the callServer wrapper.
-     * @param {string} cacheKey - Unique structural storage key (e.g., 'period_3_data')
-     * @param {string} serverFunctionName - The name of the server function to call
-     * @param {boolean} forceRefresh - Forces an active server-side roundtrip update if true
-     * @returns {Promise<Object>} The requested backend data object
+     * High-Performance Multi-Tier Data Engine.
+     * Ultra-Fast - In-Memory RAM (window.appStateCache) -> 0ms (Active while current window is open)
+     * Fast - Google Apps Script CacheService Fallback -> Fast server RAM (Survives window cloaking/destruction)
+     * Slow - Spreadsheet Cell Parsing -> Heavy sheet I/O operations (Runs only on explicit forceRefresh)
+     * This function abstracts the entire caching strategy and provides a simple interface for client code to fetch data with optimal performance.
+     * @param {string} cacheKey - Unique identifier for the data being fetched (e.g., "cachedIndividuals", "cachedServices", etc.)
+     * @param {string} serverFunctionName - The name of the server-side function to call if a cache miss occurs at all layers. This function should return the fresh data payload.
+     * @param {boolean} forceRefresh - If true, bypasses all cache layers and fetches fresh data directly from the server, updating all cache layers in the process.
+     * @returns {Promise<any>} - Resolves with the requested data, either from cache or freshly fetched from the server.
      */
     function fetchClientData(cacheKey, serverFunctionName, forceRefresh = false) {
-        // Try from just-loaded instant cache match from local RAM
+
+        // Match directly inside volatile memory layout
         if (!forceRefresh && window.appStateCache[cacheKey] !== undefined && window.appStateCache[cacheKey] !== null) {
-            console.log(`⚡ Cache hit: ${cacheKey} (Memory RAM)`);
+            console.log(`Tier 1 Cache Hit: ${cacheKey} (Memory RAM)`);
             return Promise.resolve(window.appStateCache[cacheKey]);
         }
 
-        // (Fallback) If data isn't in memory or a refresh is forced, request from backend
+        // Bridge out to Google Apps Script Server Infrastructure
         return new Promise((resolve, reject) => {
-            console.log(`🔄 Cache miss/refresh: ${cacheKey}. Fetching from server...`);
+            console.log(`Querying backend layer pipeline for: ${cacheKey}`);
+
+            // Invoke the server function wrapper
             callServer(
                 serverFunctionName,
                 forceRefresh ? { forceRefresh: true } : null,
                 (serverData) => {
-                    window.appStateCache[cacheKey] = serverData; // Keep local memory updated
+                    // Sync the data frame back to local RAM instantly
+                    window.appStateCache[cacheKey] = serverData;
+
+                    // Cache the data raw payload directly on Google's backend server cache memory
+                    // This makes sure other dialogs can tap into it instantly without querying sheets again
+                    if (serverData && !serverData.error) {
+                        callServer('setServerCacheValue', cacheKey, JSON.stringify(serverData));
+                    }
+
                     resolve(serverData);
-                }, (error) => {
-                    console.error(`callServer backend update failed for key: ${cacheKey}`, error);
+                },
+                (error) => {
+                    console.error(`Backend processing route failed for: ${cacheKey}`, error);
                     reject(error);
                 }
             );
+        });
+    }
+
+    /**
+     * Unified global clear execution function.
+     * Can be invoked from ANY manager UI and safely updates all scopes.
+     */
+    function clearAllApplicationCaches() {
+        // Clear local RAM layout instantly
+        window.appStateCache = {};
+
+        const targetKeys = ['cachedIndividuals', 'cachedServices', 'cachedSettings', 'cachedTransactions', 'cachedInvestmentsLedger'];
+
+        return new Promise((resolve, reject) => {
+            callServer('clearGlobalCache', targetKeys, (success) => {
+                if (success) {
+                    console.log("Application environment reset successfully across all views.");
+                    resolve(true);
+                } else {
+                    reject("Cache purge routine failed server-side validation.");
+                }
+            });
         });
     }
 </script>
