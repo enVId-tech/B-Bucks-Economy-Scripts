@@ -26,6 +26,8 @@ function onOpen(): void {
     .addSeparator()
     .addItem('Banking Settings', 'openBankingSettings')
     .addItem('Import Student Names', 'importStudentNames')
+    .addSeparator()
+    .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
 }
 
@@ -46,6 +48,9 @@ function openBankingSettings(): void { launchModelessDialog('BankingSettings', "
 
 /** Opens a dialog for importing student names from a CSV file, allowing users to fill sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet. */
 function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of Banderas - Fill Sheet", 350, 500) }
+
+/** Opens a dialog displaying documentation and attribution information for the B-Bucks Economy Scripts project, including details about the author, client, and GitHub repository. */
+function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - Credits & Docs", 400, 600) }
 
 /** Updates timestamps for all records in the spreadsheet. */
 function updateTimestamps(): void { SpreadsheetApp.getUi().alert("✅ All timestamps have been updated to current time.") }
