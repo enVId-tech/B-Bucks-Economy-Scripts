@@ -56,11 +56,21 @@ interface SettingsData {
 
 /**
  * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
- * @param forceRefresh A boolean flag indicating whether to bypass the cache and fetch fresh data from the sheet. Defaults to false, meaning it will use cached data if available for faster access. Setting this to true will force the function to read directly from the sheet and update the cache with the new data.
+ * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
  * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
  */
-function fetchSettingsDataCached(forceRefresh: boolean = false): SettingsData | { error: string } {
+function fetchSettingsDataCached(data?: string): SettingsData | { error: string } {
     try {
+        if (data && typeof data === 'string') {
+            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+        } else {
+            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            data = JSON.stringify({ forceRefresh: false });
+        }
+
+        const parsedData = data ? JSON.parse(data) : null;
+        const forceRefresh = parsedData?.forceRefresh || false;
+
         const CACHE_KEY = "cachedSettings";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();

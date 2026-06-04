@@ -104,13 +104,18 @@ function launchModelessDialog(templateName: string, title: string, width: number
  * @param key The key for the cached data to update. This should correspond to a specific dataset like "cachedIndividuals", "cachedServices", etc.
  * @param data The data to cache, which will be stringified and stored in the in-memory cache for quick access. The structure of this data should align with what is expected for the given key, such as arrays of individuals, services, settings objects, or transaction records.
  */
-function setServerCacheValue(key: string, dataString: string): void {
+function setServerCacheValue(data: string): boolean {
+    const { key, value } = JSON.parse(data);
+
     try {
         const cache = CacheService.getScriptCache();
         // Cache strings up to 100KB per key. 
-        cache.put(key, dataString, 21600);
+        cache.put(key, value, 21600);
+        return true;
     } catch (error: any) {
-        Logger.log(`Failed to write to server cache layer: ${error.message}`);
+        Logger.log(`Failed to write to server cache layer: ${error.message} for key: ${key}`);
+        SpreadsheetApp.getUi().alert(`Failed to write to server cache layer: ${error.message} for key: ${key}`);
+        return false;
     }
 }
 
@@ -133,18 +138,22 @@ function clearGlobalCache(keys: string[]): boolean {
         return true;
     } catch (error: any) {
         Logger.log(`Failed to purge global cache layer: ${error.message}`);
+        SpreadsheetApp.getUi().alert(`Failed to purge global cache layer: ${error.message}`);
         return false;
     }
 }
 
-function clearServerCacheValue(key: string): void {
+function clearServerCacheValue(key: string): boolean {
     try {
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
         cache.remove(key);
         props.deleteProperty(key);
         Logger.log(`Cleared duplicate server cache value for key: ${key}`);
+        return true;
     } catch (error: any) {
         Logger.log(`Failed to clear duplicate server cache value for key ${key}: ${error.message}`);
+        SpreadsheetApp.getUi().alert(`Failed to clear duplicate server cache value for key ${key}: ${error.message}`);
+        return false;
     }
 }

@@ -21,11 +21,21 @@ interface ItemData {
 
 /**
  * Fetches services data from the "Services" sheet in the active spreadsheet. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads a predefined range of rows and columns to extract various details about services, including item names, categories, pricing for each quarter, and limits for each quarter. The function processes the raw grid data to construct structured objects for each service item, handling type conversions for numbers as needed. If the sheet is not found or an error occurs during processing, it returns an error message.
- * @param forceRefresh A boolean flag indicating whether to bypass the cache and fetch fresh data from the sheet. Defaults to false, meaning it will use cached data if available for faster access. Setting this to true will force the function to read directly from the sheet and update the cache with the new data.
+ * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
-function fetchServicesDataCached(forceRefresh: boolean = false): ItemData[] | { error: string } {
+function fetchServicesDataCached(data?: string): ItemData[] | { error: string } {
     try {
+        if (data && typeof data === 'string') {
+            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+        } else {
+            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            data = JSON.stringify({ forceRefresh: false });
+        }
+
+        const parsedData = data ? JSON.parse(data) : null;
+        const forceRefresh = parsedData?.forceRefresh || false;
+
         const CACHE_KEY = "cachedServices";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();

@@ -20,11 +20,21 @@ interface InvestmentRecord {
 
 /**
  *  Fetches investments ledger data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the investments ledger data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access investments ledger data while also providing a mechanism to refresh the data when necessary.
- * @param forceRefresh A boolean flag indicating whether to bypass the cache and fetch fresh data from the sheet. Defaults to false, meaning it will use cached data if available for faster access. Setting this to true will force the function to read directly from the sheet and update the cache with the new data.
+ * @param data A string containing the data for the function, including a forceRefresh flag.
  * @returns {PeriodData[] | { error: string }} An array of period data objects containing the period name and an array of investment records for that period, or an error message if the sheet is not found or an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
  */
-function fetchInvestmentsDataCached(forceRefresh: boolean = false): PeriodData[] | { error: string } {
+function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: string } {
     try {
+        if (data && typeof data === 'string') {
+            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+        } else {
+            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            data = JSON.stringify({ forceRefresh: false });
+        }
+
+        const parsedData = data ? JSON.parse(data) : null;
+        const forceRefresh = parsedData?.forceRefresh || false;
+
         const CACHE_KEY = "cachedInvestmentsLedger";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
