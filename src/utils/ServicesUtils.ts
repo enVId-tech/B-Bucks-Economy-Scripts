@@ -111,21 +111,28 @@ function fetchServicesData(): ItemData[] | { error: string } {
             const pricing: QuarterlyData = {};
             const limit: QuarterlyData = {};
 
-            // Extract pricing for Q1-Q4
-            (columns.pricing as number[]).forEach((col, index) => {
-                const value = servicesSheet.getRange(row, col).getValue();
-                if (value !== "") {
-                    pricing[`Q${index + 1}` as keyof QuarterlyData] = Number(value);
-                }
-            });
+            const pricingCols = columns.pricing as number[];
+            const limitCols = columns.limit as number[];
 
-            // Extract limits for Q1-Q4
-            (columns.limit as number[]).forEach((col, index) => {
-                const value = servicesSheet.getRange(row, col).getValue();
-                if (value !== "") {
-                    limit[`Q${index + 1}` as keyof QuarterlyData] = Number(value);
-                }
-            });
+            // Find boundaries
+            const minCol = Math.min(...pricingCols, ...limitCols);
+            const maxCol = Math.max(...pricingCols, ...limitCols);
+            const colCount = maxCol - minCol + 1;
+
+            // Get all relevant cells in a single batch to minimize API calls
+            const rowValues = servicesSheet.getRange(row, minCol, 1, colCount).getValues()[0];
+
+            // A single helper loop to populate both objects instantly from cache
+            for (let i = 0; i < 4; i++) {
+                const quarterKey = `Q${i + 1}` as keyof QuarterlyData;
+
+                // Map the absolute column index to the local rowValues array index
+                const priceVal = rowValues[pricingCols[i] - minCol];
+                const limitVal = rowValues[limitCols[i] - minCol];
+
+                if (priceVal !== "") pricing[quarterKey] = Number(priceVal);
+                if (limitVal !== "") limit[quarterKey] = Number(limitVal);
+            }
 
             // Only include items that have a name, category, and at least one pricing
             if (itemName && category && Object.keys(pricing).length > 0) {
