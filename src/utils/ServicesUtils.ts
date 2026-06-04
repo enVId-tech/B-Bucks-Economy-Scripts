@@ -46,7 +46,8 @@ function fetchServicesDataCached(forceRefresh: boolean = false): ItemData[] | { 
 
         return freshServices;
     } catch (error: any) {
-        // SpreadsheetApp.getUi().alert(`Error occurred in fetchServicesDataCached: ${error.message}`);
+        Logger.log(`Error occurred in fetchServicesDataCached: ${error.message}`);
+        SpreadsheetApp.getUi().alert(`Error occurred in fetchServicesDataCached: ${error.message}`);
         return { error: `Error occurred in fetchServicesDataCached: ${error.message}` };
     }
 }

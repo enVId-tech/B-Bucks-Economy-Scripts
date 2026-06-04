@@ -170,9 +170,9 @@
       populatePeriodSelect(investmentsData || []);
     });
 
-    async function fetchInitialData() {
+    async function fetchInitialData(forceRefresh = false) {
       try {
-        const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', true);
+        const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', forceRefresh);
         console.log("Initial Investments Ledger Data:", investmentsData);
         return investmentsData;
         // populatePeriodSelect(investmentsData);
@@ -213,7 +213,7 @@
     }
 
     function handlePeriodChange() {
-      const investmentsData = fetchInitialData()
+      const investmentsData = fetchInitialData(false)
         .then(data => {
           populateStudentSelect(data);
         })

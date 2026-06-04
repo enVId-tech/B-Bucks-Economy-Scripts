@@ -15,9 +15,11 @@ function getCachedData(cacheKey: string): string | void {
         const cache = CacheService.getScriptCache();
 
         const cached = cache.get(cacheKey);
+
         if (cached) return cached;
 
         const permanentData = PropertiesService.getScriptProperties().getProperty(cacheKey);
+                
         if (permanentData) {
             cache.put(cacheKey, permanentData, 1500);
             return permanentData;

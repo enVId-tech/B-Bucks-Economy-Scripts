@@ -29,18 +29,19 @@ function fetchInvestmentsDataCached(forceRefresh: boolean = false): PeriodData[]
 
         if (!forceRefresh) {
             const cachedData = getCachedData(CACHE_KEY);
-            if (cachedData) {
+            if (cachedData && cachedData !== "{}" && cachedData !== "") {
+                // SpreadsheetApp.getUi().alert(`Cache hit: Investments ledger data loaded from cache. String: ${cachedData}`);
                 return JSON.parse(cachedData) as PeriodData[];
             }
         }
+        console.log("Cache miss: Re-extracting items from Investments sheet rows...");
+        // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting items from Investments sheet rows...");
+        const periodDataArray: PeriodData[] | { error: string } = fetchInvestmentsLedgerData();
 
-        const periodDataArray: PeriodData[] | void = fetchInvestmentsLedgerData();
-
-        if (!periodDataArray) {
-            return { error: "Failed to fetch investments data from sheet" };
+        if (Array.isArray(periodDataArray)) {
+            setCachedData(CACHE_KEY, periodDataArray);
         }
 
-        setCachedData(CACHE_KEY, periodDataArray);
         return periodDataArray;
     } catch (err) {
         Logger.log(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`);
@@ -51,9 +52,9 @@ function fetchInvestmentsDataCached(forceRefresh: boolean = false): PeriodData[]
 
 /**
  * Fetches investments ledger data from the sheet. It reads all sheets in the active spreadsheet, filters for those that include "Period" in their name, and extracts investment records from a predefined range of rows and columns. The function constructs structured objects for each period, containing the period name and an array of investment records with details such as date, individual name, initial amount, returns amount, and optionally current amount. If the sheet is not found or an error occurs during processing, it returns an empty array.
- * @returns {PeriodData[] | void} An array of period data objects containing the period name and an array of investment records for that period, or void if an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
+ * @returns {PeriodData[] | { error: string }} An array of period data objects containing the period name and an array of investment records for that period, or an error object if an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
  */
-function fetchInvestmentsLedgerData(): PeriodData[] | void {
+function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
     try {
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period"));
@@ -96,7 +97,7 @@ function fetchInvestmentsLedgerData(): PeriodData[] | void {
     } catch (err) {
         Logger.log(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`);
         SpreadsheetApp.getUi().alert(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`);
-        return [];
+        return { error: "Failed to fetch investments ledger data from sheet" };
     }
 }
 
