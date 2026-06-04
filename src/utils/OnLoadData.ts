@@ -134,7 +134,7 @@ function clearGlobalCache(keys: string[]): boolean {
         keys.forEach(key => props.deleteProperty(key));
 
         Logger.log(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`);
-        SpreadsheetApp.getUi().alert(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`);
+        // SpreadsheetApp.getUi().alert(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`);
         return true;
     } catch (error: any) {
         Logger.log(`Failed to purge global cache layer: ${error.message}`);

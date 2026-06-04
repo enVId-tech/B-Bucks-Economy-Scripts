@@ -344,26 +344,11 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       return true;
     }
 
-    const requiredFields: (keyof TransactionRecord)[] = [
-      "individual", "type", "service", "initialAmount",
-      "tenderedAmount", "finalAmount", "quantityOfServices", "timestamp"
-    ];
+    // Fetch grid boundaries in a single batch to minimize API fetch overhead
+    const lastRowWithData = sheet.getLastRow();
+    const currentMaxRows = sheet.getMaxRows();
+    let biggestId = 0;
 
-    for (const record of records) {
-      for (const field of requiredFields) {
-        if (record[field] === undefined || record[field] === null) {
-          const errMsg = `Field "${field}" is required but missing.`;
-          Logger.log(`${errMsg} Record: ${JSON.stringify(record)}`);
-          SpreadsheetApp.getUi().alert(errMsg);
-          return false;
-        }
-      }
-    }
-
-    let lastRowWithData: number = sheet.getLastRow();
-    let biggestId: number = 0;
-
-    // Guard against entirely empty sheets or headers to prevent index 0 errors
     if (lastRowWithData >= (ROW_TO_START_FROM - 1) && lastRowWithData > 0) {
       const rawIdValue = sheet.getRange(lastRowWithData, 1).getValue();
       const parsedId = parseInt(rawIdValue, 10);
@@ -372,25 +357,49 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
 
     const insertStartRow = Math.max(lastRowWithData + 1, ROW_TO_START_FROM);
     const rowsNeeded = records.length;
-    const currentMaxRows = sheet.getMaxRows();
 
-    // Ensure grid space before writing values
+    // Expand the sheet grid at the very last moment if required
     if ((insertStartRow - 1) + rowsNeeded > currentMaxRows) {
       const rowsToAdd = ((insertStartRow - 1) + rowsNeeded) - currentMaxRows;
       sheet.insertRowsAfter(currentMaxRows, rowsToAdd);
     }
 
-    const values = records.map((record: TransactionRecord, index: number) => [
-      biggestId + index + 1,
-      record.individual,
-      record.type,
-      record.service,
-      record.initialAmount,
-      record.tenderedAmount,
-      record.finalAmount,
-      record.quantityOfServices,
-      record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
-    ]);
+    // Prepare for O(1) access with O(N) preprocessing
+    const values = new Array(rowsNeeded);
+
+    for (let i = 0; i < rowsNeeded; i++) {
+      const record = records[i];
+
+      // Native, short-circuiting check. Fast memory lookup.
+      if (
+        record.individual === undefined || record.individual === null ||
+        record.type === undefined || record.type === null ||
+        record.service === undefined || record.service === null ||
+        record.initialAmount === undefined || record.initialAmount === null ||
+        record.tenderedAmount === undefined || record.tenderedAmount === null ||
+        record.finalAmount === undefined || record.finalAmount === null ||
+        record.quantityOfServices === undefined || record.quantityOfServices === null ||
+        record.timestamp === undefined || record.timestamp === null
+      ) {
+        const errMsg = `Validation failed: A required field is missing.`;
+        Logger.log(errMsg);
+        SpreadsheetApp.getUi().alert(errMsg);
+        return false;
+      }
+
+      // If valid, map directly to the row matrix array
+      values[i] = [
+        biggestId + i + 1,
+        record.individual,
+        record.type,
+        record.service,
+        record.initialAmount,
+        record.tenderedAmount,
+        record.finalAmount,
+        record.quantityOfServices,
+        record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
+      ];
+    }
 
     // Use the Sheets API to efficiently add the record in one request, with error handling to fall back to the slower method if the API call fails
     try {
