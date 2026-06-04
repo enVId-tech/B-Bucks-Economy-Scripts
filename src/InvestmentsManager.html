@@ -51,7 +51,7 @@
           <option value="">Loading...</option>
         </select>
         <label for="studentSelect">Student Name</label>
-        <select id="studentSelect">
+        <select id="studentSelect" onchange="fetchAndDisplayStudentData()">
           <option value="">-- Select a student --</option>
         </select>
 
@@ -224,6 +224,40 @@
         .catch(error => {
           console.error("Error fetching data on period change:", error);
         });
+    }
+
+    function fetchAndDisplayStudentData() {
+      const periodSelected = document.getElementById('periodSelect').value;
+      const studentSelected = document.getElementById('studentSelect').value;
+
+      if (!periodSelected || !studentSelected) {
+        // If either the period or student is not selected, we can choose to clear the displayed data or simply return without doing anything. This prevents errors from trying to access data that doesn't exist and provides a better user experience by not showing stale or irrelevant data when the selection is incomplete.
+        console.warn("Both period and student must be selected to display data.");
+        return;
+      }
+
+      // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
+      fetchInitialData(false)
+        .then(data => {
+          const targetPeriod = data.find(p => p.periodName === periodSelected);
+          const targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
+
+          if (targetStudent) {
+            displayStudentData(targetStudent);
+          } else {
+            console.warn("Selected student data not found in the fetched investments data.");
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching data for selected student:", error);
+        });
+    }
+
+    function displayStudentData(studentData) {
+      // This function will take the selected student's data and update the UI elements to display their account overview, including available cash, current CoD, purchase date, and any relevant warnings or earnings projections. The implementation of this function will depend on the structure of the studentData object and how you want to present the information in the UI.
+      console.log("Displaying data for student:", studentData);
+
+      document.getElementById('studentInfoSection').classList.remove('hidden-display');
     }
   </script>
 </body>
