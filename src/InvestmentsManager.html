@@ -226,31 +226,44 @@
         });
     }
 
-    function fetchAndDisplayStudentData() {
-      const periodSelected = document.getElementById('periodSelect').value;
-      const studentSelected = document.getElementById('studentSelect').value;
+    async function fetchAndDisplayStudentData() {
+      try {
+        const periodSelected = document.getElementById('periodSelect').value;
+        const studentSelected = document.getElementById('studentSelect').value;
 
-      if (!periodSelected || !studentSelected) {
-        // If either the period or student is not selected, we can choose to clear the displayed data or simply return without doing anything. This prevents errors from trying to access data that doesn't exist and provides a better user experience by not showing stale or irrelevant data when the selection is incomplete.
-        console.warn("Both period and student must be selected to display data.");
-        return;
+        if (!periodSelected || !studentSelected) {
+          // If either the period or student is not selected, we can choose to clear the displayed data or simply return without doing anything. This prevents errors from trying to access data that doesn't exist and provides a better user experience by not showing stale or irrelevant data when the selection is incomplete.
+          console.warn("Both period and student must be selected to display data.");
+          return;
+        }
+
+        // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
+        // Because we don't refetch on this for responsiveness, we need to make sure to update the display with the correct data once the fresh data is fetched, which is why we call fetchInitialData again with forceRefresh set to true after displaying the initial data. This way, we can show something immediately based on the cached data, and then fetch the real data.
+        const investmentsData = await fetchInitialData(false);
+        let targetPeriod = investmentsData.find(p => p.periodName === periodSelected);
+        let targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
+
+        if (targetStudent) {
+          // Update the UI immediately to reflect responsiveness, may not reflect the current values.
+          displayStudentData(targetStudent);
+        } else {
+          console.warn("Selected student data not found in the fetched investments data.");
+        }
+
+        // Actually update the data to reflect true values
+        const freshData = await fetchInitialData(true);
+        console.log("Fresh Investments Ledger Data after force refresh:", freshData);
+        targetPeriod = freshData.find(p => p.periodName === periodSelected);
+        targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
+
+        if (targetStudent) {
+          displayStudentData(targetStudent);
+        } else {
+          console.warn("Selected student data not found in the freshly fetched investments data.");
+        }
+      } catch (error) {
+        console.error("Error fetching and displaying student data:", error);
       }
-
-      // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
-      fetchInitialData(false)
-        .then(data => {
-          const targetPeriod = data.find(p => p.periodName === periodSelected);
-          const targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
-
-          if (targetStudent) {
-            displayStudentData(targetStudent);
-          } else {
-            console.warn("Selected student data not found in the fetched investments data.");
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching data for selected student:", error);
-        });
     }
 
     function displayStudentData(studentData) {
@@ -258,6 +271,10 @@
       console.log("Displaying data for student:", studentData);
 
       document.getElementById('studentInfoSection').classList.remove('hidden-display');
+      document.getElementById('depositSection').classList.remove('hidden-display');
+
+      document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
+      document.getElementById('codAmount').textContent = `$${studentData.finalAmount ? studentData.finalAmount.toFixed(2) : '0.00'}`;
     }
   </script>
 </body>

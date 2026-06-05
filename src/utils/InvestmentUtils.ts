@@ -11,8 +11,9 @@ interface PeriodData {
 }
 
 interface InvestmentRecord {
-    date?: Date;
     individualName: string;
+    balance: number;
+    date?: string;
     initAmount?: number;
     returnsAmount?: number;
     currentAmount?: number;
@@ -31,6 +32,7 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
             Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
             data = JSON.stringify({ forceRefresh: false });
         }
+
 
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
@@ -61,11 +63,26 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting items from Investments sheet rows...");
         const periodDataArray: PeriodData[] | { error: string } = fetchInvestmentsLedgerData();
 
-        if (Array.isArray(periodDataArray)) {
-            setCachedData(CACHE_KEY, periodDataArray);
+        if ('error' in periodDataArray) {
+            Logger.log(`Error fetching investments ledger data: ${periodDataArray.error}`);
+            SpreadsheetApp.getUi().alert(`Error fetching investments ledger data: ${periodDataArray.error}`);
+            return { error: periodDataArray.error };
         }
 
-        return periodDataArray;
+        // SpreadsheetApp.getUi().alert(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`);
+
+        if (Array.isArray(periodDataArray)) {
+            try {
+                setCachedData(CACHE_KEY, periodDataArray);
+            } catch (cacheErr) {
+                Logger.log(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`);
+                SpreadsheetApp.getUi().alert(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`);
+            }
+        }
+
+        // SpreadsheetApp.getUi().alert(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`);
+
+        return periodDataArray as PeriodData[];
     } catch (err) {
         Logger.log(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`);
         SpreadsheetApp.getUi().alert(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`);
@@ -93,6 +110,7 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
 
             for (let row = startingRow - 1; row < values.length; row++) {
                 const individualName = values[row][0];
+                const balance = values[row][1];
                 const returnsAmount = values[row][5];
                 const initAmount = values[row][6];
                 const dateValue = values[row][7];
@@ -100,8 +118,9 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
 
                 if (individualName) {
                     investments.push({
-                        date: dateValue instanceof Date ? dateValue : undefined,
+                        date: dateValue instanceof Date ? dateValue.toISOString() : undefined,
                         individualName: individualName,
+                        balance: balance && typeof balance === 'number' ? balance : 0,
                         initAmount: initAmount && typeof initAmount === 'number' ? initAmount : undefined,
                         returnsAmount: returnsAmount && typeof returnsAmount === 'number' ? returnsAmount : undefined,
                         currentAmount: currentAmount && typeof currentAmount === 'number' ? currentAmount : undefined

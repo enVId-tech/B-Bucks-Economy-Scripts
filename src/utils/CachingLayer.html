@@ -36,7 +36,6 @@
      * @returns {Promise<any>} - Resolves with the requested data, either from cache or freshly fetched from the server.
      */
     async function fetchClientData(cacheKey, serverFunctionName, forceRefresh = false) {
-
         // Match directly inside volatile memory layout
         if (!forceRefresh && window.appStateCache[cacheKey] !== undefined && window.appStateCache[cacheKey] !== null) {
             console.log(`Tier 1 Cache Hit: ${cacheKey} (Memory RAM)`);
@@ -53,6 +52,7 @@
                 forceRefresh ? JSON.stringify({ forceRefresh: true }) : JSON.stringify({ forceRefresh: false }),
                 (serverData) => {
                     // Protect against malformed data/empty responses
+                    console.log(`Received data from server for ${cacheKey}:`, serverData);
                     if (!serverData || serverData.error || (Array.isArray(serverData) && serverData.length === 0) || (typeof serverData === 'object' && Object.keys(serverData).length === 0)) {
                         const errorMsg = serverData && serverData.error ? serverData.error : "Received empty or invalid data from server.";
                         console.warn(`Cache fetch warning for ${cacheKey}:`, errorMsg);

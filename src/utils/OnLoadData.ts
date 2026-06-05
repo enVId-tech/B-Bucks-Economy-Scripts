@@ -57,8 +57,8 @@ function setCachedData(cacheKey: string, data: any): boolean {
             return false;
         } finally {
             lock.releaseLock();
-            return true;
         }
+        return true;
     } catch (error: any) {
         Logger.log(`Error in setCachedData for key ${cacheKey}: ${error.message}`);
         try {
