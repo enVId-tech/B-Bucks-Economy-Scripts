@@ -101,8 +101,8 @@
 
         <!-- Action Buttons -->
         <div class="btn-group">
-          <button class="btn btn-deposit" id="depositBtn">Deposit</button>
-          <button class="btn btn-withdraw" id="withdrawBtn">Withdraw</button>
+          <button class="btn btn-deposit btn-disabled" id="depositBtn">Deposit</button>
+          <button class="btn btn-withdraw btn-disabled" id="withdrawBtn">Withdraw</button>
         </div>
       </div>
 
@@ -231,7 +231,7 @@
         const periodSelected = document.getElementById('periodSelect').value;
         const studentSelected = document.getElementById('studentSelect').value;
 
-        if (!periodSelected || !studentSelected) {
+        if (!periodSelected || !studentSelected || periodSelected === "" || studentSelected === "" || periodSelected === "-- Select a period --" || studentSelected === "-- Select a student --") {
           // If either the period or student is not selected, we can choose to clear the displayed data or simply return without doing anything. This prevents errors from trying to access data that doesn't exist and provides a better user experience by not showing stale or irrelevant data when the selection is incomplete.
           console.warn("Both period and student must be selected to display data.");
           return;
@@ -246,6 +246,9 @@
         if (targetStudent) {
           // Update the UI immediately to reflect responsiveness, may not reflect the current values.
           displayStudentData(targetStudent);
+          
+          // Set cache
+          window.appStateCache['selectedStudentData'] = targetStudent;
         } else {
           console.warn("Selected student data not found in the fetched investments data.");
         }
@@ -258,6 +261,8 @@
 
         if (targetStudent) {
           displayStudentData(targetStudent);
+
+          window.appStateCache['selectedStudentData'] = targetStudent;
         } else {
           console.warn("Selected student data not found in the freshly fetched investments data.");
         }
@@ -274,7 +279,53 @@
       document.getElementById('depositSection').classList.remove('hidden-display');
 
       document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
-      document.getElementById('codAmount').textContent = `$${studentData.finalAmount ? studentData.finalAmount.toFixed(2) : '0.00'}`;
+      document.getElementById('codAmount').textContent = `$${studentData.netCurrentAmount ? studentData.netCurrentAmount.toFixed(2) : '0.00'}`;
+    
+      const dateStr = studentData.date ? new Date(studentData.date).toLocaleDateString() : null;
+
+      // The future date a set number of days from now
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 14); // 14-day placeholder for CoD
+
+      if (dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) <= 14) {
+        document.getElementById('withdrawBtn').classList.remove('hidden-display');
+      } else {
+        document.getElementById('withdrawBtn').classList.add('hidden-display');
+      }
+    }
+
+    function changeButtonState() {
+      if (!window.appStateCache['selectedStudentData']) {
+        console.warn("No student data in cache to determine deposit button state.");
+        return;
+      }
+
+      if (document.getElementById('overrideCheck').checked) {
+        document.getElementById('depositBtn').classList.remove('btn-disabled');
+        document.getElementById('depositBtn').disabled = false;
+        document.getElementById('withdrawBtn').classList.remove('btn-disabled');
+        document.getElementById('withdrawBtn').disabled = false;
+        return;
+      }
+      
+      // Get date from cached selected student data
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+      const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 14); // 14-day
+
+      const depositBtn = document.getElementById('depositBtn');
+
+      if (dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) <= 14) {
+        document.getElementById('depositBtn').classList.add('btn-disabled');
+        document.getElementById('depositBtn').disabled = true;
+      } else if (!dateStr) {
+        document.getElementById('depositBtn').classList.add('btn-disabled');
+        document.getElementById('depositBtn').disabled = false;
+      }
+        document.getElementById('depositBtn').classList.remove('btn-disabled');
+        document.getElementById('depositBtn').disabled = false;
+
     }
   </script>
 </body>

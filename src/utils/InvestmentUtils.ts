@@ -16,7 +16,8 @@ interface InvestmentRecord {
     date?: string;
     initAmount?: number;
     returnsAmount?: number;
-    currentAmount?: number;
+    grossCurrentAmount?: number;
+    netCurrentAmount?: number;
 }
 
 /**
@@ -114,7 +115,8 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
                 const returnsAmount = values[row][5];
                 const initAmount = values[row][6];
                 const dateValue = values[row][7];
-                const currentAmount = values[row][9];
+                const grossCurrentAmount = values[row][8];
+                const netCurrentAmount = values[row][9];
 
                 if (individualName) {
                     investments.push({
@@ -123,7 +125,8 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
                         balance: balance && typeof balance === 'number' ? balance : 0,
                         initAmount: initAmount && typeof initAmount === 'number' ? initAmount : undefined,
                         returnsAmount: returnsAmount && typeof returnsAmount === 'number' ? returnsAmount : undefined,
-                        currentAmount: currentAmount && typeof currentAmount === 'number' ? currentAmount : undefined
+                        grossCurrentAmount: grossCurrentAmount && typeof grossCurrentAmount === 'number' ? grossCurrentAmount : undefined,
+                        netCurrentAmount: netCurrentAmount && typeof netCurrentAmount === 'number' ? netCurrentAmount : undefined
                     });
                 }
             }
@@ -143,4 +146,78 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
     }
 }
 
-// const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+function calculateReturns(initAmount: number, balance: number): number {
+    try {
+        const rate = fetchProperty("weeklyInterestRate");
+        if (typeof rate === 'object' && 'error' in rate) {
+            Logger.log(`Error fetching interest rate: ${rate.error}`);
+            SpreadsheetApp.getUi().alert(`Error fetching interest rate: ${rate.error}`);
+            return 0;
+        }
+
+        const interestRate = parseFloat(rate);
+        if (isNaN(interestRate)) {
+            Logger.log(`Invalid interest rate value: ${rate}`);
+            SpreadsheetApp.getUi().alert(`Invalid interest rate value: ${rate}`);
+            return 0;
+        }
+
+        const returns = balance * interestRate;
+        return returns;
+    } catch (err) {
+        Logger.log(`Error in calculateReturns: ${err instanceof Error ? err.message : String(err)}`);
+        SpreadsheetApp.getUi().alert(`Error in calculateReturns: ${err instanceof Error ? err.message : String(err)}`);
+        return 0;
+    }
+}
+
+function calculateNetReturns(grossReturns: number): number {
+    try {
+        const taxRate = fetchProperty("investmentWithdrawalTaxRate");
+        if (typeof taxRate === 'object' && 'error' in taxRate) {
+            Logger.log(`Error fetching investment withdrawal tax rate: ${taxRate.error}`);
+            SpreadsheetApp.getUi().alert(`Error fetching investment withdrawal tax rate: ${taxRate.error}`);
+            return 0;
+        }
+
+        const withdrawalTaxRate = parseFloat(taxRate);
+        if (isNaN(withdrawalTaxRate)) {
+            Logger.log(`Invalid investment withdrawal tax rate value: ${taxRate}`);
+            SpreadsheetApp.getUi().alert(`Invalid investment withdrawal tax rate value: ${taxRate}`);
+            return 0;
+        }
+
+        const netReturns = grossReturns * (1 - withdrawalTaxRate);
+        return netReturns;
+    } catch (err) {
+        Logger.log(`Error in calculateNetReturns: ${err instanceof Error ? err.message : String(err)}`);
+        SpreadsheetApp.getUi().alert(`Error in calculateNetReturns: ${err instanceof Error ? err.message : String(err)}`);
+        return 0;
+    }
+}
+
+function refreshAllInvestments(): boolean {
+    try {
+        const periodDataArray = fetchInvestmentsLedgerData();
+        if ('error' in periodDataArray) {
+            Logger.log(`Error fetching investments ledger data for refresh: ${periodDataArray.error}`);
+            SpreadsheetApp.getUi().alert(`Error fetching investments ledger data for refresh: ${periodDataArray.error}`);
+            return false;
+        }
+        periodDataArray.forEach(periodData => {
+            periodData.investments.forEach(investment => {
+                if (investment.initAmount !== undefined && investment.balance !== undefined) {
+                    investment.returnsAmount = calculateReturns(investment.initAmount, investment.balance);
+                    if (investment.returnsAmount !== undefined) {
+                        investment.netCurrentAmount = calculateNetReturns(investment.returnsAmount);
+                    }
+                }
+            });
+        });
+        return true;
+    } catch (err) {
+        Logger.log(`Error in refreshAllInvestments: ${err instanceof Error ? err.message : String(err)}`);
+        SpreadsheetApp.getUi().alert(`Error in refreshAllInvestments: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+    }
+}
