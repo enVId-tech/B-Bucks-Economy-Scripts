@@ -29,13 +29,14 @@
 <body>
   <!-- Navigation Header -->
   <div class="nav-header">
-    <button class="nav-link" onclick="callServer('switchToManualBalanceManager')">💰 Manual B-Bucks Modifier</button>
-    <button class="nav-link" onclick="callServer('switchToPricingManager')">💸 Income / Consumables</button>
-    <button class="nav-link active" onclick="callServer('switchToInvestmentsManager')">📈 Investment
+    <button class="nav-link" onclick="callServer('openManualBalanceManager')">💰 Manual B-Bucks
+      Modifier</button>
+    <button class="nav-link" onclick="callServer('openIncomesExpenses')">💸 Income / Expenses</button>
+    <button class="nav-link active" onclick="callServer('openInvestmentsManager')">📈 Investment
       Banking</button>
-    <button class="nav-link" onclick="callServer('switchToTransactionsRecords')">📊 Transaction
+    <button class="nav-link" onclick="callServer('openTransactionsRecords')">📊 Transaction
       Records</button>
-    <button class="nav-link" onclick="callServer('switchToBankingSettings')">⚙️ Banking Settings</button>
+    <button class="nav-link" onclick="callServer('openBankingSettings')">⚙️ Banking Settings</button>
   </div>
 
   <div class="main-content">
@@ -246,7 +247,7 @@
         if (targetStudent) {
           // Update the UI immediately to reflect responsiveness, may not reflect the current values.
           displayStudentData(targetStudent);
-          
+
           // Set cache
           window.appStateCache['selectedStudentData'] = targetStudent;
         } else {
@@ -280,7 +281,7 @@
 
       document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
       document.getElementById('codAmount').textContent = `$${studentData.netCurrentAmount ? studentData.netCurrentAmount.toFixed(2) : '0.00'}`;
-    
+
       const dateStr = studentData.date ? new Date(studentData.date).toLocaleDateString() : null;
 
       // The future date a set number of days from now
@@ -307,7 +308,7 @@
         document.getElementById('withdrawBtn').disabled = false;
         return;
       }
-      
+
       // Get date from cached selected student data
       const selectedStudentData = window.appStateCache['selectedStudentData'];
       const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
@@ -323,8 +324,8 @@
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = false;
       }
-        document.getElementById('depositBtn').classList.remove('btn-disabled');
-        document.getElementById('depositBtn').disabled = false;
+      document.getElementById('depositBtn').classList.remove('btn-disabled');
+      document.getElementById('depositBtn').disabled = false;
 
     }
   </script>

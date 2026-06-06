@@ -14,7 +14,7 @@ function onOpen(): void {
 
   ui.createMenu('The Central Bank of Banderas')
     .addItem('Open Manual B-Bucks Modifier', 'openManualBalanceManager')
-    .addItem('Open Service Provider', 'openIncomeConsumables')
+    .addItem('Open Service Provider', 'openIncomesExpenses')
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
     .addItem('View Transactions Records', 'openTransactionsRecords')
@@ -31,7 +31,7 @@ function openManualBalanceManager(): void { launchModelessDialog('BalanceManager
 function openInvestmentsManager(): void { launchModelessDialog('InvestmentsManager', "Bank of Banderas - Investments Manager", 600, 700) }
 
 /** Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses. */
-function openIncomeConsumables(): void { launchModelessDialog('ServicesManager', "Bank of Banderas - Services Menu", 500, 700) }
+function openIncomesExpenses(): void { launchModelessDialog('ServicesManager', "Bank of Banderas - Services Menu", 500, 700) }
 
 /** Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions. */
 function openTransactionsRecords(): void { launchModelessDialog('TransactionsRecords', "Bank of Banderas - Transaction Records", 700, 650) }
@@ -66,13 +66,6 @@ function resetHistoricalRecords(): void {
 
 /** A placeholder function for menu items that are not yet implemented. */
 function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!") }
-
-/** Helper functions for page navigation in modeless dialogs */
-function switchToManualBalanceManager(): void { openManualBalanceManager() }
-function switchToInvestmentsManager(): void { openInvestmentsManager() }
-function switchToPricingManager(): void { openIncomeConsumables() }
-function switchToTransactionsRecords(): void { openTransactionsRecords() }
-function switchToBankingSettings(): void { openBankingSettings() }
 
 /**
  * Includes the content of a specified HTML file.

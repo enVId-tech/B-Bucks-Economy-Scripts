@@ -25,14 +25,14 @@
 <body>
     <!-- Navigation Header -->
     <div class="nav-header">
-        <button class="nav-link" onclick="callServer('switchToManualBalanceManager')">💰 Manual B-Bucks
+        <button class="nav-link" onclick="callServer('openManualBalanceManager')">💰 Manual B-Bucks
             Modifier</button>
-        <button class="nav-link" onclick="callServer('switchToPricingManager')">💸 Income / Expenses</button>
-        <button class="nav-link" onclick="callServer('switchToInvestmentsManager')">📈 Investment
+        <button class="nav-link" onclick="callServer('openIncomesExpenses')">💸 Income / Expenses</button>
+        <button class="nav-link" onclick="callServer('openInvestmentsManager')">📈 Investment
             Banking</button>
-        <button class="nav-link active">📊 Transaction
+        <button class="nav-link active" onclick="callServer('openTransactionsRecords')">📊 Transaction
             Records</button>
-        <button class="nav-link" onclick="callServer('switchToBankingSettings')">⚙️ Banking Settings</button>
+        <button class="nav-link" onclick="callServer('openBankingSettings')">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
