@@ -6,18 +6,18 @@
 // This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including functions related to services management and other financial operations.
 
 interface ImportantDates {
-    startBankingDate: Date;
-    endBankingDate: Date;
-    startInvestingDate: Date;
-    endInvestingDate: Date;
-    startQuarterOneDate: Date;
-    endQuarterOneDate: Date;
-    startQuarterTwoDate: Date;
-    endQuarterTwoDate: Date;
-    startQuarterThreeDate: Date;
-    endQuarterThreeDate: Date;
-    startQuarterFourDate: Date;
-    endQuarterFourDate: Date;
+    startBankingDate: string;
+    endBankingDate: string;
+    startInvestingDate: string;
+    endInvestingDate: string;
+    startQuarterOneDate: string;
+    endQuarterOneDate: string;
+    startQuarterTwoDate: string;
+    endQuarterTwoDate: string;
+    startQuarterThreeDate: string;
+    endQuarterThreeDate: string;
+    startQuarterFourDate: string;
+    endQuarterFourDate: string;
 }
 
 interface StandardPercentages {
@@ -53,6 +53,8 @@ interface SettingsData {
     ledgersAndRecords: LedgersAndRecords;
     limits: Limits;
 }
+
+const DEFAULT_SETTINGS_SHEET: string = "Settings";
 
 /**
  * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
@@ -105,17 +107,17 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
         return { error: `Error occurred in fetchSettingsDataCached: ${error.message}` };
     }
 }
+
 /**
  * Fetches settings data from the "Settings" sheet in the active spreadsheet. It reads a predefined range of rows and columns to extract various configuration settings, including important dates, standard percentages, mandated policies, ledgers and records preferences, and limits. The function processes the raw grid data to construct structured objects for each category of settings, handling type conversions for booleans, numbers, and dates as needed. If the sheet is not found or an error occurs during processing, it returns an error message.
  * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
  */
 function fetchSettingsData(): SettingsData | { error: string } {
     try {
-        const SHEET_NAME = "Settings";
 
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-        const settingsSheet = spreadsheet.getSheetByName(SHEET_NAME);
+        const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
 
         if (!settingsSheet) {
             Logger.log("Settings sheet not found.");
@@ -183,5 +185,97 @@ function fetchSettingsData(): SettingsData | { error: string } {
         Logger.log(`Error in fetchSettingsData: ${err.message}`);
         try { SpreadsheetApp.getUi().alert(`Error in fetchSettingsData: ${err.message}`); } catch (e) { }
         return { error: `Error in fetchSettingsData: ${err.message}` };
+    }
+}
+
+function fetchProperty(propertyKey: string): string | { error: string } {
+    try {
+        const settings = fetchSettingsDataCached();
+
+        if ('error' in settings) {
+            return { error: `Failed to fetch settings data: ${settings.error}` };
+        }
+
+        // Access the requested property using the provided key.
+        // Each property key is unique and corresponds to a specific setting in the Settings sheet, such as "incomeTaxRate", "startBankingDate", "allowDebt", etc.
+        const propertyValue = (settings as any)[propertyKey];
+
+        if (propertyValue === undefined) {
+            return { error: `Property key "${propertyKey}" not found in settings data.` };
+        }
+        return String(propertyValue);
+    } catch (error: any) {
+        Logger.log(`Error in fetchProperty for key ${propertyKey}: ${error.message}`);
+        return { error: `Error in fetchProperty for key ${propertyKey}: ${error.message}` };
+    }
+}
+
+function setProperty(data: any): boolean {
+    const parseResult = typeof data === 'string' ? JSON.parse(data) : data;
+    const propertyKey = parseResult?.propertyKey;
+    const value = parseResult?.value;
+
+    if (!propertyKey || value === undefined) {
+        Logger.log("Invalid data for setProperty. Expected an object with 'propertyKey' and 'value'.");
+        return false;
+    }
+
+    if (typeof propertyKey !== 'string') {
+        Logger.log("Invalid propertyKey type for setProperty. Expected a string.");
+        return false;
+    }
+
+    try {
+        const settings = fetchSettingsDataCached();
+        if ('error' in settings) {
+            Logger.log(`Failed to fetch settings data for update: ${settings.error}`);
+            return false;
+        }
+
+        if (!(propertyKey in settings)) {
+            Logger.log(`Property key "${propertyKey}" not found in settings data for update.`);
+            return false;
+        }
+
+        // Find property in the settings sheet and update the value
+        (settings as any)[propertyKey] = value;
+
+        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
+        if (!settingsSheet) {
+            Logger.log("Settings sheet not found for update.");
+            return false;
+        }
+
+        // Find where the corresponding property key is located in the sheet to update the value in the correct cell
+        const dataRange = settingsSheet.getDataRange();
+        const values = dataRange.getValues();
+        let propertyUpdatedInSheet = false;
+
+        for (let i = 0; i < values.length; i++) {
+            for (let j = 0; j < values[i].length; j++) {
+                if (String(values[i][j]).trim() === propertyKey) {
+                    settingsSheet.getRange(i + 1, j + 2).setValue(value); // Update the adjacent cell (value column)
+                    propertyUpdatedInSheet = true;
+                    break;
+                }
+            }
+            if (propertyUpdatedInSheet) break;
+        }
+        if (!propertyUpdatedInSheet) {
+            Logger.log(`Failed to find property key "${propertyKey}" in settings sheet for update.`);
+            return false;
+        }
+
+        const cacheUpdateSuccess = setCachedData("cachedSettings", settings);
+        if (!cacheUpdateSuccess) {
+            Logger.log(`Failed to update cached settings for key: ${propertyKey}`);
+            return false;
+        }
+
+        return true;
+    } catch (error: any) {
+        Logger.log(`Error in setProperty for key ${propertyKey}: ${error.message}`);
+        return false;
     }
 }

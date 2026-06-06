@@ -29,14 +29,14 @@
 <body>
     <!-- Navigation Header -->
     <div class="nav-header">
-        <button class="nav-link" onclick="callServer('switchToManualBalanceManager')">💰 Manual B-Bucks
+        <button class="nav-link" onclick="callServer('openManualBalanceManager')">💰 Manual B-Bucks
             Modifier</button>
-        <button class="nav-link" onclick="callServer('switchToPricingManager')">💸 Income / Consumables</button>
-        <button class="nav-link" onclick="callServer('switchToInvestmentsManager')">📈 Investment
+        <button class="nav-link" onclick="callServer('openIncomeConsumables')">💸 Income / Consumables</button>
+        <button class="nav-link" onclick="callServer('openInvestmentsManager')">📈 Investment
             Banking</button>
-        <button class="nav-link" onclick="callServer('switchToTransactionsRecords')">📊 Transaction
+        <button class="nav-link" onclick="callServer('openTransactionsRecords')">📊 Transaction
             Records</button>
-        <button class="nav-link active" onclick="callServer('switchToBankingSettings')">⚙️ Banking Settings</button>
+        <button class="nav-link active" onclick="callServer('openBankingSettings')">⚙️ Banking Settings</button>
     </div>
 
     <div class="main-content">
@@ -194,34 +194,38 @@
                 <div class="card-title">🔧 Maintenance</div>
 
                 <label class="label-normal-zero"><strong>Data Management</strong></label>
-                <button class="btn btn-primary" id="updateTimestampsBtn">Update All Timestamps</button>
-                <button class="btn btn-primary" id="recordDailyDataBtn">Record Daily Data Snapshot</button>
+                <button class="btn btn-primary" id="updateTimestampsBtn" onclick="callServer('updateTimestamps')">Manually Update All Timestamps</button>
+                <button class="btn btn-primary" id="recordDailyDataBtn" onclick="callServer('recordDailyData')">Record Daily Data Snapshot</button>
+                <button class="btn btn-primary" id="clearCacheBtn" onclick="callServer('clearCache')">Clear Client Cache</button>
+                <button class="btn btn-primary" id="refreshAllInvestments" onclick="callServer('refreshAllInvestments')">Refresh All Investments Data</button>
+                <button class="btn btn-success" id="importStudentNames" onclick="callServer('importStudentNames')">Import All Students</button>
 
-                <label class="label-normal"><strong>Historical Records</strong></label>
+                <label class="label-normal"><strong>Historical Economic Records</strong></label>
                 <div class="btn-group">
-                    <button class="btn btn-primary" id="saveHistoricalBtn">Save to New Tab</button>
-                    <button class="btn btn-danger" id="resetWorkingTabBtn">Reset Working Tab</button>
+                    <button class="btn btn-primary" id="saveHistoricalBtn" onclick="callServer('saveHistoricalRecords')">Save to New Sheet Tab</button>
+                    <button class="btn btn-danger" id="resetWorkingTabBtn" onclick="callServer('resetHistoricalRecords')">Reset Current Working Tab</button>
                 </div>
 
                 <label class="label-normal"><strong>Reset All</strong></label>
-                <button class="btn btn-danger" id="resetAllMoneyBtn">Reset All Money</button>
+                <div class="btn-group">
+                    <button class="btn btn-danger" id="resetAllMoneyBtn" onclick="callServer('resetAllMoney')">Reset All Money</button>
+                    <button class="btn btn-danger" id="resetAllTransactionRecords" onclick="callServer('resetAllTransactionRecords')">Clear All Transaction Records</button>
+                </div>
 
                 <label class="label-normal"><strong>Reset by Column</strong></label>
                 <div class="btn-group">
-                    <button class="btn btn-danger" id="resetAccountHoldersBtn">Account Holders</button>
-                    <button class="btn btn-danger" id="resetEarningsBtn">Earnings</button>
+                    <button class="btn btn-danger" id="resetAccountHoldersBtn" onclick="callServer('resetAccountHolders')">Account Holders</button>
+                    <button class="btn btn-danger" id="resetEarningsBtn" onclick="callServer('resetEarnings')">Earnings</button>
                 </div>
                 <div class="btn-group">
-                    <button class="btn btn-danger" id="resetExpendituresBtn">Expenditures</button>
-                    <button class="btn btn-danger" id="resetReturnsBtn">Returns</button>
+                    <button class="btn btn-danger" id="resetExpendituresBtn" onclick="callServer('resetExpenditures')">Expenditures</button>
+                    <button class="btn btn-danger" id="resetReturnsBtn" onclick="callServer('resetReturns')">Returns</button>
                 </div>
-                <button class="btn btn-danger" id="resetInitDepBtn">Init Dep & Date Deposited</button>
+                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetInitDep')">Init Dep & Date Deposited (Investments)</button>
 
                 <div class="warning-box warning-box-hidden" id="resetWarning">
                     ⚠️ This action cannot be undone.
                 </div>
-
-                <button class="btn btn-primary margin-top-6" id="saveMaintenanceBtn">💾 Save</button>
             </div>
 
             <!-- Message Container -->
@@ -282,7 +286,58 @@
     </div>
 
     <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize the page by fetching current settings from the server and populating the form fields
+            await initializeBankingSettings();
+        });
 
+        async function initializeBankingSettings() {
+            try {
+                const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached');
+
+                if (settingsData && !settingsData.error) {
+                    // Populate Interest Rates
+                    document.getElementById('simpleRate').value = settingsData.interestRate || '';
+
+                    // Populate Restrictions
+                    document.getElementById('twoWeekDays').value = settingsData.twoWeekLockoutDays || '';
+                    document.getElementById('minDeposit').value = settingsData.minDeposit || '';
+                    document.getElementById('maxDeposit').value = settingsData.maxDeposit || '';
+
+                    // Populate Important Dates
+                    document.getElementById('bankingStartDate').value = settingsData.bankingPeriodStart || '';
+                    document.getElementById('bankingEndDate').value = settingsData.bankingPeriodEnd || '';
+                    document.getElementById('investmentsStartDate').value = settingsData.investmentsPeriodStart || '';
+                    document.getElementById('investmentsEndDate').value = settingsData.investmentsPeriodEnd || '';
+                    document.getElementById('q1StartDate').value = settingsData.q1Start || '';
+                    document.getElementById('q1EndDate').value = settingsData.q1End || '';
+                    document.getElementById('q2StartDate').value = settingsData.q2Start || '';
+                    document.getElementById('q2EndDate').value = settingsData.q2End || '';
+                    document.getElementById('q3StartDate').value = settingsData.q3Start || '';
+                    document.getElementById('q3EndDate').value = settingsData.q3End || '';
+                    document.getElementById('q4StartDate').value = settingsData.q4Start || '';
+                    document.getElementById('q4EndDate').value = settingsData.q4End || '';
+
+                    // Populate Logging & Data
+                    document.getElementById('autoLogTransactions').checked = !!settingsData.autoLogTransactions;
+                    document.getElementById('trackTimestamps').checked = !!settingsData.trackTimestamps;
+                    document.getElementById('enableAuditLog').checked = !!settingsData.enableAuditLog;
+                } else {
+                    console.warn("No valid settings data received from server:", settingsData);
+                }
+            } catch (error) {
+                console.error("Error initializing banking settings:", error);
+            }
+        }
+
+        function setValueOnServer(key, value) {
+            const payload = JSON.stringify({ propertyKey: key, value });
+            callServer('setProperty', payload, (response) => {
+                console.log(`Successfully set ${key} on server cache. Response:`, response);
+            }, (error) => {
+                console.error(`Error setting ${key} on server cache:`, error);
+            });
+        }
     </script>
 </body>
 

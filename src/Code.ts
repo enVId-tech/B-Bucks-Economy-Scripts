@@ -14,18 +14,11 @@ function onOpen(): void {
 
   ui.createMenu('The Central Bank of Banderas')
     .addItem('Open Manual B-Bucks Modifier', 'openManualBalanceManager')
-    .addItem('Open Service Provider', 'showIncomeConsumables')
+    .addItem('Open Service Provider', 'openIncomeConsumables')
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
     .addItem('View Transactions Records', 'openTransactionsRecords')
-    .addItem('Clear Transactions Records', 'placeholderFunction')
-    .addSeparator()
-    .addItem('Manual Timestamp Update', 'updateTimestamps')
-    .addItem('Record Daily Data', 'recordDailyData')
-    .addItem('Reset Historical Records', 'resetHistoricalRecords')
-    .addSeparator()
     .addItem('Banking Settings', 'openBankingSettings')
-    .addItem('Import Student Names', 'importStudentNames')
     .addSeparator()
     .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
@@ -38,7 +31,7 @@ function openManualBalanceManager(): void { launchModelessDialog('BalanceManager
 function openInvestmentsManager(): void { launchModelessDialog('InvestmentsManager', "Bank of Banderas - Investments Manager", 600, 700) }
 
 /** Opens a dialog for managing income and consumables, allowing users to view and modify records related to income and expenses. */
-function showIncomeConsumables() { launchModelessDialog('ServicesManager', "Bank of Banderas - Services Menu", 500, 700) }
+function openIncomeConsumables(): void { launchModelessDialog('ServicesManager', "Bank of Banderas - Services Menu", 500, 700) }
 
 /** Opens a dialog for viewing transaction records, allowing users to search and filter all B-Bucks transactions. */
 function openTransactionsRecords(): void { launchModelessDialog('TransactionsRecords', "Bank of Banderas - Transaction Records", 700, 650) }
@@ -77,7 +70,7 @@ function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This functi
 /** Helper functions for page navigation in modeless dialogs */
 function switchToManualBalanceManager(): void { openManualBalanceManager() }
 function switchToInvestmentsManager(): void { openInvestmentsManager() }
-function switchToPricingManager(): void { showIncomeConsumables() }
+function switchToPricingManager(): void { openIncomeConsumables() }
 function switchToTransactionsRecords(): void { openTransactionsRecords() }
 function switchToBankingSettings(): void { openBankingSettings() }
 

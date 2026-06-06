@@ -7,7 +7,7 @@
 
 <script>
     // Use to call server functions from client-side with optional success and failure handlers
-    function callServer(serverFunctionName, data, onSuccess, onFailure) {
+    function callServer(serverFunctionName, data = null, onSuccess = null, onFailure = null) {
         if (typeof google !== 'undefined' && google.script && google.script.run) {
             // Dynamically call the server function
             google.script.run
