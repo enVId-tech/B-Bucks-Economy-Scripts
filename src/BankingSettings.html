@@ -302,12 +302,12 @@
                     } else {
                         // Update field state settings seamlessly on target refreshes
                         Object.entries(settingsData[section] || {}).forEach(([id, value]) => {
-                            const el = document.getElementById(id);
-                            if (!el) return;
-                            if (el.type === 'checkbox') {
-                                el.checked = !!value;
-                            } else if (el.type === 'date') {
-                                el.value = value ? value.split('T')[0] : '';
+                            const element = document.getElementById(id);
+                            if (!element) return;
+                            if (element.type === 'checkbox') {
+                                element.checked = !!value;
+                            } else if (element.type === 'date') {
+                                element.value = value ? value.split('T')[0] : '';
                             } else {
                                 const isRate = id.toLowerCase().includes('rate');
                                 el.value = (isRate && typeof value === 'number') ? (value * 100) : (value ?? '');
