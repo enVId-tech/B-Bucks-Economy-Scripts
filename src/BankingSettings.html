@@ -250,13 +250,18 @@
                             <div class="toggle-container">
                                 <input type="checkbox" id="${id}" ${value ? 'checked' : ''}>
                                 <label for="${id}">${formatLabel(id)}</label>
-                            </div>`;
+                            </div>
+                            `;
                         } else {
-                            const isPercentage = id.toLowerCase().includes('rate');
+                            const isRate = id.toLowerCase().includes('rate');
+                            // Convert decimal (0.1) to user-friendly percentage (10) for the UI
+                            const displayValue = (isRate && typeof value === 'number') ? (value * 100) : value;
+
                             cardContentHtml += `
-                            <label for="${id}">${formatLabel(id)}</label>
-                            <input type="number" id="${id}" value="${value ?? ''}" 
-                                   step="${isPercentage ? '0.01' : '1'}" min="0">`;
+                                <label for="${id}">${formatLabel(id)}</label>
+                                <input type="number" id="${id}" value="${displayValue ?? ''}" 
+                                step="${isRate ? '0.01' : '1'}" min="0">
+                                `;
                         }
                     });
                 }
@@ -301,8 +306,11 @@
                             if (!el) return;
                             if (el.type === 'checkbox') {
                                 el.checked = !!value;
+                            } else if (el.type === 'date') {
+                                el.value = value ? value.split('T')[0] : '';
                             } else {
-                                el.value = el.type === 'date' && value ? value.split('T')[0] : (value ?? '');
+                                const isRate = id.toLowerCase().includes('rate');
+                                el.value = (isRate && typeof value === 'number') ? (value * 100) : (value ?? '');
                             }
                         });
                     }
@@ -325,7 +333,9 @@
                 if (input.type === 'checkbox') {
                     updatedData[input.id] = input.checked;
                 } else if (input.type === 'number') {
-                    updatedData[input.id] = parseFloat(input.value);
+                    // Convert user-friendly percentage (10) back to decimal (0.1) for server storage
+                    const isRate = input.id.toLowerCase().includes('rate');
+                    updatedData[input.id] = parseFloat(input.value) / (isRate ? 100 : 1);
                 } else if (input.type === 'date') {
                     // Send back to server formatted cleanly in standard ISO format string formats
                     updatedData[input.id] = input.value ? new Date(input.value).toISOString() : null;
