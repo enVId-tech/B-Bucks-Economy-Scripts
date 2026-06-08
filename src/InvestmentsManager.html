@@ -96,7 +96,7 @@
 
         <!-- Override Checkbox -->
         <div class="checkbox-container">
-          <input type="checkbox" id="overrideCheck">
+          <input type="checkbox" id="overrideCheck" onchange="changeButtonState()">
           <label for="overrideCheck">Admin Override (2-week)</label>
         </div>
 
@@ -326,7 +326,31 @@
       }
       document.getElementById('depositBtn').classList.remove('btn-disabled');
       document.getElementById('depositBtn').disabled = false;
+    }
 
+    function handleDeposit() {
+      const amount = parseFloat(document.getElementById('depositAmount').value);
+      if (isNaN(amount) || amount <= 0) {
+        alert("Please enter a valid deposit amount greater than 0.");
+        return;
+      }
+
+      const selectedStudent = document.getElementById('studentSelect').value;
+      const selectedPeriod = document.getElementById('periodSelect').value;
+
+      // Call server function to handle the deposit logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the deposit, update the student's balance and CoD accordingly, and return any relevant information or errors back to the client to update the UI.
+      callServer('handleDeposit', JSON.stringify({ amount: amount, student: selectedStudent, period: selectedPeriod }), (response) => {
+        console.log("Deposit response from server:", response);
+        if (response.success) {
+          alert("Deposit successful!");
+          fetchAndDisplayStudentData(); // Refresh the displayed data after a successful deposit
+        } else {
+          alert(`Deposit failed: ${response.error}`);
+        }
+      }, (error) => {
+        console.error("Error during deposit server call:", error);
+        alert("An error occurred while processing the deposit. Please try again.");
+      });
     }
   </script>
 </body>
