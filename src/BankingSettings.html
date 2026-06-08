@@ -266,14 +266,16 @@
                     });
                 }
 
-                // Append the built section node markup back to global memory stream
                 htmlBuffer += `
-                <div class="settings-card">
+                <div class="settings-card" data-section="${sectionKey}">
                     <div class="card-title">${meta.title}</div>
                     ${cardContentHtml}
                     <div class="info-box info-box-margin-top">
                         💡 <strong>Note:</strong> ${meta.note}
                     </div>
+                    <div class="processing-note" id="processing-${sectionKey}" style="display: none;">🔄 Saving settings, please wait...</div>
+                    <div class="success-note" id="success-${sectionKey}" style="display: none;">✅ Settings saved successfully!</div>
+                    <div class="error-note" id="error-${sectionKey}" style="display: none;">❌ Error saving settings.</div>
                     <div class="btn-group">
                         <button class="btn btn-primary" onclick="saveSection('${sectionKey}')">💾 Save</button>
                         <button class="btn btn-danger" onclick="initializeBankingSettings(false, '${sectionKey}')">Reset to Default</button>
@@ -310,7 +312,7 @@
                                 element.value = value ? value.split('T')[0] : '';
                             } else {
                                 const isRate = id.toLowerCase().includes('rate');
-                                el.value = (isRate && typeof value === 'number') ? (value * 100) : (value ?? '');
+                                element.value = (isRate && typeof value === 'number') ? (value * 100) : (value ?? '');
                             }
                         });
                     }
@@ -322,27 +324,45 @@
 
         /**
          * Saves the current values of a specific section back to the server cache and triggers any necessary server-side updates.
-         * @param {string} sectionKey - The key of the section being saved (e
-         *g., 'importantDates', 'standardPercentages').
+         * @param {string} sectionKey - The key of the section being saved (e.g., 'importantDates', 'standardPercentages').
          */
         function saveSection(sectionKey) {
-            const inputs = document.querySelectorAll(`#dynamicSettingsContainer .settings-card:nth-child(${Object.keys(SECTION_META).indexOf(sectionKey) + 1}) input`);
-            const updatedData = {};
+            try {
+                document.getElementById(`processing-${sectionKey}`).style.display = 'block';
+                const inputs = document.querySelectorAll(`#dynamicSettingsContainer .settings-card[data-section="${sectionKey}"] input`);
+                const updatedData = {};
 
-            inputs.forEach(input => {
-                if (input.type === 'checkbox') {
-                    updatedData[input.id] = input.checked;
-                } else if (input.type === 'number') {
-                    // Convert user-friendly percentage (10) back to decimal (0.1) for server storage
-                    const isRate = input.id.toLowerCase().includes('rate');
-                    updatedData[input.id] = parseFloat(input.value) / (isRate ? 100 : 1);
-                } else if (input.type === 'date') {
-                    // Send back to server formatted cleanly in standard ISO format string formats
-                    updatedData[input.id] = input.value ? new Date(input.value).toISOString() : null;
-                }
-            });
+                inputs.forEach(input => {
+                    if (input.type === 'checkbox') {
+                        updatedData[input.id] = input.checked;
+                    } else if (input.type === 'number') {
+                        // Convert user-friendly percentage (10) back to decimal (0.1) for server storage
+                        const rawValue = parseFloat(input.value);
+                        const isRate = input.id.toLowerCase().includes('rate');
+                        if (!isNaN(rawValue)) {
+                            updatedData[input.id] = isRate ? (rawValue / 100) : rawValue;
+                        } else {
+                            updatedData[input.id] = null; // or fallback to 0 depending on requirement
+                        }
+                    } else if (input.type === 'date') {
+                        // Send back to server formatted cleanly in standard ISO format string formats
+                        updatedData[input.id] = input.value ? new Date(input.value).toISOString() : null;
+                    }
+                });
 
-            setValueOnServer(sectionKey, updatedData);
+                console.log(`Saving section ${sectionKey} with data:`, updatedData);
+
+                setValueOnServer(sectionKey, updatedData);
+            } catch (error) {
+                console.error(`Error saving section ${sectionKey}:`, error);
+
+                document.getElementById(`processing-${sectionKey}`).style.display = 'none';
+                document.getElementById(`error-${sectionKey}`).style.display = 'block';
+
+                setTimeout(() => {
+                    document.getElementById(`error-${sectionKey}`).style.display = 'none';
+                }, 5000);
+            }
         }
 
         /**
@@ -351,12 +371,37 @@
          * @param {any} value - The new value to set for the specified key, which can be of any type depending on the setting (e.g., object, boolean, number).
          */
         function setValueOnServer(key, value) {
-            const payload = JSON.stringify({ propertyKey: key, value });
-            callServer('setSettingsProperty', payload, (response) => {
-                console.log(`Successfully set ${key} on server cache. Response:`, response);
-            }, (error) => {
-                console.error(`Error setting ${key} on server cache:`, error);
-            });
+            try {
+                console.log(`Setting value on server for ${key}:`, value);
+                const payload = JSON.stringify({ propertyKey: key, propertyValue: value });
+                callServer('setSettingsProperty', payload, (response) => {
+                    console.log(`Successfully set ${key} on server cache. Response:`, response);
+
+                    document.getElementById(`processing-${key}`).style.display = 'none';
+                    document.getElementById(`success-${key}`).style.display = 'block';
+
+                    setTimeout(() => {
+                        document.getElementById(`success-${key}`).style.display = 'none';
+                    }, 5000);
+                }, (error) => {
+                    console.error(`Error setting ${key} on server cache:`, error);
+
+                    document.getElementById(`processing-${key}`).style.display = 'none';
+                    document.getElementById(`error-${key}`).style.display = 'block';
+                    setTimeout(() => {
+                        document.getElementById(`error-${key}`).style.display = 'none';
+                    }, 5000);
+                });
+            } catch (error) {
+                console.error(`Error in setValueOnServer for ${key}:`, error);
+
+                document.getElementById(`processing-${key}`).style.display = 'none';
+                document.getElementById(`error-${key}`).style.display = 'block';
+
+                setTimeout(() => {
+                    document.getElementById(`error-${key}`).style.display = 'none';
+                }, 5000);
+            }
         }
     </script>
 </body>
