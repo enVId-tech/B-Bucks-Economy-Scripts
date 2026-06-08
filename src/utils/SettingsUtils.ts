@@ -206,72 +206,92 @@ function fetchProperty(propertyKey: string): string | { error: string } {
     }
 }
 
-function setProperty(data: any): boolean {
+function setSettingsProperty(data: any): boolean {
     const parseResult = typeof data === 'string' ? JSON.parse(data) : data;
-    const propertyKey = parseResult?.propertyKey;
-    const value = parseResult?.value;
-
-    if (!propertyKey || value === undefined) {
-        Logger.log("Invalid data for setProperty. Expected an object with 'propertyKey' and 'value'.");
-        return false;
-    }
-
-    if (typeof propertyKey !== 'string') {
-        Logger.log("Invalid propertyKey type for setProperty. Expected a string.");
-        return false;
-    }
+    // Key is the column identifer for the setting (importantDates, standardPercentages, mandatedPolicies, ledgersAndRecords, limits)
+    // Property value is every setting within that column as an object (e.g. { incomeTaxRate: 0.1, weeklyInterestRate: 0.02 } for standardPercentages)
+    const { propertyKey, propertyValue } = parseResult;
 
     try {
         const settings = fetchSettingsDataCached();
         if ('error' in settings) {
-            Logger.log(`Failed to fetch settings data for update: ${settings.error}`);
+            Logger.log(`Failed to fetch settings data: ${settings.error}`);
+            SpreadsheetApp.getUi().alert(`Failed to fetch settings data: ${settings.error}`);
             return false;
         }
 
-        if (!(propertyKey in settings)) {
-            Logger.log(`Property key "${propertyKey}" not found in settings data for update.`);
+        const settingKeys = Object.keys(settings) as (keyof SettingsData)[];
+        if (!settingKeys.includes(propertyKey as keyof SettingsData)) {
+            Logger.log(`Invalid property key "${propertyKey}". Must be one of: ${settingKeys.join(", ")}`);
+            SpreadsheetApp.getUi().alert(`Invalid property key "${propertyKey}". Must be one of: ${settingKeys.join(", ")}`);
             return false;
         }
 
-        // Find property in the settings sheet and update the value
-        (settings as any)[propertyKey] = value;
+        // Update the specific property in the settings data
+        settings[propertyKey] = propertyValue;
 
+        // Also update the server properties for persistence across sessions and cache misses
+        const props = PropertiesService.getScriptProperties();
+        props.setProperty("cachedSettings", JSON.stringify(settings));
+
+        CacheService.getScriptCache().put("cachedSettings", JSON.stringify(settings), 21600);
+
+        // Update the sheet directly to ensure the source of truth is consistent
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
         const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
         if (!settingsSheet) {
-            Logger.log("Settings sheet not found for update.");
+            Logger.log(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`);
+            SpreadsheetApp.getUi().alert(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`);
             return false;
         }
 
-        // Find where the corresponding property key is located in the sheet to update the value in the correct cell
-        const dataRange = settingsSheet.getDataRange();
-        const values = dataRange.getValues();
-        let propertyUpdatedInSheet = false;
+        // Find the row and column for the property key
+        const columnInfo = COLUMNS[propertyKey as keyof typeof COLUMNS];
 
-        for (let i = 0; i < values.length; i++) {
-            for (let j = 0; j < values[i].length; j++) {
-                if (String(values[i][j]).trim() === propertyKey) {
-                    settingsSheet.getRange(i + 1, j + 2).setValue(value); // Update the adjacent cell (value column)
-                    propertyUpdatedInSheet = true;
+        // SpreadsheetApp.getUi().alert(`Found column info for property key "${propertyKey}": keyCol=${columnInfo.keyCol}, valCol=${columnInfo.valCol}, columnInfo: ${JSON.stringify(columnInfo)}`);
+        if (!columnInfo) {
+            Logger.log(`Column information for property key "${propertyKey}" not found.`);
+            SpreadsheetApp.getUi().alert(`Column information for property key "${propertyKey}" not found.`);
+            return false;
+        }
+
+        const { keyCol, valCol } = columnInfo;
+        const lastRow = settingsSheet.getLastRow();
+
+        // SpreadsheetApp.getUi().alert(`Attempting to update with ${JSON.stringify({ propertyValue })}}`)
+
+        // Format the values to match the expected object structure in the sheet, which is key-value pairs where the key is the setting name and the value is the setting value. The keys are listed in the keyCol and the values are listed in the valCol, so we need to find the correct row for the propertyKey and update its corresponding value in valCol.
+        Object.entries(propertyValue).forEach(([innerKey, innerValue]) => {
+            let itemUpdated = false;
+
+            // Look down the column to find the row matching this specific configuration parameter label
+            for (let row = ROW_START; row <= lastRow; row++) {
+                const cellValue = settingsSheet.getRange(row, keyCol).getValue().toString().trim();
+
+                if (cellValue === innerKey) {
+                    // Normalize boolean expressions to native values so Google Sheets shows clean checkboxes
+                    let finalValue = innerValue;
+                    if (typeof finalValue === 'string' && finalValue.endsWith('Z') && !isNaN(Date.parse(finalValue))) {
+                        // Pass back down as an actual runtime Date so the cell formats natively
+                        finalValue = new Date(finalValue);
+                    }
+
+                    settingsSheet.getRange(row, valCol).setValue(finalValue);
+                    itemUpdated = true;
                     break;
                 }
             }
-            if (propertyUpdatedInSheet) break;
-        }
-        if (!propertyUpdatedInSheet) {
-            Logger.log(`Failed to find property key "${propertyKey}" in settings sheet for update.`);
-            return false;
-        }
 
-        const cacheUpdateSuccess = setCachedData("cachedSettings", settings);
-        if (!cacheUpdateSuccess) {
-            Logger.log(`Failed to update cached settings for key: ${propertyKey}`);
-            return false;
-        }
+            if (!itemUpdated) {
+                Logger.log(`Warning: Inner setting key "${innerKey}" was not found in column ${keyCol}.`);
+                SpreadsheetApp.getUi().alert(`Warning: Inner setting key "${innerKey}" was not found in column ${keyCol}. Please ensure the key exists in the sheet for it to be updated.`);
+            }
+        });
 
         return true;
     } catch (error: any) {
-        Logger.log(`Error in setProperty for key ${propertyKey}: ${error.message}`);
+        Logger.log(`Error in setSettingsProperty: ${error.message}`);
+        SpreadsheetApp.getUi().alert(`Error in setSettingsProperty: ${error.message}`);
         return false;
     }
 }
