@@ -79,22 +79,36 @@ function setCachedData(cacheKey: string, data: any): boolean {
 function launchModelessDialog(templateName: string, title: string, width: number, height: number): void {
     const template = HtmlService.createTemplateFromFile(templateName);
 
+    const cache = CacheService.getScriptCache();
+
     const globalData = {
-        "cachedIndividuals": JSON.parse(getCachedData("cachedIndividuals") || "[]"),
-        "cachedServices": fetchServicesDataCached(),
-        "cachedSettings": fetchSettingsDataCached(),
-        "cachedTransactions": JSON.parse(getCachedData("cachedTransactions") || "[]"),
-        "cachedInvestmentsLedger": fetchInvestmentsDataCached()
-    }
+        "cachedServices": cache.get("cachedServices") || "{}",
+        "cachedSettings": cache.get("cachedSettings") || "{}",
+        "cachedTransactions": cache.get("cachedTransactions") || "[]",
+        "cachedInvestmentsLedger": cache.get("cachedInvestmentsLedger") || "{}"
+    };
 
-    template.initialServerPayload = JSON.stringify(globalData);
-
+    template.initialServerPayload = `{
+        "cachedServices": ${globalData.cachedServices},
+        "cachedSettings": ${globalData.cachedSettings},
+        "cachedTransactions": ${globalData.cachedTransactions},
+        "cachedInvestmentsLedger": ${globalData.cachedInvestmentsLedger}
+    }`;
+    
     const html = template.evaluate()
         .setTitle(title)
         .setWidth(width)
         .setHeight(height);
 
     SpreadsheetApp.getUi().showModelessDialog(html, title);
+}
+
+function preloadCacheForAllDialogs(): void {
+    // Preload all relevant data into the cache to ensure fast access when dialogs are opened. This can be called onOpen or at strategic points in the application to keep the cache warm.
+    fetchServicesDataCached(JSON.stringify({ forceRefresh: true }));
+    fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
+    fetchInvestmentsDataCached(JSON.stringify({ forceRefresh: true }));
+    fetchTransactionsDataCached(JSON.stringify({ forceRefresh: true }));
 }
 
 /**
