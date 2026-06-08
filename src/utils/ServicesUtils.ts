@@ -27,9 +27,9 @@ interface ItemData {
 function fetchServicesDataCached(data?: string): ItemData[] | { error: string } {
     try {
         if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+            Logger.log(`Received data for fetchServicesDataCached: ${data}`);
         } else {
-            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            Logger.log("No data received for fetchServicesDataCached, proceeding with default cache retrieval.");
             data = JSON.stringify({ forceRefresh: false });
         }
 
