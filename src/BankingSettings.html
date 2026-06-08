@@ -48,111 +48,76 @@
 
         <!-- Content -->
         <div class="content">
-
-            <!-- Card 1: Interest Configuration -->
-            <div class="settings-card">
-                <div class="card-title">📊 Interest Rates</div>
-
-                <label for="simpleRate">Interest Rate (%)</label>
-                <input type="number" id="simpleRate" placeholder="5" step="0.01" min="0" max="100">
-
-                <div class="info-box">
-                    💡 <strong>Tip:</strong> Higher rates encourage saving. Lower rates for simpler economy.
-                </div>
-
-                <button class="btn btn-primary margin-top-6" id="saveInterestRatesBtn">💾 Save</button>
-            </div>
-
-            <!-- Card 2: Restrictions -->
-            <div class="settings-card">
-                <div class="card-title">🔒 CoD Restrictions</div>
-
-                <label for="twoWeekDays">2-Week Lockout (days)</label>
-                <input type="number" id="twoWeekDays" placeholder="14" step="1" min="0" max="365">
-
-                <label for="minDeposit">Minimum Deposit ($)</label>
-                <input type="number" id="minDeposit" placeholder="1.00" step="0.01" min="0">
-
-                <label for="maxDeposit">Maximum Deposit ($)</label>
-                <input type="number" id="maxDeposit" placeholder="10000" step="0.01" min="0">
-
-                <div class="info-box">
-                    💡 <strong>Example:</strong> 14-day lockout prevents frequent withdrawals.
-                </div>
-
-                <button class="btn btn-primary margin-top-6" id="saveRestrictionsBtn">💾 Save</button>
-            </div>
-
-            <!-- Card 3: Important Dates -->
+            <!-- Card 1: Important Dates -->
             <div class="settings-card">
                 <div class="card-title">📅 Important Dates</div>
 
                 <label class="label-normal"><strong>Banking Period</strong></label>
                 <div class="grid-2-col">
                     <div>
-                        <label for="bankingStartDate">Start Date</label>
-                        <input type="date" id="bankingStartDate">
+                        <label for="startBankingDate">Start Date</label>
+                        <input type="date" id="startBankingDate">
                     </div>
                     <div>
-                        <label for="bankingEndDate">End Date</label>
-                        <input type="date" id="bankingEndDate">
+                        <label for="endBankingDate">End Date</label>
+                        <input type="date" id="endBankingDate">
                     </div>
                 </div>
 
                 <label class="label-normal"><strong>Investments Period</strong></label>
                 <div class="grid-2-col">
                     <div>
-                        <label for="investmentsStartDate">Start Date</label>
-                        <input type="date" id="investmentsStartDate">
+                        <label for="startInvestingDate">Start Date</label>
+                        <input type="date" id="startInvestingDate">
                     </div>
                     <div>
-                        <label for="investmentsEndDate">End Date</label>
-                        <input type="date" id="investmentsEndDate">
+                        <label for="endInvestingDate">End Date</label>
+                        <input type="date" id="endInvestingDate">
                     </div>
                 </div>
 
                 <label class="label-normal"><strong>Quarters</strong></label>
                 <div class="grid-2-col">
                     <div>
-                        <label for="q1StartDate">Q1 Start</label>
-                        <input type="date" id="q1StartDate">
+                        <label for="startQ1Date">Q1 Start</label>
+                        <input type="date" id="startQ1Date">
                     </div>
                     <div>
-                        <label for="q1EndDate">Q1 End</label>
-                        <input type="date" id="q1EndDate">
-                    </div>
-                </div>
-
-                <div class="grid-2-col">
-                    <div>
-                        <label for="q2StartDate">Q2 Start</label>
-                        <input type="date" id="q2StartDate">
-                    </div>
-                    <div>
-                        <label for="q2EndDate">Q2 End</label>
-                        <input type="date" id="q2EndDate">
+                        <label for="endQ1Date">Q1 End</label>
+                        <input type="date" id="endQ1Date">
                     </div>
                 </div>
 
                 <div class="grid-2-col">
                     <div>
-                        <label for="q3StartDate">Q3 Start</label>
-                        <input type="date" id="q3StartDate">
+                        <label for="startQ2Date">Q2 Start</label>
+                        <input type="date" id="startQ2Date">
                     </div>
                     <div>
-                        <label for="q3EndDate">Q3 End</label>
-                        <input type="date" id="q3EndDate">
+                        <label for="endQ2Date">Q2 End</label>
+                        <input type="date" id="endQ2Date">
+                    </div>
+                </div>
+
+                <div class="grid-2-col">
+                    <div>
+                        <label for="startQ3Date">Q3 Start</label>
+                        <input type="date" id="startQ3Date">
+                    </div>
+                    <div>
+                        <label for="endQ3Date">Q3 End</label>
+                        <input type="date" id="endQ3Date">
                     </div>
                 </div>
 
                 <div class="grid-2-col-no-margin">
                     <div>
-                        <label for="q4StartDate">Q4 Start</label>
-                        <input type="date" id="q4StartDate">
+                        <label for="startQ4Date">Q4 Start</label>
+                        <input type="date" id="startQ4Date">
                     </div>
                     <div>
-                        <label for="q4EndDate">Q4 End</label>
-                        <input type="date" id="q4EndDate">
+                        <label for="endQ4Date">Q4 End</label>
+                        <input type="date" id="endQ4Date">
                     </div>
                 </div>
 
@@ -160,68 +125,173 @@
                     💡 <strong>Note:</strong> Q2 represents the semester. All dates affect validation and reporting.
                 </div>
 
-                <button class="btn btn-primary margin-top-6" id="saveDatesBtn">💾 Save</button>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="saveDatesBtn">💾 Save</button>
+                    <button class="btn btn-danger" id="resetDatesBtn"
+                        onclick="initializeBankingSettings(false, 'dates')">Reset to Default</button>
+                </div>
             </div>
 
-            <!-- Card 4: Logging & Data -->
+            <!-- Card 2: Standard Percentages -->
             <div class="settings-card">
-                <div class="card-title">📋 Transaction Logging</div>
+                <div class="card-title">📊 Standard Percentages</div>
+
+                <label for="weeklyInterestRate">Weekly Interest Rate (%)</label>
+                <input type="number" id="weeklyInterestRate" placeholder="0.00" step="0.01" min="0" max="100">
+
+                <label for="investmentWithdrawalTaxRate">Investment Withdrawal Tax Rate (%)</label>
+                <input type="number" id="investmentWithdrawalTaxRate" placeholder="0.00" step="0.01" min="0" max="100">
+
+                <div class="info-box">
+                    💡 <strong>Note:</strong> These rates are applied to financial transactions automatically.
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="savePercentagesBtn">💾 Save</button>
+                    <button class="btn btn-danger" id="resetPercentagesBtn"
+                        onclick="initializeBankingSettings(false, 'standardPercentages')">Reset to Default</button>
+                </div>
+            </div>
+
+            <!-- Card 3: Mandated Policies -->
+            <div class="settings-card">
+                <div class="card-title">🔒 Mandated Policies</div>
+
+                <label for="withdrawLockoutTimeframeDays">Withdrawal Lockout Timeframe (days)</label>
+                <input type="number" id="withdrawLockoutTimeframeDays" placeholder="14" step="1" min="0" max="365">
 
                 <div class="toggle-container">
-                    <input type="checkbox" id="autoLogTransactions" checked>
-                    <label for="autoLogTransactions">Auto-log all transactions</label>
+                    <input type="checkbox" id="allowDebt">
+                    <label for="allowDebt">Allow Debt</label>
                 </div>
 
                 <div class="toggle-container">
-                    <input type="checkbox" id="trackTimestamps" checked>
-                    <label for="trackTimestamps">Track timestamps</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="enableAuditLog" checked>
-                    <label for="enableAuditLog">Enable admin audit log</label>
+                    <input type="checkbox" id="enforceServicesLimits">
+                    <label for="enforceServicesLimits">Enforce Services Limits</label>
                 </div>
 
                 <div class="info-box">
-                    💡 <strong>Note:</strong> Audit logs help track suspicious activity.
+                    💡 <strong>Example:</strong> 14-day lockout prevents frequent withdrawals.
                 </div>
 
-                <button class="btn btn-primary margin-top-6" id="saveLoggingBtn">💾 Save</button>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="savePoliciesBtn">💾 Save</button>
+                    <button class="btn btn-danger" id="resetPoliciesBtn"
+                        onclick="initializeBankingSettings(false, 'mandatedPolicies')">Reset to Default</button>
+                </div>
             </div>
 
-            <!-- Card 5: Maintenance -->
+            <!-- Card 4: Ledgers and Records -->
+            <div class="settings-card">
+                <div class="card-title">📋 Ledgers and Records</div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="autologTransactions">
+                    <label for="autologTransactions">Auto-log all transactions</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="logBankingDaily">
+                    <label for="logBankingDaily">Log banking daily</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="logSheetLastModified">
+                    <label for="logSheetLastModified">Log sheet last modified</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="commentExpenditures">
+                    <label for="commentExpenditures">Comment expenditures</label>
+                </div>
+
+                <div class="toggle-container">
+                    <input type="checkbox" id="autoSortNames">
+                    <label for="autoSortNames">Auto-sort names</label>
+                </div>
+
+                <div class="info-box">
+                    💡 <strong>Note:</strong> Proper logging helps maintain accurate records and audit trails.
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="saveLedgersBtn">💾 Save</button>
+                    <button class="btn btn-danger" id="resetLedgersBtn"
+                        onclick="initializeBankingSettings(false, 'ledgersAndRecords')">Reset to Default</button>
+                </div>
+            </div>
+
+            <!-- Card 5: Limits -->
+            <div class="settings-card">
+                <div class="card-title">⚠️ Transaction Limits</div>
+
+                <label for="depositMinimum">Minimum Deposit ($)</label>
+                <input type="number" id="depositMinimum" placeholder="1.00" step="0.01" min="0">
+
+                <label for="depositMaximum">Maximum Deposit ($)</label>
+                <input type="number" id="depositMaximum" placeholder="10000" step="0.01" min="0">
+
+                <label for="expendituresMaximum">Maximum Expenditures ($)</label>
+                <input type="number" id="expendituresMaximum" placeholder="10000" step="0.01" min="0">
+
+                <div class="info-box">
+                    💡 <strong>Note:</strong> These limits are enforced on all transactions.
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="saveLimitsBtn">💾 Save</button>
+                    <button class="btn btn-danger" id="resetLimitsBtn"
+                        onclick="initializeBankingSettings(false, 'limits')">Reset to Default</button>
+                </div>
+            </div>
+
+            <!-- Card 6: Maintenance -->
             <div class="settings-card">
                 <div class="card-title">🔧 Maintenance</div>
 
                 <label class="label-normal-zero"><strong>Data Management</strong></label>
-                <button class="btn btn-primary" id="updateTimestampsBtn" onclick="callServer('updateTimestamps')">Manually Update All Timestamps</button>
-                <button class="btn btn-primary" id="recordDailyDataBtn" onclick="callServer('recordDailyData')">Record Daily Data Snapshot</button>
-                <button class="btn btn-primary" id="clearCacheBtn" onclick="callServer('clearCache')">Clear Client Cache</button>
-                <button class="btn btn-primary" id="refreshAllInvestments" onclick="callServer('refreshAllInvestments')">Refresh All Investments Data</button>
-                <button class="btn btn-success" id="importStudentNames" onclick="callServer('importStudentNames')">Import All Students</button>
+                <button class="btn btn-primary" id="updateTimestampsBtn"
+                    onclick="callServer('updateTimestamps')">Manually Update All Timestamps</button>
+                <button class="btn btn-primary" id="recordDailyDataBtn" onclick="callServer('recordDailyData')">Record
+                    Daily Data Snapshot</button>
+                <button class="btn btn-primary" id="clearCacheBtn" onclick="callServer('clearCache')">Clear Client
+                    Cache</button>
+                <button class="btn btn-primary" id="refreshAllInvestments"
+                    onclick="callServer('refreshAllInvestments')">Refresh All Investments Data</button>
+                <button class="btn btn-success" id="importStudentNames"
+                    onclick="callServer('importStudentNames')">Import All Students</button>
 
                 <label class="label-normal"><strong>Historical Economic Records</strong></label>
                 <div class="btn-group">
-                    <button class="btn btn-primary" id="saveHistoricalBtn" onclick="callServer('saveHistoricalRecords')">Save to New Sheet Tab</button>
-                    <button class="btn btn-danger" id="resetWorkingTabBtn" onclick="callServer('resetHistoricalRecords')">Reset Current Working Tab</button>
+                    <button class="btn btn-primary" id="saveHistoricalBtn"
+                        onclick="callServer('saveHistoricalRecords')">Save to New Sheet Tab</button>
+                    <button class="btn btn-danger" id="resetWorkingTabBtn"
+                        onclick="callServer('resetHistoricalRecords')">Reset Current Working Tab</button>
                 </div>
 
                 <label class="label-normal"><strong>Reset All</strong></label>
                 <div class="btn-group">
-                    <button class="btn btn-danger" id="resetAllMoneyBtn" onclick="callServer('resetAllMoney')">Reset All Money</button>
-                    <button class="btn btn-danger" id="resetAllTransactionRecords" onclick="callServer('resetAllTransactionRecords')">Clear All Transaction Records</button>
+                    <button class="btn btn-danger" id="resetAllMoneyBtn" onclick="callServer('resetAllMoney')">Reset
+                        All Money</button>
+                    <button class="btn btn-danger" id="resetAllTransactionRecords"
+                        onclick="callServer('resetAllTransactionRecords')">Clear All Transaction Records</button>
                 </div>
 
                 <label class="label-normal"><strong>Reset by Column</strong></label>
                 <div class="btn-group">
-                    <button class="btn btn-danger" id="resetAccountHoldersBtn" onclick="callServer('resetAccountHolders')">Account Holders</button>
-                    <button class="btn btn-danger" id="resetEarningsBtn" onclick="callServer('resetEarnings')">Earnings</button>
+                    <button class="btn btn-danger" id="resetAccountHoldersBtn"
+                        onclick="callServer('resetAccountHolders')">Account Holders</button>
+                    <button class="btn btn-danger" id="resetEarningsBtn"
+                        onclick="callServer('resetEarnings')">Earnings</button>
                 </div>
                 <div class="btn-group">
-                    <button class="btn btn-danger" id="resetExpendituresBtn" onclick="callServer('resetExpenditures')">Expenditures</button>
-                    <button class="btn btn-danger" id="resetReturnsBtn" onclick="callServer('resetReturns')">Returns</button>
+                    <button class="btn btn-danger" id="resetExpendituresBtn"
+                        onclick="callServer('resetExpenditures')">Expenditures</button>
+                    <button class="btn btn-danger" id="resetReturnsBtn"
+                        onclick="callServer('resetReturns')">Returns</button>
                 </div>
-                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetInitDep')">Init Dep & Date Deposited (Investments)</button>
+                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetInitDep')">Init Dep &
+                    Date Deposited (Investments)</button>
 
                 <div class="warning-box warning-box-hidden" id="resetWarning">
                     ⚠️ This action cannot be undone.
@@ -231,56 +301,60 @@
             <!-- Message Container -->
             <div id="messageContainer"></div>
 
+            <!-- Footer -->
+            <div class="footer">
+                Last saved: <span id="lastSaved">--</span>
+            </div>
         </div>
 
-        <!-- Footer -->
-        <div class="footer">
-            Last saved: <span id="lastSaved">--</span>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal for Destructive Actions -->
-    <div class="modal-overlay" id="confirmationModal">
-        <div class="confirmation-modal">
-            <div class="modal-header">
-                <h2 class="modal-title" id="modalTitle">⚠️ Confirm Destructive Action</h2>
-                <p class="modal-subtitle" id="modalSubtitle">Please verify all three fields below before confirming</p>
-            </div>
-
-            <div class="modal-body">
-                <div class="modal-warning" id="modalWarning">
-                    This action cannot be undone. Please type the required information in each field below to confirm.
+        <!-- Confirmation Modal for Destructive Actions -->
+        <div class="modal-overlay" id="confirmationModal">
+            <div class="confirmation-modal">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modalTitle">⚠️ Confirm Destructive Action</h2>
+                    <p class="modal-subtitle" id="modalSubtitle">Please verify all three fields below before confirming
+                    </p>
                 </div>
 
-                <!-- Field 1: Individual/Student Name -->
-                <div class="confirmation-field">
-                    <label class="confirmation-field-instruction" for="confirmIndividual">Type the name of the student
-                        or individual:</label>
-                    <input type="text" class="confirmation-field-input" id="confirmIndividual"
-                        placeholder="e.g., John Smith">
+                <div class="modal-body">
+                    <div class="modal-warning" id="modalWarning">
+                        This action cannot be undone. Please type the required information in each field below to
+                        confirm.
+                    </div>
+
+                    <!-- Field 1: Individual/Student Name -->
+                    <div class="confirmation-field">
+                        <label class="confirmation-field-instruction" for="confirmIndividual">Type the name of the
+                            student
+                            or individual:</label>
+                        <input type="text" class="confirmation-field-input" id="confirmIndividual"
+                            placeholder="e.g., John Smith">
+                    </div>
+
+                    <!-- Field 2: Sheet Name -->
+                    <div class="confirmation-field">
+                        <label class="confirmation-field-instruction" for="confirmSheetName">Type the name of this sheet
+                            or
+                            tab:</label>
+                        <input type="text" class="confirmation-field-input" id="confirmSheetName"
+                            placeholder="e.g., B-Bucks Main">
+                    </div>
+
+                    <!-- Field 3: Action/Button Name -->
+                    <div class="confirmation-field">
+                        <label class="confirmation-field-instruction" for="confirmActionName">Type the action you want
+                            to
+                            perform:</label>
+                        <input type="text" class="confirmation-field-input" id="confirmActionName"
+                            placeholder="e.g., Reset All Money">
+                    </div>
                 </div>
 
-                <!-- Field 2: Sheet Name -->
-                <div class="confirmation-field">
-                    <label class="confirmation-field-instruction" for="confirmSheetName">Type the name of this sheet or
-                        tab:</label>
-                    <input type="text" class="confirmation-field-input" id="confirmSheetName"
-                        placeholder="e.g., B-Bucks Main">
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-cancel" id="cancelConfirmBtn">Cancel</button>
+                    <button class="modal-btn modal-btn-confirm" id="confirmActionBtn" disabled>I Understand -
+                        Proceed</button>
                 </div>
-
-                <!-- Field 3: Action/Button Name -->
-                <div class="confirmation-field">
-                    <label class="confirmation-field-instruction" for="confirmActionName">Type the action you want to
-                        perform:</label>
-                    <input type="text" class="confirmation-field-input" id="confirmActionName"
-                        placeholder="e.g., Reset All Money">
-                </div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="modal-btn modal-btn-cancel" id="cancelConfirmBtn">Cancel</button>
-                <button class="modal-btn modal-btn-confirm" id="confirmActionBtn" disabled>I Understand -
-                    Proceed</button>
             </div>
         </div>
     </div>
@@ -288,45 +362,54 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             // Initialize the page by fetching current settings from the server and populating the form fields
-            await initializeBankingSettings();
+            await initializeBankingSettings(false);
+            // After data is loaded, run the function again to load any new data
+            await initializeBankingSettings(true);
         });
 
-        async function initializeBankingSettings() {
+        /**
+         * Initializes the banking settings form by fetching data from the server and populating the corresponding fields.
+         * This function is designed to be idempotent and can be safely called multiple times,
+         * allowing for both initial data loading and subsequent refreshes without needing to reload the entire page.
+         * @param {boolean} refreshCache - If true, forces a refresh of the client
+         * cache to ensure the latest data is fetched from the server. If false, it will attempt to use cached data if available.
+         */
+        async function initializeBankingSettings(refreshCache = false, section) {
             try {
-                const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached');
+                const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', refreshCache);
+
+                console.log(section ? `Refreshing section: ${section}` : "Performing initial load of all settings data");
+
+                console.log("Initializing Banking Settings with data:", settingsData);
 
                 if (settingsData && !settingsData.error) {
-                    // Populate Interest Rates
-                    document.getElementById('simpleRate').value = settingsData.interestRate || '';
-
-                    // Populate Restrictions
-                    document.getElementById('twoWeekDays').value = settingsData.twoWeekLockoutDays || '';
-                    document.getElementById('minDeposit').value = settingsData.minDeposit || '';
-                    document.getElementById('maxDeposit').value = settingsData.maxDeposit || '';
-
-                    // Populate Important Dates
-                    document.getElementById('bankingStartDate').value = settingsData.bankingPeriodStart || '';
-                    document.getElementById('bankingEndDate').value = settingsData.bankingPeriodEnd || '';
-                    document.getElementById('investmentsStartDate').value = settingsData.investmentsPeriodStart || '';
-                    document.getElementById('investmentsEndDate').value = settingsData.investmentsPeriodEnd || '';
-                    document.getElementById('q1StartDate').value = settingsData.q1Start || '';
-                    document.getElementById('q1EndDate').value = settingsData.q1End || '';
-                    document.getElementById('q2StartDate').value = settingsData.q2Start || '';
-                    document.getElementById('q2EndDate').value = settingsData.q2End || '';
-                    document.getElementById('q3StartDate').value = settingsData.q3Start || '';
-                    document.getElementById('q3EndDate').value = settingsData.q3End || '';
-                    document.getElementById('q4StartDate').value = settingsData.q4Start || '';
-                    document.getElementById('q4EndDate').value = settingsData.q4End || '';
-
-                    // Populate Logging & Data
-                    document.getElementById('autoLogTransactions').checked = !!settingsData.autoLogTransactions;
-                    document.getElementById('trackTimestamps').checked = !!settingsData.trackTimestamps;
-                    document.getElementById('enableAuditLog').checked = !!settingsData.enableAuditLog;
+                    // Loop through each section and its corresponding key-value pairs
+                    // this replaces the 30 document.getElementById lines b/c it needs to scale with more settings
+                    Object.entries(settingsData).forEach(([sectionKey, sectionData]) => {
+                        if (sectionData && typeof sectionData === 'object') {
+                            Object.entries(sectionData).forEach(([id, value]) => {
+                                if (section && section !== sectionKey) return; // If a specific section is provided, skip other sections
+                                populateField(id, value);
+                            });
+                        }
+                    });
                 } else {
                     console.warn("No valid settings data received from server:", settingsData);
                 }
             } catch (error) {
                 console.error("Error initializing banking settings:", error);
+            }
+        }
+
+        // Populate the given field ID with the provided value, handling different input types (text, number, checkbox)
+        function populateField(id, value) {
+            const element = document.getElementById(id);
+            if (!element) return; // Prevent crashing if an ID is missing in the HTML
+
+            if (element.type === 'checkbox') {
+                element.checked = !!value;
+            } else {
+                element.value = value ?? '';
             }
         }
 

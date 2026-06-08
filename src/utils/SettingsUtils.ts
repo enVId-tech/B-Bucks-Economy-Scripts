@@ -10,14 +10,14 @@ interface ImportantDates {
     endBankingDate: string;
     startInvestingDate: string;
     endInvestingDate: string;
-    startQuarterOneDate: string;
-    endQuarterOneDate: string;
-    startQuarterTwoDate: string;
-    endQuarterTwoDate: string;
-    startQuarterThreeDate: string;
-    endQuarterThreeDate: string;
-    startQuarterFourDate: string;
-    endQuarterFourDate: string;
+    startQ1Date: string;
+    endQ1Date: string;
+    startQ2Date: string;
+    endQ2Date: string;
+    startQ3Date: string;
+    endQ3Date: string;
+    startQ4Date: string;
+    endQ4Date: string;
 }
 
 interface StandardPercentages {
@@ -54,7 +54,18 @@ interface SettingsData {
     limits: Limits;
 }
 
+// -- DO NOT CHANGE THESE COLUMNS UNLESS YOU KNOW WHAT YOU ARE DOING --
+// no but really actually dont pls ty, the sheet is named settings cuz ppl are stupid asf :D
 const DEFAULT_SETTINGS_SHEET: string = "Settings";
+// change only if u dont want the default option which is like wai bro ts beautiful
+const COLUMNS = {
+    importantDates: { keyCol: 2, valCol: 3 },
+    standardPercentages: { keyCol: 5, valCol: 6 },
+    mandatedPolicies: { keyCol: 8, valCol: 9 },
+    ledgersAndRecords: { keyCol: 11, valCol: 12 },
+    limits: { keyCol: 14, valCol: 15 },
+}
+const ROW_START = 4;
 
 /**
  * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
@@ -64,9 +75,9 @@ const DEFAULT_SETTINGS_SHEET: string = "Settings";
 function fetchSettingsDataCached(data?: string): SettingsData | { error: string } {
     try {
         if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+            Logger.log(`Received data for fetchSettingsDataCached: ${data}`);
         } else {
-            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            Logger.log("No data received for fetchSettingsDataCached, proceeding with default cache retrieval.");
             data = JSON.stringify({ forceRefresh: false });
         }
 
@@ -126,23 +137,14 @@ function fetchSettingsData(): SettingsData | { error: string } {
         }
 
         const rawGrid: any[][] = settingsSheet.getDataRange().getValues();
-        /**
-         * Safely extracts and maps paired columns from the monolithic raw grid block.
-         * Handles native string typecasts for flags, floating numbers, and timestamps.
-         * @param keyColIdx Column Index for Keys (e.g., Column A = 0, C = 2, E = 4)
-         * @param valColIdx Column Index for Values (e.g., Column B = 1, D = 3, F = 5)
-         * @param maxRows The boundary limit of configurations inside this subgroup
-         */
-        const extractGroup = (keyColIdx: number, valColIdx: number, maxRows: number): any => {
+
+        const extractSettings = (keyName: string): SettingsData[keyof SettingsData] => {
+            const { keyCol, valCol } = COLUMNS[keyName];
             const resultObject: any = {};
-            for (let i = 0; i < maxRows; i++) {
-                const row = rawGrid[i];
-                if (!row) break;
-
-                const key = row[keyColIdx];
-                let val = row[valColIdx];
-
+            for (let i = ROW_START - 1; i < rawGrid.length; i++) {
                 // Ensure key exists and isn't whitespace padding
+                const key = rawGrid[i][keyCol - 1];
+                let val = rawGrid[i][valCol - 1];
                 if (key !== undefined && key !== null && String(key).trim() !== "") {
                     const cleanKey = String(key).trim();
 
@@ -168,18 +170,12 @@ function fetchSettingsData(): SettingsData | { error: string } {
             return resultObject;
         };
 
-        const importantDates = extractGroup(0, 1, 12) as ImportantDates;
-        const standardPercentages = extractGroup(2, 3, 5) as StandardPercentages;
-        const mandatedPolicies = extractGroup(4, 5, 3) as MandatedPolicies;
-        const ledgersAndRecords = extractGroup(6, 7, 5) as LedgersAndRecords;
-        const limits = extractGroup(8, 9, 3) as Limits;
-
         return {
-            importantDates,
-            standardPercentages,
-            mandatedPolicies,
-            ledgersAndRecords,
-            limits
+            importantDates: extractSettings("importantDates") as ImportantDates,
+            standardPercentages: extractSettings("standardPercentages") as StandardPercentages,
+            mandatedPolicies: extractSettings("mandatedPolicies") as MandatedPolicies,
+            ledgersAndRecords: extractSettings("ledgersAndRecords") as LedgersAndRecords,
+            limits: extractSettings("limits") as Limits,
         };
     } catch (err: any) {
         Logger.log(`Error in fetchSettingsData: ${err.message}`);
