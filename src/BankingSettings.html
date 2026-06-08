@@ -48,201 +48,8 @@
 
         <!-- Content -->
         <div class="content">
-            <!-- Card 1: Important Dates -->
-            <div class="settings-card">
-                <div class="card-title">📅 Important Dates</div>
-
-                <label class="label-normal"><strong>Banking Period</strong></label>
-                <div class="grid-2-col">
-                    <div>
-                        <label for="startBankingDate">Start Date</label>
-                        <input type="date" id="startBankingDate">
-                    </div>
-                    <div>
-                        <label for="endBankingDate">End Date</label>
-                        <input type="date" id="endBankingDate">
-                    </div>
-                </div>
-
-                <label class="label-normal"><strong>Investments Period</strong></label>
-                <div class="grid-2-col">
-                    <div>
-                        <label for="startInvestingDate">Start Date</label>
-                        <input type="date" id="startInvestingDate">
-                    </div>
-                    <div>
-                        <label for="endInvestingDate">End Date</label>
-                        <input type="date" id="endInvestingDate">
-                    </div>
-                </div>
-
-                <label class="label-normal"><strong>Quarters</strong></label>
-                <div class="grid-2-col">
-                    <div>
-                        <label for="startQ1Date">Q1 Start</label>
-                        <input type="date" id="startQ1Date">
-                    </div>
-                    <div>
-                        <label for="endQ1Date">Q1 End</label>
-                        <input type="date" id="endQ1Date">
-                    </div>
-                </div>
-
-                <div class="grid-2-col">
-                    <div>
-                        <label for="startQ2Date">Q2 Start</label>
-                        <input type="date" id="startQ2Date">
-                    </div>
-                    <div>
-                        <label for="endQ2Date">Q2 End</label>
-                        <input type="date" id="endQ2Date">
-                    </div>
-                </div>
-
-                <div class="grid-2-col">
-                    <div>
-                        <label for="startQ3Date">Q3 Start</label>
-                        <input type="date" id="startQ3Date">
-                    </div>
-                    <div>
-                        <label for="endQ3Date">Q3 End</label>
-                        <input type="date" id="endQ3Date">
-                    </div>
-                </div>
-
-                <div class="grid-2-col-no-margin">
-                    <div>
-                        <label for="startQ4Date">Q4 Start</label>
-                        <input type="date" id="startQ4Date">
-                    </div>
-                    <div>
-                        <label for="endQ4Date">Q4 End</label>
-                        <input type="date" id="endQ4Date">
-                    </div>
-                </div>
-
-                <div class="info-box info-box-margin-top">
-                    💡 <strong>Note:</strong> Q2 represents the semester. All dates affect validation and reporting.
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-primary" id="saveDatesBtn">💾 Save</button>
-                    <button class="btn btn-danger" id="resetDatesBtn"
-                        onclick="initializeBankingSettings(false, 'dates')">Reset to Default</button>
-                </div>
-            </div>
-
-            <!-- Card 2: Standard Percentages -->
-            <div class="settings-card">
-                <div class="card-title">📊 Standard Percentages</div>
-
-                <label for="weeklyInterestRate">Weekly Interest Rate (%)</label>
-                <input type="number" id="weeklyInterestRate" placeholder="0.00" step="0.01" min="0" max="100">
-
-                <label for="investmentWithdrawalTaxRate">Investment Withdrawal Tax Rate (%)</label>
-                <input type="number" id="investmentWithdrawalTaxRate" placeholder="0.00" step="0.01" min="0" max="100">
-
-                <div class="info-box">
-                    💡 <strong>Note:</strong> These rates are applied to financial transactions automatically.
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-primary" id="savePercentagesBtn">💾 Save</button>
-                    <button class="btn btn-danger" id="resetPercentagesBtn"
-                        onclick="initializeBankingSettings(false, 'standardPercentages')">Reset to Default</button>
-                </div>
-            </div>
-
-            <!-- Card 3: Mandated Policies -->
-            <div class="settings-card">
-                <div class="card-title">🔒 Mandated Policies</div>
-
-                <label for="withdrawLockoutTimeframeDays">Withdrawal Lockout Timeframe (days)</label>
-                <input type="number" id="withdrawLockoutTimeframeDays" placeholder="14" step="1" min="0" max="365">
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="allowDebt">
-                    <label for="allowDebt">Allow Debt</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="enforceServicesLimits">
-                    <label for="enforceServicesLimits">Enforce Services Limits</label>
-                </div>
-
-                <div class="info-box">
-                    💡 <strong>Example:</strong> 14-day lockout prevents frequent withdrawals.
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-primary" id="savePoliciesBtn">💾 Save</button>
-                    <button class="btn btn-danger" id="resetPoliciesBtn"
-                        onclick="initializeBankingSettings(false, 'mandatedPolicies')">Reset to Default</button>
-                </div>
-            </div>
-
-            <!-- Card 4: Ledgers and Records -->
-            <div class="settings-card">
-                <div class="card-title">📋 Ledgers and Records</div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="autologTransactions">
-                    <label for="autologTransactions">Auto-log all transactions</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="logBankingDaily">
-                    <label for="logBankingDaily">Log banking daily</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="logSheetLastModified">
-                    <label for="logSheetLastModified">Log sheet last modified</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="commentExpenditures">
-                    <label for="commentExpenditures">Comment expenditures</label>
-                </div>
-
-                <div class="toggle-container">
-                    <input type="checkbox" id="autoSortNames">
-                    <label for="autoSortNames">Auto-sort names</label>
-                </div>
-
-                <div class="info-box">
-                    💡 <strong>Note:</strong> Proper logging helps maintain accurate records and audit trails.
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-primary" id="saveLedgersBtn">💾 Save</button>
-                    <button class="btn btn-danger" id="resetLedgersBtn"
-                        onclick="initializeBankingSettings(false, 'ledgersAndRecords')">Reset to Default</button>
-                </div>
-            </div>
-
-            <!-- Card 5: Limits -->
-            <div class="settings-card">
-                <div class="card-title">⚠️ Transaction Limits</div>
-
-                <label for="depositMinimum">Minimum Deposit ($)</label>
-                <input type="number" id="depositMinimum" placeholder="1.00" step="0.01" min="0">
-
-                <label for="depositMaximum">Maximum Deposit ($)</label>
-                <input type="number" id="depositMaximum" placeholder="10000" step="0.01" min="0">
-
-                <label for="expendituresMaximum">Maximum Expenditures ($)</label>
-                <input type="number" id="expendituresMaximum" placeholder="10000" step="0.01" min="0">
-
-                <div class="info-box">
-                    💡 <strong>Note:</strong> These limits are enforced on all transactions.
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-primary" id="saveLimitsBtn">💾 Save</button>
-                    <button class="btn btn-danger" id="resetLimitsBtn"
-                        onclick="initializeBankingSettings(false, 'limits')">Reset to Default</button>
-                </div>
+            <div id="dynamicSettingsContainer">
+                <!-- Dynamic content will be injected here based on server data -->
             </div>
 
             <!-- Card 6: Maintenance -->
@@ -367,6 +174,111 @@
             await initializeBankingSettings(true);
         });
 
+        const SECTION_META = {
+            importantDates: { title: "📅 Important Dates", note: "Q2 represents the semester. All dates affect validation and reporting." },
+            standardPercentages: { title: "📊 Standard Percentages", note: "These rates are applied to financial transactions automatically." },
+            mandatedPolicies: { title: "🔒 Mandated Policies", note: "Example: 14-day lockout prevents frequent withdrawals." },
+            ledgersAndRecords: { title: "📋 Ledgers and Records", note: "Proper logging helps maintain accurate records and audit trails." },
+            limits: { title: "⚠️ Transaction Limits", note: "These limits are enforced on all transactions." }
+        };
+
+        /**
+         * Converts camelCase object keys into cleanly formatted user labels
+         * Example: "withdrawLockoutTimeframeDays" -> "Withdraw Lockout Timeframe (days)"
+         */
+        function formatLabel(key) {
+            let result = key.replace(/([A-Z])/g, " $1");
+            result = result.charAt(0).toUpperCase() + result.slice(1);
+            return result.replace(/Days$/i, " (days)")
+                .replace(/Percent$/i, " (%)")
+                .replace(/Rate$/i, " Rate (%)");
+        }
+
+        /**
+         * Dynamically builds card components directly out of the server JSON object structure
+         */
+        function renderUIFromData(settingsData) {
+            const container = document.getElementById('dynamicSettingsContainer');
+            if (!container || !settingsData || settingsData.error) return;
+
+            let htmlBuffer = '';
+
+            Object.entries(settingsData).forEach(([sectionKey, sectionData]) => {
+                // Fallback parameters if a section isn't explicitly defined in our metadata map
+                const meta = SECTION_META[sectionKey] || { title: `⚙️ ${formatLabel(sectionKey)}`, note: "Configure system parameters." };
+                let cardContentHtml = '';
+
+                // Handle date logic grouping into your distinct 2-column grid system
+                if (sectionKey === 'importantDates') {
+                    const dates = Object.keys(sectionData).sort(); // Sort so starts/ends align predictably
+                    const structuralPairs = {
+                        "Banking Period": ["startBankingDate", "endBankingDate"],
+                        "Investments Period": ["startInvestingDate", "endInvestingDate"],
+                        "Quarters": ["startQ1Date", "endQ1Date", "startQ2Date", "endQ2Date", "startQ3Date", "endQ3Date", "startQ4Date", "endQ4Date"]
+                    };
+
+                    Object.entries(structuralPairs).forEach(([groupTitle, fields]) => {
+                        cardContentHtml += `<label class="label-normal"><strong>${groupTitle}</strong></label>`;
+
+                        // Loop chunk sizes of 2 elements to form matching row elements
+                        for (let i = 0; i < fields.length; i += 2) {
+                            const idStart = fields[i];
+                            const idEnd = fields[i + 1];
+
+                            // Parse ISO strings back down to pure browser safe YYYY-MM-DD input formats
+                            const valStart = sectionData[idStart] ? sectionData[idStart].split('T')[0] : '';
+                            const valEnd = sectionData[idEnd] ? sectionData[idEnd].split('T')[0] : '';
+
+                            cardContentHtml += `
+                            <div class="grid-2-col">
+                                <div>
+                                    <label for="${idStart}">${formatLabel(idStart)}</label>
+                                    <input type="date" id="${idStart}" value="${valStart}">
+                                </div>
+                                <div>
+                                    <label for="${idEnd}">${formatLabel(idEnd)}</label>
+                                    <input type="date" id="${idEnd}" value="${valEnd}">
+                                </div>
+                            </div>`;
+                        }
+                    });
+                } else {
+                    // Process standard text/number configurations or binary toggles
+                    Object.entries(sectionData).forEach(([id, value]) => {
+                        if (typeof value === 'boolean') {
+                            cardContentHtml += `
+                            <div class="toggle-container">
+                                <input type="checkbox" id="${id}" ${value ? 'checked' : ''}>
+                                <label for="${id}">${formatLabel(id)}</label>
+                            </div>`;
+                        } else {
+                            const isPercentage = id.toLowerCase().includes('rate');
+                            cardContentHtml += `
+                            <label for="${id}">${formatLabel(id)}</label>
+                            <input type="number" id="${id}" value="${value ?? ''}" 
+                                   step="${isPercentage ? '0.01' : '1'}" min="0">`;
+                        }
+                    });
+                }
+
+                // Append the built section node markup back to global memory stream
+                htmlBuffer += `
+                <div class="settings-card">
+                    <div class="card-title">${meta.title}</div>
+                    ${cardContentHtml}
+                    <div class="info-box info-box-margin-top">
+                        💡 <strong>Note:</strong> ${meta.note}
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="saveSection('${sectionKey}')">💾 Save</button>
+                        <button class="btn btn-danger" onclick="initializeBankingSettings(false, '${sectionKey}')">Reset to Default</button>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = htmlBuffer;
+        }
+
         /**
          * Initializes the banking settings form by fetching data from the server and populating the corresponding fields.
          * This function is designed to be idempotent and can be safely called multiple times,
@@ -378,44 +290,59 @@
             try {
                 const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', refreshCache);
 
-                console.log(section ? `Refreshing section: ${section}` : "Performing initial load of all settings data");
-
-                console.log("Initializing Banking Settings with data:", settingsData);
-
                 if (settingsData && !settingsData.error) {
-                    // Loop through each section and its corresponding key-value pairs
-                    // this replaces the 30 document.getElementById lines b/c it needs to scale with more settings
-                    Object.entries(settingsData).forEach(([sectionKey, sectionData]) => {
-                        if (sectionData && typeof sectionData === 'object') {
-                            Object.entries(sectionData).forEach(([id, value]) => {
-                                if (section && section !== sectionKey) return; // If a specific section is provided, skip other sections
-                                populateField(id, value);
-                            });
-                        }
-                    });
-                } else {
-                    console.warn("No valid settings data received from server:", settingsData);
+                    if (!section) {
+                        // Generate the entire layout on initial load
+                        renderUIFromData(settingsData);
+                    } else {
+                        // Update field state settings seamlessly on target refreshes
+                        Object.entries(settingsData[section] || {}).forEach(([id, value]) => {
+                            const el = document.getElementById(id);
+                            if (!el) return;
+                            if (el.type === 'checkbox') {
+                                el.checked = !!value;
+                            } else {
+                                el.value = el.type === 'date' && value ? value.split('T')[0] : (value ?? '');
+                            }
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("Error initializing banking settings:", error);
             }
         }
 
-        // Populate the given field ID with the provided value, handling different input types (text, number, checkbox)
-        function populateField(id, value) {
-            const element = document.getElementById(id);
-            if (!element) return; // Prevent crashing if an ID is missing in the HTML
+        /**
+         * Saves the current values of a specific section back to the server cache and triggers any necessary server-side updates.
+         * @param {string} sectionKey - The key of the section being saved (e
+         *g., 'importantDates', 'standardPercentages').
+         */
+        function saveSection(sectionKey) {
+            const inputs = document.querySelectorAll(`#dynamicSettingsContainer .settings-card:nth-child(${Object.keys(SECTION_META).indexOf(sectionKey) + 1}) input`);
+            const updatedData = {};
 
-            if (element.type === 'checkbox') {
-                element.checked = !!value;
-            } else {
-                element.value = value ?? '';
-            }
+            inputs.forEach(input => {
+                if (input.type === 'checkbox') {
+                    updatedData[input.id] = input.checked;
+                } else if (input.type === 'number') {
+                    updatedData[input.id] = parseFloat(input.value);
+                } else if (input.type === 'date') {
+                    // Send back to server formatted cleanly in standard ISO format string formats
+                    updatedData[input.id] = input.value ? new Date(input.value).toISOString() : null;
+                }
+            });
+
+            setValueOnServer(sectionKey, updatedData);
         }
 
+        /**
+         * Sends an updated value for a specific key back to the server to update the cache and trigger any necessary server-side processing.
+         * @param {string} key - The key of the setting being updated (e.g., 'importantDates', 'standardPercentages').
+         * @param {any} value - The new value to set for the specified key, which can be of any type depending on the setting (e.g., object, boolean, number).
+         */
         function setValueOnServer(key, value) {
             const payload = JSON.stringify({ propertyKey: key, value });
-            callServer('setProperty', payload, (response) => {
+            callServer('setSettingsProperty', payload, (response) => {
                 console.log(`Successfully set ${key} on server cache. Response:`, response);
             }, (error) => {
                 console.error(`Error setting ${key} on server cache:`, error);
