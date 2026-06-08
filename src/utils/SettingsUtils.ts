@@ -192,12 +192,17 @@ function fetchProperty(propertyKey: string): string | { error: string } {
             return { error: `Failed to fetch settings data: ${settings.error}` };
         }
 
-        // Access the requested property using the provided key.
-        // Each property key is unique and corresponds to a specific setting in the Settings sheet, such as "incomeTaxRate", "startBankingDate", "allowDebt", etc.
-        const propertyValue = (settings as any)[propertyKey];
+        // Search through each inner configuration section group
+        let propertyValue: any = undefined;
+        for (const section of Object.values(settings)) {
+            if (section && typeof section === 'object' && propertyKey in section) {
+                propertyValue = (section as any)[propertyKey];
+                break;
+            }
+        }
 
         if (propertyValue === undefined) {
-            return { error: `Property key "${propertyKey}" not found in settings data.` };
+            return { error: `Property key "${propertyKey}" not found in any settings section.` };
         }
         return String(propertyValue);
     } catch (error: any) {

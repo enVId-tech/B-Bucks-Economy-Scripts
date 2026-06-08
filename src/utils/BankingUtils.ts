@@ -145,6 +145,13 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
         }, spreadsheetId);
       }
 
+      // Comment on the rows affected by the operation with the reason and amount, with error handling to ensure it doesn't interfere with the main operation if it fails
+      commentExpenditureOnSelection(ranges.flatMap(range => {
+        const startRow = range.getRow();
+        const numRows = range.getNumRows();
+        return Array.from({ length: numRows }, (_, i) => startRow + i);
+      }), `$${value} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
+
       // After successfully applying the operations, add the transaction records
       if (transactionRecords.length > 0) {
         addTransactionRecords(transactionRecords);
@@ -275,15 +282,22 @@ function moveToSelection(amount: number, finalCells: GoogleAppsScript.Spreadshee
 }
 
 /**
- * Adds a comment to the selected cells with the provided comment text, ensuring that the comment is valid and does not exceed character limits or contain line breaks.
- * @param cells The range of cells to which the comment will be added.
- * @param comment The text of the comment to be added to the cells. Must be a string, cannot exceed 255 characters, and cannot contain line breaks.
+ * Adds a note to the specified cell range with the provided text, ensuring that the note is valid,
+ * does not exceed character limits, and does not contain line breaks.
+ * @param cells The range of cells to which the note will be added.
+ * @param comment The text of the note to be added to the cells. Must be a string, cannot exceed 255 characters, and cannot contain line breaks.
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
-function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: string): boolean {
+function commentExpenditureOnSelection(rows: number[], comment: string): boolean {
   try {
-    if (!cells || !comment) {
-      Logger.log("You must have cells and a comment.");
+    const EXPENDITURE_COL = 7;
+    if (!rows || comment === undefined || comment === null) {
+      Logger.log("You must provide both a cell range and a note string.");
+      return false;
+    }
+
+    if (typeof comment !== 'string') {
+      Logger.log("Comment must be a string.");
       return false;
     }
 
@@ -295,14 +309,20 @@ function commentOnSelection(cells: GoogleAppsScript.Spreadsheet.Range, comment: 
       Logger.log("Comment cannot contain line breaks.");
       return false;
     }
-    if (typeof comment !== 'string') {
-      Logger.log("Comment must be a string.");
-      return false;
-    }
 
-    cells.getValue().setComment(comment);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    for (const row of rows) {
+      sheet.getRange(row, EXPENDITURE_COL).setNote(comment);
+    }
+    return true;
+
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(`Error occured in commentOnSelection: ${error.message}`);
+    Logger.log(`Error occurred in commentExpenditureOnSelection: ${error.message}`);
+    try {
+      SpreadsheetApp.getUi().alert(`Error occurred in commentExpenditureOnSelection: ${error.message}`);
+    } catch (e) {
+      Logger.log(`Additionally, failed to show alert in commentExpenditureOnSelection error handling: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return false;
   }
-  return true;
 }
