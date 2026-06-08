@@ -94,7 +94,7 @@ function launchModelessDialog(templateName: string, title: string, width: number
         "cachedTransactions": ${globalData.cachedTransactions},
         "cachedInvestmentsLedger": ${globalData.cachedInvestmentsLedger}
     }`;
-    
+
     const html = template.evaluate()
         .setTitle(title)
         .setWidth(width)
