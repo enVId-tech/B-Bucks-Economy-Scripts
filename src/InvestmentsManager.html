@@ -74,12 +74,8 @@
           <div class="info-label">Current CoD</div>
           <div class="info-value" id="codAmount">$0.00</div>
         </div>
-        <div class="info-box hidden-display" id="purchaseDateBox">
-          <div class="info-label">Purchase Date</div>
-          <div class="info-value" id="purchaseDate">--</div>
-        </div>
         <div class="current-earnings info-box hidden-display" id="currentEarningsBox">
-          <div class="info-label">💰 Withdrawal Value</div>
+          <div class="info-label">💰 Total Available</div>
           <div class="info-value" id="currentEarnings">$0.00</div>
           <div id="currentEarningsDetail" class="current-earnings-detail"></div>
         </div>
@@ -92,8 +88,11 @@
         <div class="form-title">Deposit to CoD</div>
         <label for="depositAmount">Amount ($)</label>
         <input type="number" id="depositAmount" placeholder="Enter amount" step="0.01" min="0">
-        <button class="btn btn-primary deposit-button-full">Deposit All Cash</button>
 
+        <div class="btn-group">
+          <button class="btn btn-primary deposit-button-full" id="depositAllCash">Deposit All Cash</button>
+          <button class="btn btn-primary" id="depositCashCod">Deposit Cash w/ CoD</button>
+        </div>
         <!-- Override Checkbox -->
         <div class="checkbox-container">
           <input type="checkbox" id="overrideCheck" onchange="changeButtonState()">
@@ -102,8 +101,8 @@
 
         <!-- Action Buttons -->
         <div class="btn-group">
-          <button class="btn btn-deposit btn-disabled" id="depositBtn">Deposit</button>
-          <button class="btn btn-withdraw btn-disabled" id="withdrawBtn">Withdraw</button>
+          <button class="btn btn-deposit btn-disabled" id="depositBtn" onclick="handleDeposit()">Deposit</button>
+          <button class="btn btn-withdraw btn-disabled" id="withdrawBtn" onclick="handleWithdraw()">Withdraw</button>
         </div>
       </div>
 
@@ -132,9 +131,10 @@
         <!-- Custom Amount Input -->
         <div id="customAmountInput">
           <label for="customAmount">Principal Amount ($)</label>
-          <input type="number" id="customAmount" placeholder="Enter amount" step="0.01" min="0">
+          <input type="number" id="customAmount" placeholder="Enter amount" step="0.01" min="0"
+            oninput="handlePredictions()">
           <label for="customWeek" class="margin-top-10">Starting Week</label>
-          <input type="number" id="customWeek" min="0" max="52" value="1">
+          <input type="number" id="customWeek" min="0" max="52" value="1" oninput="handlePredictions()">
           <label for="customRate" class="margin-top-10">Total Interest Rate</label>
           <input type="text" id="customRate" readonly class="readonly-input">
         </div>
@@ -157,9 +157,41 @@
 
       <!-- Projections List -->
       <div class="calc-section hidden-display" id="projectionsSection">
-        <div class="calc-title">📈 52-Week Earnings Projections</div>
-        <div class="projection-container">
-          <div id="projectionContainer"></div>
+        <div class="calc-title">📈 Earnings Projections</div>
+
+        <!-- Current CoD Mode -->
+        <div id="projectionModeCurrentCoD" class="hidden-display">
+          <div class="earnings-summary">
+            <div class="earnings-summary-label">Value at Week <span id="currentCodWeek">0</span></div>
+            <div class="earnings-summary-value" id="currentCodValue">$0.00</div>
+          </div>
+          <div class="week-breakdown">
+            <div id="currentCodBreakdown"></div>
+          </div>
+        </div>
+
+        <!-- Custom Amount Mode -->
+        <div id="projectionModeCustomAmount" class="hidden-display">
+          <div class="earnings-summary">
+            <div class="earnings-summary-label">Principal: $<span id="customAmountDisplay">0.00</span> | Final Value
+            </div>
+            <div class="earnings-summary-value" id="customAmountFinalValue">$0.00</div>
+          </div>
+          <div class="week-breakdown">
+            <div id="customAmountBreakdown"></div>
+          </div>
+        </div>
+
+        <!-- From Deposit Mode -->
+        <div id="projectionModeFromDeposit" class="hidden-display">
+          <div class="earnings-summary">
+            <div class="earnings-summary-label">Deposit Input: $<span id="depositInputDisplay">0.00</span> | Final Value
+            </div>
+            <div class="earnings-summary-value" id="depositInputFinalValue">$0.00</div>
+          </div>
+          <div class="week-breakdown">
+            <div id="depositInputBreakdown"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -168,6 +200,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const investmentsData = await fetchInitialData();
+      window.appStateCache['investmentsData'] = investmentsData;
+      window.appStateCache['settingsData'] = await fetchSettingsData();
       populatePeriodSelect(investmentsData || []);
     });
 
@@ -179,6 +213,16 @@
         // populatePeriodSelect(investmentsData);
       } catch (error) {
         console.error("Error fetching initial data:", error);
+      }
+    }
+
+    async function fetchSettingsData() {
+      try {
+        const settingsData = await fetchClientData('cachedSettingsData', 'fetchSettingsDataCached');
+        console.log("Fetched Settings Data:", settingsData);
+        return settingsData;
+      } catch (error) {
+        console.error("Error fetching settings data:", error);
       }
     }
 
@@ -273,6 +317,17 @@
     }
 
     function displayStudentData(studentData) {
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
+
+      if (!studentData) {
+        console.warn("No student data provided to display.");
+        return;
+      }
+
+      if (!window.appStateCache['settingsData'] || !window.appStateCache['settingsData'].mandatedPolicies || typeof window.appStateCache['settingsData'].mandatedPolicies.withdrawLockoutTimeframeDays !== 'number') {
+        console.warn("Settings data not available in cache, cannot determine withdraw lockout timeframe, defaulting to 14 days.");
+      }
+
       // This function will take the selected student's data and update the UI elements to display their account overview, including available cash, current CoD, purchase date, and any relevant warnings or earnings projections. The implementation of this function will depend on the structure of the studentData object and how you want to present the information in the UI.
       console.log("Displaying data for student:", studentData);
 
@@ -281,24 +336,48 @@
 
       document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
       document.getElementById('codAmount').textContent = `$${studentData.netCurrentAmount ? studentData.netCurrentAmount.toFixed(2) : '0.00'}`;
+      document.getElementById('currentEarnings').textContent = `$${studentData.balance && studentData.netCurrentAmount ? (studentData.balance + studentData.netCurrentAmount).toFixed(2) : '0.00'}`;
 
       const dateStr = studentData.date ? new Date(studentData.date).toLocaleDateString() : null;
 
       // The future date a set number of days from now
       const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 14); // 14-day placeholder for CoD
+      futureDate.setDate(futureDate.getDate() + withdrawDays);
 
-      if (dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) <= 14) {
-        document.getElementById('withdrawBtn').classList.remove('hidden-display');
+      if ((dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) <= withdrawDays) || document.getElementById('overrideCheck').checked) {
+        document.getElementById('depositBtn').classList.add('btn-disabled');
+        document.getElementById('depositBtn').disabled = true;
+        document.getElementById('withdrawBtn').classList.add('btn-disabled');
+        document.getElementById('withdrawBtn').disabled = true;
+        document.getElementById('depositCashCod').classList.add('btn-disabled');
+        document.getElementById('depositCashCod').disabled = true;
       } else {
-        document.getElementById('withdrawBtn').classList.add('hidden-display');
+        document.getElementById('depositBtn').classList.remove('btn-disabled');
+        document.getElementById('depositBtn').disabled = false;
+
+        if (studentData.netCurrentAmount && studentData.netCurrentAmount > 0) {
+          document.getElementById('withdrawBtn').classList.remove('btn-disabled');
+          document.getElementById('withdrawBtn').disabled = false;
+          document.getElementById('depositCashCod').classList.remove('btn-disabled');
+          document.getElementById('depositCashCod').disabled = false;
+        } else {
+          document.getElementById('withdrawBtn').classList.add('btn-disabled');
+          document.getElementById('withdrawBtn').disabled = true;
+          document.getElementById('depositCashCod').classList.add('btn-disabled');
+          document.getElementById('depositCashCod').disabled = true;
+        }
       }
     }
 
     function changeButtonState() {
+      let withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
       if (!window.appStateCache['selectedStudentData']) {
         console.warn("No student data in cache to determine deposit button state.");
         return;
+      }
+
+      if (!window.appStateCache['settingsData'] || !window.appStateCache['settingsData'].mandatedPolicies || typeof window.appStateCache['settingsData'].mandatedPolicies.withdrawLockoutTimeframeDays !== 'number') {
+        console.warn("Settings data not available in cache, cannot determine withdraw lockout timeframe, defaulting to 14 days.");
       }
 
       if (document.getElementById('overrideCheck').checked) {
@@ -306,24 +385,34 @@
         document.getElementById('depositBtn').disabled = false;
         document.getElementById('withdrawBtn').classList.remove('btn-disabled');
         document.getElementById('withdrawBtn').disabled = false;
+        document.getElementById('depositCashCod').classList.remove('btn-disabled');
+        document.getElementById('depositCashCod').disabled = false;
         return;
+      } else {
+        document.getElementById('depositBtn').classList.remove('btn-disabled');
+        document.getElementById('depositBtn').disabled = true;
+        document.getElementById('withdrawBtn').classList.add('btn-disabled');
+        document.getElementById('withdrawBtn').disabled = true;
+        document.getElementById('depositCashCod').classList.add('btn-disabled');
+        document.getElementById('depositCashCod').disabled = true;
       }
 
       // Get date from cached selected student data
       const selectedStudentData = window.appStateCache['selectedStudentData'];
       const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
       const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 14); // 14-day
+      futureDate.setDate(futureDate.getDate() + withdrawDays); // Use withdrawal lock days
 
       const depositBtn = document.getElementById('depositBtn');
 
-      if (dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) <= 14) {
+      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) <= withdrawDays) || document.getElementById('overrideCheck').checked) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = true;
       } else if (!dateStr) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = false;
       }
+
       document.getElementById('depositBtn').classList.remove('btn-disabled');
       document.getElementById('depositBtn').disabled = false;
     }
@@ -351,6 +440,22 @@
         console.error("Error during deposit server call:", error);
         alert("An error occurred while processing the deposit. Please try again.");
       });
+    }
+
+    function handleWithdraw() {
+      // Similar to handleDeposit, this function will get the necessary information from the UI, such as the amount to withdraw, and then call a server function to process the withdrawal. The server function will need to validate the withdrawal, ensure that the student has enough CoD to withdraw, update the balances accordingly, and return any relevant information or errors back to the client to update the UI.
+      alert("Withdraw functionality is not yet implemented.");
+    }
+
+    function handlePredictions() {
+      const customAmount = parseFloat(document.getElementById('customAmount').value);
+      const customWeek = parseInt(document.getElementById('customWeek').value);
+      if (isNaN(customAmount) || customAmount <= 0 || isNaN(customWeek) || customWeek < 0) {
+        document.getElementById('customRate').value = "";
+        return;
+      }
+
+
     }
   </script>
 </body>
