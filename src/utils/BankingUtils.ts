@@ -290,7 +290,7 @@ function moveToSelection(amount: number, finalCells: GoogleAppsScript.Spreadshee
  */
 function commentExpenditureOnSelection(rows: number[], comment: string): boolean {
   try {
-    const EXPENDITURE_COL = 7;
+    const EXPENDITURE_COL = 5;
     if (!rows || comment === undefined || comment === null) {
       Logger.log("You must provide both a cell range and a note string.");
       return false;
