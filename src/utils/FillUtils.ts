@@ -24,13 +24,20 @@ function fillSheetsWithData(data: string): boolean {
         const spreadsheetId = spreadsheet.getId();
         let sheets = spreadsheet.getSheets();
 
-        const cellToStartFrom = "A7"; // Starting cell for filling data
+        const cellToStartFrom = "A7";
         const cellToSetName = "A2"; // Cell to set the identifier name
 
         let targetSheet = sheets.find(s => s.getName() === "Period " + entry.identifier);
 
         let isFreshlyCreated = false;
         let forceUnideFreshSheet = false;
+
+        // If the sheet already exists, delete it first to force a clean recreation from scratch
+        if (targetSheet) {
+            spreadsheet.deleteSheet(targetSheet);
+            targetSheet = undefined;
+            sheets = spreadsheet.getSheets();
+        }
 
         if (!targetSheet) {
             const templateSheet = sheets.find(s => s.getName() === "Template");
@@ -48,7 +55,7 @@ function fillSheetsWithData(data: string): boolean {
 
         // Attempt to add with the Google Sheets API first, only if it fails run the fallback
         try {
-            const startRow = targetSheet.getRange(cellToStartFrom).getRow();
+            const startRow = targetSheet.getRange(cellToStartFrom).getRow(); // Row 7
             const lengthParsed = entry.individuals.length;
             if (lengthParsed === 0) {
                 Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
@@ -63,20 +70,9 @@ function fillSheetsWithData(data: string): boolean {
             const requests: GoogleAppsScript.Sheets.Schema.Request[] = [];
             const valueUpdates: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
-            // Clear existing content from row (startRow) down.
-            if (!isFreshlyCreated && lastRowWithData >= (startRow + 1)) {
-                requests.push({
-                    updateCells: {
-                        range: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow, // Index 7 = Row 8 (0-indexed boundary)
-                            endRowIndex: lastRowWithData,
-                            startColumnIndex: 0,
-                            endColumnIndex: maxColumns
-                        },
-                        fields: "userEnteredValue"
-                    }
-                });
+            // Clear existing data rows starting from row 7 down to prevent old data or formatting ghost artifacts
+            if (!isFreshlyCreated && lastRowWithData >= startRow) {
+                targetSheet.getRange(startRow, 1, (lastRowWithData - startRow) + 1, maxColumns).clearContent();
             }
 
             if (forceUnideFreshSheet) {
@@ -104,100 +100,54 @@ function fillSheetsWithData(data: string): boolean {
                 return true;
             }
 
-            // The total number of rows needed is the starting row plus the length of the individuals list minus one (since the starting row is inclusive)
+            // Ensure the sheet has enough rows structurally allocated before applying ranges
             const maxRowsNeeded = startRow + lengthParsed - 1;
-
             if (maxRowsNeeded > currentMaxRows) {
-                requests.push({
-                    appendCells: {
-                        sheetId: targetSheetId,
-                        rows: Array(maxRowsNeeded - currentMaxRows).fill({
-                            values: Array(maxColumns).fill({ userEnteredValue: {} })
-                        }),
-                        fields: "userEnteredValue"
-                    }
-                });
-            } else if (currentMaxRows > maxRowsNeeded) {
-                requests.push({
-                    deleteDimension: {
-                        range: {
-                            sheetId: targetSheetId,
-                            dimension: "ROWS",
-                            startIndex: maxRowsNeeded,
-                            endIndex: currentMaxRows
-                        }
-                    }
-                });
+                targetSheet.insertRowsAfter(currentMaxRows, maxRowsNeeded - currentMaxRows);
             }
 
+            // Native formatting and formula replication pipeline (Bypasses Advanced REST structural issues)
             if (lengthParsed > 1) {
-                requests.push({
-                    copyPaste: {
-                        source: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow - 1,
-                            endRowIndex: startRow,
-                            startColumnIndex: 0,
-                            endColumnIndex: maxColumns
-                        },
-                        destination: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow,
-                            endRowIndex: maxRowsNeeded,
-                            startColumnIndex: 0,
-                            endColumnIndex: maxColumns
-                        },
-                        pasteType: "PASTE_FORMAT",
-                        pasteOrientation: "NORMAL"
-                    }
-                });
-
-                requests.push({
-                    copyPaste: {
-                        source: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow - 1,
-                            endRowIndex: startRow,
-                            startColumnIndex: 1,
-                            endColumnIndex: maxColumns
-                        },
-                        destination: {
-                            sheetId: targetSheetId,
-                            startRowIndex: startRow,
-                            endRowIndex: maxRowsNeeded,
-                            startColumnIndex: 1,
-                            endColumnIndex: maxColumns
-                        },
-                        pasteType: "PASTE_FORMULA",
-                        pasteOrientation: "NORMAL"
-                    }
-                });
+                const sourceTemplateRange = targetSheet.getRange(startRow, 1, 1, maxColumns); // Row 7 master template
+                const destinationTargetRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, maxColumns); // Target Rows 8 and below
+                
+                // Copy formulas and styling layouts securely over the newly assigned rows block
+                // Copies formatting, formulas, AND static cell values from Row 7
+                sourceTemplateRange.copyTo(destinationTargetRange, SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
             }
 
+            // Set the raw names into Column A
             const outputValues = entry.individuals.map(name => [name]);
-            valueUpdates.push({
-                range: `'Period ${entry.identifier}'!A${startRow}:A${maxRowsNeeded}`,
-                values: outputValues
-            });
+            targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
 
+            // Execute metadata updates via the advanced sheet endpoints
             if (requests.length > 0 && Sheets && Sheets.Spreadsheets) {
                 Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
             }
 
-            // Send matrix values configurations
             if (valueUpdates.length > 0 && Sheets && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
                 Sheets.Spreadsheets.Values.batchUpdate({ valueInputOption: 'USER_ENTERED', data: valueUpdates }, spreadsheetId);
             }
 
+            // Dynamically removing excess rows after filling data to keep sheets tidy
+            SpreadsheetApp.flush();
+            const updatedMaxRows = targetSheet.getMaxRows();
+            const lastActiveRow = targetSheet.getLastRow();
+            if (updatedMaxRows > lastActiveRow && lastActiveRow >= startRow) {
+                targetSheet.deleteRows(lastActiveRow + 1, updatedMaxRows - lastActiveRow);
+            }
+
+            // Forces an explicit structural recalculation chain on the workbook to re-render formulas and currency formatting
+            SpreadsheetApp.flush();
             return true;
         } catch (err: any) {
-            const startRow = targetSheet.getRange(cellToStartFrom).getRow();
+            const startRow = targetSheet.getRange(cellToStartFrom).getRow(); // Row 7
             let lengthParsed = entry.individuals.length;
 
             targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
 
             targetSheet.showSheet();
-            
+
             if (lengthParsed === 0) {
                 Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
                 return true;
@@ -206,20 +156,21 @@ function fillSheetsWithData(data: string): boolean {
             // Clear existing content from row A7 down.
             const lastRowWithData = targetSheet.getLastRow();
             if (lastRowWithData >= startRow) {
-                targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, 1).clearContent();
+                targetSheet.getRange(startRow, 1, lastRowWithData - startRow + 1, targetSheet.getMaxColumns()).clearContent();
             }
 
             const currentMaxRows = targetSheet.getMaxRows();
             if (startRow + lengthParsed > currentMaxRows) {
                 const rowsToAdd = (startRow + lengthParsed) - currentMaxRows;
-                targetSheet.insertRowsAfter(startRow, rowsToAdd);
+                targetSheet.insertRowsAfter(currentMaxRows, rowsToAdd);
             }
 
             // Set header name safely
             if (lengthParsed > 1) {
-                const sourceRange = targetSheet.getRange(startRow, 1, 1, targetSheet.getMaxColumns());
-                const destinationRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, targetSheet.getMaxColumns());
-                sourceRange.copyTo(destinationRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+                const sourceRange = targetSheet.getRange(startRow, 1, 1, targetSheet.getMaxColumns()); // Row 7
+                const destinationRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, targetSheet.getMaxColumns()); // Row 8 down
+                // Use PASTE_NORMAL to accurately clone static text blocks alongside validations
+                sourceRange.copyTo(destinationRange, SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
             }
 
             // Fill data cleanly in a single network call
@@ -227,13 +178,16 @@ function fillSheetsWithData(data: string): boolean {
             targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
 
             // Dynamically removing excess rows after filling data to keep sheets tidy
+            SpreadsheetApp.flush();
             const updatedMaxRows = targetSheet.getMaxRows();
             const lastActiveRow = targetSheet.getLastRow();
 
-            if (updatedMaxRows > lastActiveRow) {
+            if (updatedMaxRows > lastActiveRow && lastActiveRow >= startRow) {
                 const rowsToDelete = updatedMaxRows - lastActiveRow;
                 targetSheet.deleteRows(lastActiveRow + 1, rowsToDelete);
             }
+            
+            SpreadsheetApp.flush();
         }
         return true;
     } catch (err: any) {
