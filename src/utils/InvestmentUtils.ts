@@ -22,6 +22,8 @@ interface InvestmentRecord {
 }
 
 const STARTING_ROW = 7;
+
+const INITIAL_AMOUNT_COL = 7;
 const BALANCE_COL = 2;
 const EXPENDITURE_COL = 5;
 const DATE_COL = 8;
@@ -216,6 +218,66 @@ function refreshAllInvestments(): boolean {
     }
 }
 
+function refreshSingleInvestment(individualName: string, periodName: string): boolean {
+    try {
+        const periodDataArray = fetchInvestmentsLedgerData();
+        if ('error' in periodDataArray) {
+            Logger.log(`Error fetching investments ledger data for single refresh: ${periodDataArray.error}`);
+            SpreadsheetApp.getUi().alert(`Error fetching investments ledger data for single refresh: ${periodDataArray.error}`);
+            return false;
+        }
+        const interestRateProp = fetchProperty("weeklyInterestRate");
+        const taxRateProp = fetchProperty("investmentWithdrawalTaxRate");
+        if ((typeof interestRateProp === 'object' && 'error' in interestRateProp) ||
+            (typeof taxRateProp === 'object' && 'error' in taxRateProp)) {
+            SpreadsheetApp.getUi().alert("Error fetching economic configurations for calculation updates.");
+            return false;
+        }
+        const interestRate = parseFloat(interestRateProp);
+        const withdrawalTaxRate = parseFloat(taxRateProp);
+        if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) {
+            SpreadsheetApp.getUi().alert("Failed to parse banking rates. Check your Settings worksheet formulas.");
+            return false;
+        }
+
+        const periodData = periodDataArray.find(p => p.periodName === periodName);
+        if (!periodData) {
+            SpreadsheetApp.getUi().alert(`Period "${periodName}" not found.`);
+            return false;
+        }
+        const investment = periodData.investments.find(inv => inv.individualName === individualName);
+        if (!investment) {
+            SpreadsheetApp.getUi().alert(`Investment for "${individualName}" not found in period "${periodName}".`);
+            return false;
+        }
+        if (investment.initAmount !== undefined) {
+            const depositDate = investment.date ? new Date(investment.date) : null;
+            const now = new Date();
+            const weeksSinceDeposit = depositDate ? Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
+            const effectiveInterestRate = interestRate * weeksSinceDeposit;
+            const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
+            const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
+            const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;
+            investment.grossCurrentAmount = grossCurrentAmount;
+            investment.netCurrentAmount = netValue;
+            investment.netPercentageGain = percentageGain;
+            const writeSuccess = writeInvestmentsDataToSheet(periodDataArray);
+            if (!writeSuccess) {
+                SpreadsheetApp.getUi().alert("Failed to write updated investment data back to sheet.");
+                return false;
+            }
+            return true;
+        } else {
+            SpreadsheetApp.getUi().alert(`Initial amount for "${individualName}" in period "${periodName}" is undefined, cannot calculate returns.`);
+            return false;
+        }
+    } catch (err) {
+        Logger.log(`Error in refreshSingleInvestment: ${err instanceof Error ? err.message : String(err)}`);
+        SpreadsheetApp.getUi().alert(`Error in refreshSingleInvestment: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+    }
+}
+
 function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
     try {
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
@@ -262,11 +324,13 @@ function handleDeposit(data: string): boolean {
             SpreadsheetApp.getUi().alert("Deposit amount must be greater than zero.");
             return false;
         }
+
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
         if (!sheet) {
             SpreadsheetApp.getUi().alert(`Sheet for period "${period}" not found.`);
             return false;
         }
+
         const dataRange = sheet.getDataRange();
         const values = dataRange.getValues();
         let studentRow = -1;
@@ -277,35 +341,47 @@ function handleDeposit(data: string): boolean {
                 break;
             }
         }
+
         if (studentRow === -1) {
             SpreadsheetApp.getUi().alert(`Student "${student}" not found in period "${period}".`);
             return false;
         }
 
         const netCurrentAmountCell = sheet.getRange(studentRow, NET_CURRENT_AMOUNT_COL);
-        const currentNetAmount = netCurrentAmountCell.getValue();
+        const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
 
-        if (currentNetAmount !== 0) {
+        if (!isNaN(currentNetAmount) && currentNetAmount !== 0) {
             const currentReturnsCell = sheet.getRange(studentRow, RETURNS_COL);
-            const currentReturns = currentReturnsCell.getValue();
-            const newReturns = (currentReturns || 0) + amount;
-            currentReturnsCell.setValue(newReturns);
+            const currentReturns = parseFloat(currentReturnsCell.getValue()) || 0;
+            currentReturnsCell.setValue(currentReturns + amount);
         }
 
         const expenditureCell = sheet.getRange(studentRow, EXPENDITURE_COL);
-        const currentExpenditure = expenditureCell.getValue();
-        expenditureCell.setValue((currentExpenditure || 0) + amount);
-        const todaysDateMmddyyyy = new Date().toLocaleDateString("en-US");
-        sheet.getRange(studentRow, DATE_COL).setValue(todaysDateMmddyyyy);
-        commentExpenditureOnSelection([studentRow], `$${amount} - ${todaysDateMmddyyyy} CoDs/Investments`);
-    
-        const initDepositCell = sheet.getRange(studentRow, BALANCE_COL);
+        if (isNaN(expenditureCell.getValue())) {
+            expenditureCell.setValue(amount);
+        }
+        const currentExpenditure = parseFloat(expenditureCell.getValue()) || 0;
+        expenditureCell.setValue(currentExpenditure + amount);
+
+        const initDepositCell = sheet.getRange(studentRow, INITIAL_AMOUNT_COL);
         initDepositCell.setValue(amount);
 
+        const today = new Date();
+        sheet.getRange(studentRow, DATE_COL).setValue(today);
+
+        const dateString = today.toLocaleDateString("en-US");
+        commentExpenditureOnSelection([studentRow], `$${amount} - ${dateString} CoDs/Investments`);
+
+        refreshSingleInvestment(student, period);
+
+        SpreadsheetApp.flush();
         return true;
+
     } catch (err) {
         Logger.log(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
-        SpreadsheetApp.getUi().alert(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
+        try {
+            SpreadsheetApp.getUi().alert(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
+        } catch (e) { }
         return false;
     }
 }
