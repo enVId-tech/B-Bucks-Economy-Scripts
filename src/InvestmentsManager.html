@@ -271,7 +271,7 @@
         });
     }
 
-    async function fetchAndDisplayStudentData() {
+    async function fetchAndDisplayStudentData(isInitialLoad = true) {
       try {
         const periodSelected = document.getElementById('periodSelect').value;
         const studentSelected = document.getElementById('studentSelect').value;
@@ -282,20 +282,22 @@
           return;
         }
 
-        // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
-        // Because we don't refetch on this for responsiveness, we need to make sure to update the display with the correct data once the fresh data is fetched, which is why we call fetchInitialData again with forceRefresh set to true after displaying the initial data. This way, we can show something immediately based on the cached data, and then fetch the real data.
-        const investmentsData = await fetchInitialData(false);
-        let targetPeriod = investmentsData.find(p => p.periodName === periodSelected);
-        let targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
+        if (isInitialLoad) {
+          // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
+          // Because we don't refetch on this for responsiveness, we need to make sure to update the display with the correct data once the fresh data is fetched, which is why we call fetchInitialData again with forceRefresh set to true after displaying the initial data. This way, we can show something immediately based on the cached data, and then fetch the real data.
+          const investmentsData = await fetchInitialData(false);
+          let targetPeriod = investmentsData.find(p => p.periodName === periodSelected);
+          let targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
 
-        if (targetStudent) {
-          // Update the UI immediately to reflect responsiveness, may not reflect the current values.
-          displayStudentData(targetStudent);
+          if (targetStudent) {
+            // Update the UI immediately to reflect responsiveness, may not reflect the current values.
+            displayStudentData(targetStudent);
 
-          // Set cache
-          window.appStateCache['selectedStudentData'] = targetStudent;
-        } else {
-          console.warn("Selected student data not found in the fetched investments data.");
+            // Set cache
+            window.appStateCache['selectedStudentData'] = targetStudent;
+          } else {
+            console.warn("Selected student data not found in the fetched investments data.");
+          }
         }
 
         // Actually update the data to reflect true values
@@ -430,11 +432,11 @@
       // Call server function to handle the deposit logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the deposit, update the student's balance and CoD accordingly, and return any relevant information or errors back to the client to update the UI.
       callServer('handleDeposit', JSON.stringify({ amount: amount, student: selectedStudent, period: selectedPeriod }), (response) => {
         console.log("Deposit response from server:", response);
-        if (response.success) {
+        if (response) {
           alert("Deposit successful!");
-          fetchAndDisplayStudentData(); // Refresh the displayed data after a successful deposit
+          fetchAndDisplayStudentData(false); // Refresh the displayed data after a successful deposit
         } else {
-          alert(`Deposit failed: ${response.error}`);
+          alert("Deposit failed.");
         }
       }, (error) => {
         console.error("Error during deposit server call:", error);
