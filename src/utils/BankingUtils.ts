@@ -35,6 +35,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       return "Value must be a number.";
     }
 
+    // Absolutely ENSURE there is no floating point precision issues
+    // god damn floating point issues kms
+    value = Number(value.toFixed(2));
+
     // Ensure the operation is in an enum format
     // Edge case handling
     let normalMapping: Operation;
@@ -63,10 +67,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
     // Define the operations in a mapping for cleaner code
     const operations: Record<Operation, (n: number) => number> = {
-      [Operation.ADD]: (n) => n + value,
-      [Operation.SUBTRACT]: (n) => n - value,
-      [Operation.MULTIPLY]: (n) => n * value,
-      [Operation.DIVIDE]: (n) => n / value,
+      [Operation.ADD]: (n) => Number((n + value).toFixed(2)),
+      [Operation.SUBTRACT]: (n) => Number((n - value).toFixed(2)),
+      [Operation.MULTIPLY]: (n) => Number((n * value).toFixed(2)),
+      [Operation.DIVIDE]: (n) => Number((n / value).toFixed(2)),
     };
 
     const operationFunc = operations[normalMapping];
@@ -102,7 +106,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
           return row.map(cell => {
             if (typeof cell === 'number' && !isNaN(cell)) {
-              const result = operationFunc(cell);
+              const result = Number(operationFunc(cell).toFixed(2));
 
               Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
 
@@ -113,9 +117,9 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                   individual: individualName,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
                   service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                  initialAmount: cell,
-                  tenderedAmount: value,
-                  finalAmount: result,
+                  initialAmount: Number(cell.toFixed(2)),
+                  tenderedAmount: Number(value.toFixed(2)),
+                  finalAmount: Number(result.toFixed(2)),
                   quantityOfServices: 1,
                   timestamp: new Date()
                 });
@@ -150,7 +154,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
         const startRow = range.getRow();
         const numRows = range.getNumRows();
         return Array.from({ length: numRows }, (_, i) => startRow + i);
-      }), `$${value} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
+      }), `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
 
       // After successfully applying the operations, add the transaction records
       if (transactionRecords.length > 0) {
@@ -189,20 +193,21 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
             return row.map(cell => {
               if (typeof cell === 'number' && !isNaN(cell)) {
-                const result = operationFunc(cell);
+                const result = Number(operationFunc(cell).toFixed(2));
 
                 Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
 
                 if (result && typeof result === 'number' && !isNaN(result)) {
+                  // Absolutely ENSURE there is no floating point precision issues
                   const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
 
                   transactionRecords.push({
                     individual: individualName,
                     type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
                     service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                    initialAmount: cell,
-                    tenderedAmount: value,
-                    finalAmount: result,
+                    initialAmount: Number(cell.toFixed(2)),
+                    tenderedAmount: Number(result.toFixed(2)),
+                    finalAmount: Number(result.toFixed(2)),
                     quantityOfServices: 1,
                     timestamp: new Date()
                   });

@@ -117,7 +117,7 @@ function fetchServicesData(): ItemData[] | { error: string } {
             // Find boundaries
             const minCol = Math.min(...pricingCols, ...limitCols);
             const maxCol = Math.max(...pricingCols, ...limitCols);
-            const colCount = maxCol - minCol + 1;
+            const colCount = Number((maxCol - minCol + 1).toFixed(2));
 
             // Get all relevant cells in a single batch to minimize API calls
             const rowValues = servicesSheet.getRange(row, minCol, 1, colCount).getValues()[0];
@@ -130,8 +130,8 @@ function fetchServicesData(): ItemData[] | { error: string } {
                 const priceVal = rowValues[pricingCols[i] - minCol];
                 const limitVal = rowValues[limitCols[i] - minCol];
 
-                if (priceVal !== "") pricing[quarterKey] = Number(priceVal);
-                if (limitVal !== "") limit[quarterKey] = Number(limitVal);
+                if (priceVal !== "") pricing[quarterKey] = Number(priceVal.toFixed(2));
+                if (limitVal !== "") limit[quarterKey] = Number(limitVal.toFixed(2));
             }
 
             // Only include items that have a name, category, and at least one pricing

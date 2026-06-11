@@ -125,13 +125,15 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
 
             for (let row = startingRow - 1; row < values.length; row++) {
                 const individualName = values[row][0];
-                const balance = values[row][1];
-                const returnsAmount = values[row][5];
-                const initAmount = values[row][6];
+                const balance = Number(values[row][1].toFixed(2));
+                const returnsAmount = Number(values[row][5].toFixed(2));
+                const initAmount = Number(values[row][6].toFixed(2));
                 const dateValue = values[row][7];
-                const grossCurrentAmount = values[row][8];
-                const netCurrentAmount = values[row][9];
-                const netPercentageGain = values[row][10];
+                const grossCurrentAmount = Number(values[row][8].toFixed(2));
+                const netCurrentAmount = Number(values[row][9].toFixed(2));
+                // the percentage with 2 decimal places is represented as a number
+                // with 4 decimal places since the lowest you can represent is 0.01% = 0.0001
+                const netPercentageGain = Number(values[row][10].toFixed(4));
 
                 if (individualName) {
                     investments.push({
@@ -184,8 +186,8 @@ function refreshAllInvestments(): boolean {
             return false;
         }
 
-        const interestRate = parseFloat(interestRateProp);
-        const withdrawalTaxRate = parseFloat(taxRateProp);
+        const interestRate = Number(interestRateProp);
+        const withdrawalTaxRate = Number(taxRateProp);
 
         if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) {
             SpreadsheetApp.getUi().alert("Failed to parse banking rates. Check your Settings worksheet formulas.");
@@ -199,12 +201,13 @@ function refreshAllInvestments(): boolean {
                     // calculate interest based on weeks since deposit
                     const depositDate = investment.date ? new Date(investment.date) : null;
                     const now = new Date();
-                    const weeksSinceDeposit = depositDate ? Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
-                    const effectiveInterestRate = interestRate * (weeksSinceDeposit + 1);
+                    const weeksSinceDeposit = depositDate ? Number(Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)).toFixed(2)) : 0;
+                    const effectiveInterestRate = Number((interestRate * (weeksSinceDeposit + 1)).toFixed(4));
 
-                    const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
-                    const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
-                    const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;
+                    const grossCurrentAmount = Number((investment.initAmount * (1 + effectiveInterestRate)).toFixed(2));
+                    const netValue = Number((grossCurrentAmount * (1 - withdrawalTaxRate)).toFixed(2));
+                    const percentageGain = investment.initAmount > 0 ? Number(((netValue - investment.initAmount) / investment.initAmount).toFixed(4)) : 0;
+                    
                     investment.grossCurrentAmount = grossCurrentAmount;
                     investment.netCurrentAmount = netValue;
                     investment.netPercentageGain = percentageGain;
@@ -273,11 +276,12 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
         if (investment.initAmount !== undefined) {
             const depositDate = investment.date ? new Date(investment.date) : null;
             const now = new Date();
-            const weeksSinceDeposit = depositDate ? Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
-            const effectiveInterestRate = interestRate * (weeksSinceDeposit + 1);
-            const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
-            const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
-            const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;
+            const weeksSinceDeposit = depositDate ? Number(Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)).toFixed(2)) : 0;
+            const effectiveInterestRate = Number((interestRate * (weeksSinceDeposit + 1)).toFixed(4));
+            const grossCurrentAmount = Number((investment.initAmount * (1 + effectiveInterestRate)).toFixed(2));
+            const netValue = Number((grossCurrentAmount * (1 - withdrawalTaxRate)).toFixed(2));
+            const percentageGain = investment.initAmount > 0 ? Number(((netValue - investment.initAmount) / investment.initAmount).toFixed(4)) : 0;
+            
             investment.grossCurrentAmount = grossCurrentAmount;
             investment.netCurrentAmount = netValue;
             investment.netPercentageGain = percentageGain;
@@ -327,11 +331,11 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
 
         // Update the investment data in the sheet.
         sheet.getRange(investmentRow, 1).setValue(investment.individualName);
-        sheet.getRange(investmentRow, RETURNS_COL).setValue(investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00);
-        sheet.getRange(investmentRow, INITIAL_AMOUNT_COL).setValue(investment.initAmount !== undefined ? investment.initAmount : 0.00);
-        sheet.getRange(investmentRow, GROSS_CURRENT_AMOUNT_COL).setValue(investment.grossCurrentAmount !== undefined ? investment.grossCurrentAmount : 0.00);
-        sheet.getRange(investmentRow, NET_CURRENT_AMOUNT_COL).setValue(investment.netCurrentAmount !== undefined ? investment.netCurrentAmount : 0.00);
-        sheet.getRange(investmentRow, NET_PERCENTAGE_GAIN_COL).setValue(investment.netPercentageGain !== undefined ? investment.netPercentageGain : 0.00);
+        sheet.getRange(investmentRow, RETURNS_COL).setValue(Number(investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2));
+        sheet.getRange(investmentRow, INITIAL_AMOUNT_COL).setValue(Number(investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2));
+        sheet.getRange(investmentRow, GROSS_CURRENT_AMOUNT_COL).setValue(Number(investment.grossCurrentAmount !== undefined ? investment.grossCurrentAmount : 0.00).toFixed(2));
+        sheet.getRange(investmentRow, NET_CURRENT_AMOUNT_COL).setValue(Number(investment.netCurrentAmount !== undefined ? investment.netCurrentAmount : 0.00).toFixed(2));
+        sheet.getRange(investmentRow, NET_PERCENTAGE_GAIN_COL).setValue(Number(investment.netPercentageGain !== undefined ? investment.netPercentageGain : 0.00).toFixed(4));
 
         if (investment.date) {
             const parsedDate = new Date(investment.date);
@@ -374,10 +378,10 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                     // Update the investment data in the sheet.
                     if (targetRow !== -1) {
                         sheet.getRange(targetRow, 1).setValue(inv.individualName);
-                        sheet.getRange(targetRow, INITIAL_AMOUNT_COL).setValue(inv.initAmount !== undefined ? inv.initAmount : 0.00);
-                        sheet.getRange(targetRow, GROSS_CURRENT_AMOUNT_COL).setValue(inv.grossCurrentAmount !== undefined ? inv.grossCurrentAmount : 0.00);
-                        sheet.getRange(targetRow, NET_CURRENT_AMOUNT_COL).setValue(inv.netCurrentAmount !== undefined ? inv.netCurrentAmount : 0.00);
-                        sheet.getRange(targetRow, NET_PERCENTAGE_GAIN_COL).setValue(inv.netPercentageGain !== undefined ? inv.netPercentageGain : 0.00);
+                        sheet.getRange(targetRow, INITIAL_AMOUNT_COL).setValue(Number(inv.initAmount !== undefined ? inv.initAmount : 0.00).toFixed(2));
+                        sheet.getRange(targetRow, GROSS_CURRENT_AMOUNT_COL).setValue(Number(inv.grossCurrentAmount !== undefined ? inv.grossCurrentAmount : 0.00).toFixed(2));
+                        sheet.getRange(targetRow, NET_CURRENT_AMOUNT_COL).setValue(Number(inv.netCurrentAmount !== undefined ? inv.netCurrentAmount : 0.00).toFixed(2));
+                        sheet.getRange(targetRow, NET_PERCENTAGE_GAIN_COL).setValue(Number(inv.netPercentageGain !== undefined ? inv.netPercentageGain : 0.00).toFixed(4));
 
                         if (inv.date) {
                             const parsedDate = new Date(inv.date);

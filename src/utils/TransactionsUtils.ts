@@ -141,10 +141,10 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         record.individual,
         record.type,
         record.service,
-        record.initialAmount,
-        record.tenderedAmount,
-        record.finalAmount,
-        record.quantityOfServices,
+        Number(record.initialAmount.toFixed(2)),
+        Number(record.tenderedAmount.toFixed(2)),
+        Number(record.finalAmount.toFixed(2)),
+        Number(record.quantityOfServices.toFixed(2)),
         record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
       ];
     }
