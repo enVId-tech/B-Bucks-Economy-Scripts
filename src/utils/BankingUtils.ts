@@ -236,52 +236,6 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 }
 
 /**
- * Moves a specified amount from one cell to another, ensuring that the source cell has enough value and that both cells contain numbers.
- * @param amount The amount to move from the source cell to the final cell.
- * @param finalCells The range of cells to which the amount will be added.
- * @param initialCells (Optional) The range of cells from which the amount will be subtracted. If not provided, the currently active range will be used.
- * @returns {boolean} Returns true if the operation was successful, false otherwise.
- */
-function moveToSelection(amount: number, finalCells: GoogleAppsScript.Spreadsheet.Range, initialCells?: GoogleAppsScript.Spreadsheet.Range): boolean {
-  try {
-    if (!amount || !finalCells) throw new Error("You must have an amount and final cells.");
-
-    let sheet = SpreadsheetApp.getActiveSpreadsheet();
-
-    let sourceCells = initialCells || sheet.getActiveRange();
-
-    if (!sourceCells) {
-      Logger.log("No active range found. Please select a cell to move from.");
-      return false
-    }
-
-    let sourceValues = sourceCells.getValues();
-
-    if (typeof sourceValues !== 'number' || isNaN(sourceValues)) {
-      Logger.log("The source cell must contain a number.");
-      return false;
-    }
-    if (sourceValues < amount) {
-      Logger.log("The source cell does not have enough value to move.");
-      return false;
-    }
-
-    let finalValues = finalCells.getValues();
-
-    if (typeof finalValues !== 'number' || isNaN(finalValues)) {
-      Logger.log("The final cell must contain a number.");
-      return false;
-    }
-
-    sourceCells.setValue(sourceValues - amount);
-    finalCells.setValue(finalValues + amount);
-  } catch (error: any) {
-    SpreadsheetApp.getUi().alert(`Error occured in moveToSelection: ${error.message}`);
-  }
-  return true;
-}
-
-/**
  * Adds a note to the specified cell range with the provided text, ensuring that the note is valid,
  * does not exceed character limits, and does not contain line breaks.
  * @param cells The range of cells to which the note will be added.
