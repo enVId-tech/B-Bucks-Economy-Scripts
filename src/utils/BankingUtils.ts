@@ -312,7 +312,12 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
 
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     for (const row of rows) {
-      sheet.getRange(row, EXPENDITURE_COL).setNote(comment);
+      const currentNote = sheet.getRange(row, EXPENDITURE_COL).getNote();
+      if (currentNote) {
+        sheet.getRange(row, EXPENDITURE_COL).setNote(currentNote + "\n" + comment);
+      } else {
+        sheet.getRange(row, EXPENDITURE_COL).setNote(comment);
+      }
     }
     return true;
 
