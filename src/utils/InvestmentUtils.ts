@@ -13,9 +13,12 @@ interface PeriodData {
 interface InvestmentRecord {
     individualName: string;
     balance: number;
-    date?: string;
-    initAmount?: number;
+    earnings?: number;
+    netEarnings?: number;
+    expenditure?: number;
     returnsAmount?: number;
+    initAmount?: number;
+    date?: string;
     grossCurrentAmount?: number;
     netCurrentAmount?: number;
     netPercentageGain?: number;
@@ -24,11 +27,12 @@ interface InvestmentRecord {
 const STARTING_ROW = 7;
 
 const INITIAL_AMOUNT_COL = 7;
-const BALANCE_COL = 2;
 const EXPENDITURE_COL = 5;
 const DATE_COL = 8;
 const RETURNS_COL = 6;
 const NET_CURRENT_AMOUNT_COL = 10;
+const GROSS_CURRENT_AMOUNT_COL = 9;
+const NET_PERCENTAGE_GAIN_COL = 11;
 
 /**
  *  Fetches investments ledger data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the investments ledger data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access investments ledger data while also providing a mechanism to refresh the data when necessary.
@@ -158,6 +162,10 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
     }
 }
 
+/**
+ * Refreshes the data for all investments across all periods.
+ * @returns A boolean indicating whether the operation was successful.
+ */
 function refreshAllInvestments(): boolean {
     try {
         const periodDataArray = fetchInvestmentsLedgerData();
@@ -218,6 +226,12 @@ function refreshAllInvestments(): boolean {
     }
 }
 
+/**
+ * Refreshes the data for a single investment within a specific period.
+ * @param individualName The name of the individual whose investment needs to be refreshed.
+ * @param periodName The name of the period in which the investment is located.
+ * @returns A boolean indicating whether the operation was successful.
+ */
 function refreshSingleInvestment(individualName: string, periodName: string): boolean {
     try {
         const periodDataArray = fetchInvestmentsLedgerData();
@@ -226,6 +240,8 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             SpreadsheetApp.getUi().alert(`Error fetching investments ledger data for single refresh: ${periodDataArray.error}`);
             return false;
         }
+
+        // Fetch the necessary economic properties for the calculation.
         const interestRateProp = fetchProperty("weeklyInterestRate");
         const taxRateProp = fetchProperty("investmentWithdrawalTaxRate");
         if ((typeof interestRateProp === 'object' && 'error' in interestRateProp) ||
@@ -233,6 +249,8 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             SpreadsheetApp.getUi().alert("Error fetching economic configurations for calculation updates.");
             return false;
         }
+
+        // Parse the economic properties into numbers.
         const interestRate = parseFloat(interestRateProp);
         const withdrawalTaxRate = parseFloat(taxRateProp);
         if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) {
@@ -250,6 +268,8 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             SpreadsheetApp.getUi().alert(`Investment for "${individualName}" not found in period "${periodName}".`);
             return false;
         }
+
+        // Calculate the updated investment values based on the current date and the economic properties.
         if (investment.initAmount !== undefined) {
             const depositDate = investment.date ? new Date(investment.date) : null;
             const now = new Date();
@@ -261,7 +281,9 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             investment.grossCurrentAmount = grossCurrentAmount;
             investment.netCurrentAmount = netValue;
             investment.netPercentageGain = percentageGain;
-            const writeSuccess = writeInvestmentsDataToSheet(periodDataArray);
+
+            // Write the updated investment data back to the sheet.
+            const writeSuccess = writeSingleInvestmentToSheet(periodData, investment);
             if (!writeSuccess) {
                 SpreadsheetApp.getUi().alert("Failed to write updated investment data back to sheet.");
                 return false;
@@ -278,38 +300,109 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
     }
 }
 
+/**
+ * Writes the updated investment data back to the sheet.
+ * @param periodData The data for the period.
+ * @param investment The updated investment record.
+ * @returns A boolean indicating whether the operation was successful.
+ */
+function writeSingleInvestmentToSheet(periodData: PeriodData, investment: InvestmentRecord): boolean {
+    try {
+        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodData.periodName);
+        if (!sheet) return false;
+
+        const dataRange = sheet.getDataRange();
+        const values = dataRange.getValues();
+        let investmentRow = -1;
+
+        // Find the row of the investment in the sheet.
+        for (let i = STARTING_ROW - 1; i < values.length; i++) {
+            if (values[i][0] === investment.individualName) {
+                investmentRow = i + 1;
+                break;
+            }
+        }
+
+        if (investmentRow === -1) return false;
+
+        // Update the investment data in the sheet.
+        sheet.getRange(investmentRow, 1).setValue(investment.individualName);
+        sheet.getRange(investmentRow, RETURNS_COL).setValue(investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00);
+        sheet.getRange(investmentRow, INITIAL_AMOUNT_COL).setValue(investment.initAmount !== undefined ? investment.initAmount : 0.00);
+        sheet.getRange(investmentRow, GROSS_CURRENT_AMOUNT_COL).setValue(investment.grossCurrentAmount !== undefined ? investment.grossCurrentAmount : 0.00);
+        sheet.getRange(investmentRow, NET_CURRENT_AMOUNT_COL).setValue(investment.netCurrentAmount !== undefined ? investment.netCurrentAmount : 0.00);
+        sheet.getRange(investmentRow, NET_PERCENTAGE_GAIN_COL).setValue(investment.netPercentageGain !== undefined ? investment.netPercentageGain : 0.00);
+
+        if (investment.date) {
+            const parsedDate = new Date(investment.date);
+            sheet.getRange(investmentRow, DATE_COL).setValue(!isNaN(parsedDate.getTime()) ? parsedDate : investment.date);
+        } else {
+            sheet.getRange(investmentRow, DATE_COL).setValue('');
+        }
+
+        SpreadsheetApp.flush();
+        return true;
+    } catch (err) {
+        Logger.log(`Error in writeSingleInvestmentToSheet: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+    }
+}
+
+/**
+ * Writes the updated investment data for all periods back to the respective sheets.
+ * @param periodDataArray An array of period data containing the updated investment records.
+ * @returns A boolean indicating whether the operation was successful.
+ */
 function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
     try {
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
         periodDataArray.forEach(periodData => {
             const sheet = allSheets.find(s => s.getName() === periodData.periodName);
             if (sheet) {
-                // Write only the investment data back to the sheet, leaving other columns untouched.
                 const investments = periodData.investments;
-                const outputValues = investments.map(inv => [
-                    inv.individualName,
-                    inv.balance,
-                    '', '', '',
-                    inv.returnsAmount !== undefined ? inv.returnsAmount : '',
-                    inv.initAmount !== undefined ? inv.initAmount : '',
-                    inv.date ? new Date(inv.date) : '',
-                    inv.grossCurrentAmount !== undefined ? inv.grossCurrentAmount : '',
-                    inv.netCurrentAmount !== undefined ? inv.netCurrentAmount : '',
-                    inv.netPercentageGain !== undefined ? inv.netPercentageGain : ''
-                ]);
-                const range = sheet.getRange(STARTING_ROW, 1, outputValues.length, 11);
-                range.setValues(outputValues);
+                const values = sheet.getDataRange().getValues();
+
+                investments.forEach(inv => {
+                    let targetRow = -1;
+                    for (let i = STARTING_ROW - 1; i < values.length; i++) {
+                        if (values[i][0] === inv.individualName) {
+                            targetRow = i + 1;
+                            break;
+                        }
+                    }
+
+                    // Update the investment data in the sheet.
+                    if (targetRow !== -1) {
+                        sheet.getRange(targetRow, 1).setValue(inv.individualName);
+                        sheet.getRange(targetRow, INITIAL_AMOUNT_COL).setValue(inv.initAmount !== undefined ? inv.initAmount : 0.00);
+                        sheet.getRange(targetRow, GROSS_CURRENT_AMOUNT_COL).setValue(inv.grossCurrentAmount !== undefined ? inv.grossCurrentAmount : 0.00);
+                        sheet.getRange(targetRow, NET_CURRENT_AMOUNT_COL).setValue(inv.netCurrentAmount !== undefined ? inv.netCurrentAmount : 0.00);
+                        sheet.getRange(targetRow, NET_PERCENTAGE_GAIN_COL).setValue(inv.netPercentageGain !== undefined ? inv.netPercentageGain : 0.00);
+
+                        if (inv.date) {
+                            const parsedDate = new Date(inv.date);
+                            sheet.getRange(targetRow, DATE_COL).setValue(!isNaN(parsedDate.getTime()) ? parsedDate : inv.date);
+                        } else {
+                            sheet.getRange(targetRow, DATE_COL).setValue('');
+                        }
+                    }
+                });
             }
         });
 
+        SpreadsheetApp.flush();
         return true;
     } catch (err) {
         Logger.log(`Error in writeInvestmentsDataToSheet: ${err instanceof Error ? err.message : String(err)}`);
-        SpreadsheetApp.getUi().alert(`Error in writeInvestmentsDataToSheet: ${err instanceof Error ? err.message : String(err)}`);
         return false;
     }
 }
 
+/**
+ * Handles a deposit transaction for a student in a specific period.
+ * @param data The JSON string containing the deposit information.
+ * @returns A boolean indicating whether the operation was successful.
+ */
 function handleDeposit(data: string): boolean {
     try {
         const parsedData = JSON.parse(data);
@@ -347,41 +440,48 @@ function handleDeposit(data: string): boolean {
             return false;
         }
 
+        // fetch the net amount first, then add it to the returns if it exists
         const netCurrentAmountCell = sheet.getRange(studentRow, NET_CURRENT_AMOUNT_COL);
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
 
         if (!isNaN(currentNetAmount) && currentNetAmount !== 0) {
             const currentReturnsCell = sheet.getRange(studentRow, RETURNS_COL);
             const currentReturns = parseFloat(currentReturnsCell.getValue()) || 0;
-            currentReturnsCell.setValue(currentReturns + amount);
+            currentReturnsCell.setValue(currentReturns + currentNetAmount);
         }
 
+        // Update the expenditure for the student
         const expenditureCell = sheet.getRange(studentRow, EXPENDITURE_COL);
         if (isNaN(expenditureCell.getValue())) {
             expenditureCell.setValue(amount);
         }
+
         const currentExpenditure = parseFloat(expenditureCell.getValue()) || 0;
         expenditureCell.setValue(currentExpenditure + amount);
 
         const initDepositCell = sheet.getRange(studentRow, INITIAL_AMOUNT_COL);
         initDepositCell.setValue(amount);
 
+        // Update the date for the student to the current date (which is also the transaction date)
         const today = new Date();
         sheet.getRange(studentRow, DATE_COL).setValue(today);
 
+        // Add a comment to the expenditure cell with the transaction details
         const dateString = today.toLocaleDateString("en-US");
         commentExpenditureOnSelection([studentRow], `$${amount} - ${dateString} CoDs/Investments`);
 
+        SpreadsheetApp.flush();
+
         refreshSingleInvestment(student, period);
 
-        SpreadsheetApp.flush();
         return true;
-
     } catch (err) {
         Logger.log(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
         try {
             SpreadsheetApp.getUi().alert(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
-        } catch (e) { }
+        } catch (e) {
+            Logger.log(`Additionally, failed to show alert for error in handleDeposit: ${e instanceof Error ? e.message : String(e)}`);
+        }
         return false;
     }
 }
