@@ -200,7 +200,7 @@ function refreshAllInvestments(): boolean {
                     const depositDate = investment.date ? new Date(investment.date) : null;
                     const now = new Date();
                     const weeksSinceDeposit = depositDate ? Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
-                    const effectiveInterestRate = interestRate * weeksSinceDeposit;
+                    const effectiveInterestRate = interestRate * (weeksSinceDeposit + 1);
 
                     const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
                     const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
@@ -274,7 +274,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             const depositDate = investment.date ? new Date(investment.date) : null;
             const now = new Date();
             const weeksSinceDeposit = depositDate ? Math.floor((now.getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) : 0;
-            const effectiveInterestRate = interestRate * weeksSinceDeposit;
+            const effectiveInterestRate = interestRate * (weeksSinceDeposit + 1);
             const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
             const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
             const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;

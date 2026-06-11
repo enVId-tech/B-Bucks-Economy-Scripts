@@ -218,7 +218,7 @@
 
     async function fetchSettingsData() {
       try {
-        const settingsData = await fetchClientData('cachedSettingsData', 'fetchSettingsDataCached');
+        const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached');
         console.log("Fetched Settings Data:", settingsData);
         return settingsData;
       } catch (error) {
@@ -346,7 +346,7 @@
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + withdrawDays);
 
-      if ((dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) <= withdrawDays) || document.getElementById('overrideCheck').checked) {
+      if ((dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays) || document.getElementById('overrideCheck').checked) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = true;
         document.getElementById('withdrawBtn').classList.add('btn-disabled');
@@ -407,7 +407,7 @@
 
       const depositBtn = document.getElementById('depositBtn');
 
-      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) <= withdrawDays) || document.getElementById('overrideCheck').checked) {
+      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays) || document.getElementById('overrideCheck').checked) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = true;
       } else if (!dateStr) {
@@ -420,17 +420,78 @@
     }
 
     function handleDeposit() {
-      const amount = parseFloat(document.getElementById('depositAmount').value);
-      if (isNaN(amount) || amount <= 0) {
+      if (!document.getElementById('depositAmount').valueAsNumber) {
+        alert("Please enter a deposit amount.");
+        return;
+      }
+
+      const depositAmount = document.getElementById('depositAmount').valueAsNumber;
+      const isOverrideChecked = document.getElementById('overrideCheck').checked;
+
+      if (isNaN(depositAmount) || depositAmount <= 0) {
         alert("Please enter a valid deposit amount greater than 0.");
+        return;
+      }
+
+      if (!document.getElementById('cashAmount').textContent.split('$')[1]) {
+        alert("Please enter a cash amount.");
+        return;
+      }
+
+      const cashAmount = document.getElementById('cashAmount').textContent.split('$')[1];
+      if (isNaN(cashAmount)) {
+        alert("Please enter a valid cash amount.");
+        return;
+      }
+
+      if (!isOverrideChecked && cashAmount < 0) {
+        alert("You have a negative cash balance. Please enter a valid cash amount greater than 0.");
+        return;
+      }
+
+      let totalAmount = 0;
+
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+      const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + withdrawDays); // Use withdrawal lock days
+
+      // Add the CoD amount to the deposit amount if the withdrawal lockout period has passed or if the override is checked
+      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) >= withdrawDays) || isOverrideChecked) {
+        if (!document.getElementById('codAmount').textContent.split('$')[1]) {
+          alert("Please enter a CoD amount.");
+          return;
+        }
+
+        const codAmount = document.getElementById('codAmount').textContent.split('$')[1];
+
+        if (isNaN(codAmount) || codAmount < 0) {
+          alert("You have a negative investment balance. This column cannot be used for deposits.");
+          return;
+        }
+        totalAmount = codAmount + depositAmount;
+      } else {
+        totalAmount = depositAmount;
+      }
+
+      if (isNaN(totalAmount) || totalAmount <= 0) {
+        alert("Please enter a valid total amount greater than 0.");
+        return;
+      }
+
+      if (totalAmount < depositAmount && !isOverrideChecked) {
+        alert("The total deposit amount is less than the deposit amount.");
         return;
       }
 
       const selectedStudent = document.getElementById('studentSelect').value;
       const selectedPeriod = document.getElementById('periodSelect').value;
 
+      console.log("Data to send:", { amount: depositAmount, student: selectedStudent, period: selectedPeriod });
+
       // Call server function to handle the deposit logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the deposit, update the student's balance and CoD accordingly, and return any relevant information or errors back to the client to update the UI.
-      callServer('handleDeposit', JSON.stringify({ amount: amount, student: selectedStudent, period: selectedPeriod }), (response) => {
+      callServer('handleDeposit', JSON.stringify({ amount: depositAmount, student: selectedStudent, period: selectedPeriod }), (response) => {
         console.log("Deposit response from server:", response);
         if (response) {
           alert("Deposit successful!");
