@@ -381,9 +381,12 @@
 
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
-      const isPastLockout = daysElapsed >= withdrawDays;
+      const validDays = Number.isNaN(daysElapsed) ? Infinity : daysElapsed;
+      const isPastLockout = validDays >= withdrawDays;
 
       const isOverride = document.getElementById('overrideCheck').checked;
+
+      console.log(`Days elapsed: ${daysElapsed}, Is past lockout: ${isPastLockout}, Is override: ${isOverride}`);
 
       if (!isPastLockout && !isOverride) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
@@ -446,7 +449,7 @@
 
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
-      const isPastLockout = daysElapsed >= withdrawDays;
+      const isPastLockout = (daysElapsed !== NaN ? daysElapsed : Infinity) >= withdrawDays;
 
       if (isPastLockout || isOverride) {
         [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
@@ -523,7 +526,8 @@
 
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
-      const isPastLockout = daysElapsed >= withdrawDays;
+      const validDays = Number.isNaN(daysElapsed) ? Infinity : daysElapsed;
+      const isPastLockout = validDays >= withdrawDays;
 
       // Add the CoD amount to the deposit amount if the withdrawal lockout period has passed or if the override is checked
       if (isPastLockout || isOverrideChecked) {
@@ -583,7 +587,8 @@
 
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
-      const isPastLockout = daysElapsed >= withdrawDays;
+      const validDays = Number.isNaN(daysElapsed) ? Infinity : daysElapsed;
+      const isPastLockout = validDays >= withdrawDays;
 
       const overrideCheck = document.getElementById('overrideCheck');
       if (!overrideCheck) {
