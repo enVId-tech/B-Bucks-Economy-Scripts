@@ -213,8 +213,8 @@ function refreshAllInvestments(): boolean {
                 const investment = periodData.investments.find(inv => inv.individualName === studentName);
                 if (investment && investment.initAmount !== undefined) {
                     const depositDate = investment.date ? new Date(investment.date) : null;
-                    const weeksSinceDeposit = depositDate && !isNaN(depositDate.getTime()) 
-                        ? Math.floor((nowTime - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) 
+                    const weeksSinceDeposit = depositDate && !isNaN(depositDate.getTime())
+                        ? Math.floor((nowTime - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7))
                         : 0;
                     const effectiveInterestRate = interestRate * weeksSinceDeposit;
 
@@ -254,12 +254,12 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
 
         const interestRateProp = fetchProperty("weeklyInterestRate");
         const taxRateProp = fetchProperty("investmentWithdrawalTaxRate");
-        
+
         if ((typeof interestRateProp === 'object' && 'error' in interestRateProp) ||
             (typeof taxRateProp === 'object' && 'error' in taxRateProp)) {
             return false;
         }
-        
+
         const interestRate = parseFloat(interestRateProp);
         const withdrawalTaxRate = parseFloat(taxRateProp);
         if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) return false;
@@ -272,14 +272,14 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
 
         if (investment.initAmount !== undefined) {
             const depositDate = investment.date ? new Date(investment.date) : null;
-            const weeksSinceDeposit = depositDate && !isNaN(depositDate.getTime()) 
-                ? Math.floor((new Date().getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) 
+            const weeksSinceDeposit = depositDate && !isNaN(depositDate.getTime())
+                ? Math.floor((new Date().getTime() - depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7))
                 : 0;
             const effectiveInterestRate = interestRate * weeksSinceDeposit;
             const grossCurrentAmount = investment.initAmount * (1 + effectiveInterestRate);
             const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
             const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;
-            
+
             // Write the calculated values to columns 9, 10, and 11 for the target row
             const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodName);
             if (!sheet) return false;
@@ -370,7 +370,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
 function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
     try {
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
-        
+
         periodDataArray.forEach(periodData => {
             const sheet = allSheets.find(s => s.getName() === periodData.periodName);
             if (!sheet) return;
@@ -387,10 +387,10 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                         break;
                     }
                 }
-                
+
                 if (targetRow !== -1) {
                     sheet.getRange(targetRow, 1).setValue(investment.individualName);
-                    
+
                     let dateObj: any = '';
                     if (investment.date) {
                         const parsedDate = new Date(investment.date);
@@ -398,12 +398,12 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                     }
 
                     const batchData = [[
-                        Number((investment.expenditure !== undefined ? investment.expenditure : 0.00).toFixed(2)), 
-                        Number((investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2)), 
-                        Number((investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2)), 
+                        Number((investment.expenditure !== undefined ? investment.expenditure : 0.00).toFixed(2)),
+                        Number((investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2)),
+                        Number((investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2)),
                         dateObj
                     ]];
-                    
+
                     sheet.getRange(targetRow, EXPENDITURE_COL, 1, 4).setValues(batchData);
                 }
             });
@@ -500,6 +500,82 @@ function handleDeposit(data: string): boolean {
             SpreadsheetApp.getUi().alert(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
         } catch (e) {
             Logger.log(`Additionally, failed to show alert for error in handleDeposit: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        return false;
+    }
+}
+
+/**
+ * Handles the withdrawal of funds from a student's investment account.
+ * @param data The withdrawal data in JSON format.
+ * @returns A boolean indicating whether the withdrawal was successful.
+ */
+function handleWithdraw(data: string): boolean {
+    try {
+        const withdrawData = JSON.parse(data);
+        const { amount, student, period } = withdrawData;
+
+        if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
+            SpreadsheetApp.getUi().alert("Invalid data format for deposit. Please check the input.");
+            return false;
+        }
+
+        if (amount <= 0) {
+            SpreadsheetApp.getUi().alert("Deposit amount must be greater than zero.");
+            return false;
+        }
+
+        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
+        if (!sheet) {
+            SpreadsheetApp.getUi().alert(`Sheet for period "${period}" not found.`);
+            return false;
+        }
+
+        const dataRange = sheet.getDataRange();
+        const values = dataRange.getValues();
+        let studentRow = -1;
+
+        for (let i = STARTING_ROW - 1; i < values.length; i++) {
+            if (values[i][0] === student) {
+                studentRow = i + 1;
+                break;
+            }
+        }
+
+        if (studentRow === -1) {
+            SpreadsheetApp.getUi().alert(`Student "${student}" not found.`);
+            return false;
+        }
+
+        // fetch the net value of the student's account
+        const netCurrentAmountCell = sheet.getRange(studentRow, NET_CURRENT_AMOUNT_COL);
+        const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
+        if (isNaN(currentNetAmount)) {
+            SpreadsheetApp.getUi().alert(`Invalid net amount for student "${student}".`);
+            return false;
+        }
+
+        // add net amount to returns
+        const returnsAmountCell = sheet.getRange(studentRow, RETURNS_COL);
+        const currentReturnsAmount = parseFloat(returnsAmountCell.getValue());
+        if (isNaN(currentReturnsAmount)) {
+            SpreadsheetApp.getUi().alert(`Invalid returns amount for student "${student}".`);
+            return false;
+        }
+
+        const newReturnsAmount = currentReturnsAmount + currentNetAmount;
+        returnsAmountCell.setValue(newReturnsAmount);
+
+        // clear the initial dep, date, gross value, net value and percentage gain
+        sheet.getRange(studentRow, INITIAL_AMOUNT_COL, 1, 5).setValues([[0, '', 0, 0, 0]]);
+
+        return true;
+    } catch (err) {
+        Logger.log(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`);
+        try {
+            SpreadsheetApp.getUi().alert(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`);
+        } catch (e) {
+            Logger.log(`Additionally, failed to show alert for error in handleWithdraw: ${e instanceof Error ? e.message : String(e)}`);
         }
         return false;
     }
