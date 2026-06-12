@@ -525,6 +525,8 @@
     }
 
     function handleWithdraw() {
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+
       const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
       const codAmount = parseFloat(codAmountText);
 
@@ -549,7 +551,7 @@
         alert("Dev issue: Override checkbox not found.");
         return;
       }
-      
+
       const isOverrideChecked = overrideCheck.checked;
       console.log("Override checked:", isOverrideChecked);
 
