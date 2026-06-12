@@ -319,8 +319,6 @@
     }
 
     function displayStudentData(studentData) {
-      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
-
       if (!studentData) {
         console.warn("No student data provided to display.");
         return;
@@ -329,6 +327,8 @@
       if (!window.appStateCache['settingsData'] || !window.appStateCache['settingsData'].mandatedPolicies || typeof window.appStateCache['settingsData'].mandatedPolicies.withdrawLockoutTimeframeDays !== 'number') {
         console.warn("Settings data not available in cache, cannot determine withdraw lockout timeframe, defaulting to 14 days.");
       }
+
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
 
       // This function will take the selected student's data and update the UI elements to display their account overview, including available cash, current CoD, purchase date, and any relevant warnings or earnings projections. The implementation of this function will depend on the structure of the studentData object and how you want to present the information in the UI.
       console.log("Displaying data for student:", studentData);
@@ -346,7 +346,16 @@
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + withdrawDays);
 
-      if ((dateStr && (futureDate - new Date(studentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays) || document.getElementById('overrideCheck').checked) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const studentDate = new Date(studentData.date);
+
+      // Calculate elapsed days between current time and purchase date
+      const daysElapsed = (new Date() - studentDate) / msPerDay;
+      const isPastLockout = daysElapsed >= withdrawDays;
+
+      const isOverride = document.getElementById('overrideCheck').checked;
+
+      if (!isPastLockout && !isOverride) {
         document.getElementById('depositBtn').classList.add('btn-disabled');
         document.getElementById('depositBtn').disabled = true;
         document.getElementById('withdrawBtn').classList.add('btn-disabled');
@@ -399,13 +408,14 @@
         return;
       }
 
-      const dateStr = selectedStudentData.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + withdrawDays);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const studentDate = new Date(selectedStudentData.date);
 
-      const isLocked = dateStr && ((futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays);
+      // Calculate elapsed days between current time and purchase date
+      const daysElapsed = (new Date() - studentDate) / msPerDay;
+      const isPastLockout = daysElapsed >= withdrawDays;
 
-      if (isLocked) {
+      if (isPastLockout || isOverride) {
         [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
           if (btn) {
             btn.classList.add('btn-disabled');
