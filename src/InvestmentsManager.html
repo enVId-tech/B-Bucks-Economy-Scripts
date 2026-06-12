@@ -90,8 +90,10 @@
         <input type="number" id="depositAmount" placeholder="Enter amount" step="0.01" min="0">
 
         <div class="btn-group">
-          <button class="btn btn-primary deposit-button-full" id="depositAllCash">Deposit All Cash</button>
-          <button class="btn btn-primary" id="depositCashCod">Deposit Cash w/ CoD</button>
+          <button class="btn btn-primary deposit-button-full" id="depositAllCash"
+            onclick="handleDepositAllCash()">Deposit All Cash</button>
+          <button class="btn btn-primary" id="depositCashCod" onclick="handleDepositCashWithCoD()">Deposit Cash w/
+            CoD</button>
         </div>
         <!-- Override Checkbox -->
         <div class="checkbox-container">
@@ -205,6 +207,11 @@
       populatePeriodSelect(investmentsData || []);
     });
 
+    /**
+     * Fetches the initial data for the investments.
+     * @param forceRefresh Whether to force a refresh of the data.
+     * @returns A promise resolving to the initial investments data.
+     */
     async function fetchInitialData(forceRefresh = false) {
       try {
         const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', forceRefresh);
@@ -216,6 +223,10 @@
       }
     }
 
+    /**
+     * Fetches the settings data for the application.
+     * @returns A promise resolving to the settings data.
+     */
     async function fetchSettingsData() {
       try {
         const settingsData = await fetchClientData('cachedSettings', 'fetchSettingsDataCached');
@@ -226,6 +237,10 @@
       }
     }
 
+    /**
+     * Populates the period select dropdown with the available periods.
+     * @param periods An array of period objects.
+     */
     function populatePeriodSelect(periods) {
       const periodSelect = document.getElementById('periodSelect');
 
@@ -243,6 +258,10 @@
       populateStudentSelect(periods);
     }
 
+    /**
+     * Populates the student select dropdown with the available students for the selected period.
+     * @param periods An array of period objects.
+     */
     function populateStudentSelect(periods) {
       const studentSelect = document.getElementById('studentSelect');
       const periodSelected = document.getElementById('periodSelect').value;
@@ -261,6 +280,9 @@
       ].join('');
     }
 
+    /**
+     * Handles the change event for the period select dropdown.
+     */
     function handlePeriodChange() {
       const investmentsData = fetchInitialData(false)
         .then(data => {
@@ -271,6 +293,10 @@
         });
     }
 
+    /**
+     * Fetches and displays the data for the selected student.
+     * @param isInitialLoad Whether this is the initial load of the data.
+     */
     async function fetchAndDisplayStudentData(isInitialLoad = true) {
       try {
         const periodSelected = document.getElementById('periodSelect').value;
@@ -318,6 +344,10 @@
       }
     }
 
+    /**
+     * Displays the data for the selected student.
+     * @param studentData The data of the student to display.
+     */
     function displayStudentData(studentData) {
       if (!studentData) {
         console.warn("No student data provided to display.");
@@ -380,6 +410,9 @@
       }
     }
 
+    /**
+     * Changes the state of the buttons based on the selected student and override status.
+     */
     function changeButtonState() {
       const overrideCheck = document.getElementById('overrideCheck');
       if (!overrideCheck) return;
@@ -443,6 +476,9 @@
       }
     }
 
+    /**
+     * Changes the state of the buttons based on the selected student and override status.
+     */
     function handleDeposit() {
       const selectedStudentData = window.appStateCache['selectedStudentData'];
 
@@ -524,6 +560,9 @@
       });
     }
 
+    /**
+     * Handles the withdrawal of funds from a student's investment account.
+     */
     function handleWithdraw() {
       const selectedStudentData = window.appStateCache['selectedStudentData'];
 
@@ -577,6 +616,9 @@
       });
     }
 
+    /**
+     * Handles the prediction of investment returns.
+     */
     function handlePredictions() {
       const customAmount = parseFloat(document.getElementById('customAmount').value);
       const customWeek = parseInt(document.getElementById('customWeek').value);
@@ -584,6 +626,38 @@
         document.getElementById('customRate').value = "";
         return;
       }
+    }
+
+    /**
+     * Handles the deposit of all available cash.
+     */
+    function handleDepositAllCash() {
+      const cashAmountText = document.getElementById('cashAmount').textContent.split('$')[1];
+      const cashAmount = parseFloat(cashAmountText);
+      if (isNaN(cashAmount) || cashAmount <= 0) {
+        return;
+      }
+
+      document.getElementById('depositAmount').value = cashAmount.toFixed(2);
+    }
+
+    /**
+     * Handles the deposit of cash with CoD.
+     */
+    function handleDepositCashWithCoD() {
+      const cashAmountText = document.getElementById('cashAmount').textContent.split('$')[1];
+      const cashAmount = parseFloat(cashAmountText);
+      if (isNaN(cashAmount) || cashAmount <= 0) {
+        return;
+      }
+
+      const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
+      const codAmount = parseFloat(codAmountText);
+      if (isNaN(codAmount) || codAmount <= 0) {
+        return;
+      }
+
+      document.getElementById('depositAmount').value = (cashAmount + codAmount).toFixed(2);
     }
   </script>
 </body>
