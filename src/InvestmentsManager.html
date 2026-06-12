@@ -372,116 +372,127 @@
     }
 
     function changeButtonState() {
-      let withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
-      if (!window.appStateCache['selectedStudentData']) {
-        console.warn("No student data in cache to determine deposit button state.");
-        return;
-      }
+      const overrideCheck = document.getElementById('overrideCheck');
+      if (!overrideCheck) return;
 
-      if (!window.appStateCache['settingsData'] || !window.appStateCache['settingsData'].mandatedPolicies || typeof window.appStateCache['settingsData'].mandatedPolicies.withdrawLockoutTimeframeDays !== 'number') {
-        console.warn("Settings data not available in cache, cannot determine withdraw lockout timeframe, defaulting to 14 days.");
-      }
-
-      if (document.getElementById('overrideCheck').checked) {
-        document.getElementById('depositBtn').classList.remove('btn-disabled');
-        document.getElementById('depositBtn').disabled = false;
-        document.getElementById('withdrawBtn').classList.remove('btn-disabled');
-        document.getElementById('withdrawBtn').disabled = false;
-        document.getElementById('depositCashCod').classList.remove('btn-disabled');
-        document.getElementById('depositCashCod').disabled = false;
-        return;
-      } else {
-        document.getElementById('depositBtn').classList.remove('btn-disabled');
-        document.getElementById('depositBtn').disabled = true;
-        document.getElementById('withdrawBtn').classList.add('btn-disabled');
-        document.getElementById('withdrawBtn').disabled = true;
-        document.getElementById('depositCashCod').classList.add('btn-disabled');
-        document.getElementById('depositCashCod').disabled = true;
-      }
-
-      // Get date from cached selected student data
+      const isOverride = overrideCheck.checked;
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
       const selectedStudentData = window.appStateCache['selectedStudentData'];
-      const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + withdrawDays); // Use withdrawal lock days
 
       const depositBtn = document.getElementById('depositBtn');
+      const withdrawBtn = document.getElementById('withdrawBtn');
+      const depositCashCodBtn = document.getElementById('depositCashCod');
 
-      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays) || document.getElementById('overrideCheck').checked) {
-        document.getElementById('depositBtn').classList.add('btn-disabled');
-        document.getElementById('depositBtn').disabled = true;
-      } else if (!dateStr) {
-        document.getElementById('depositBtn').classList.add('btn-disabled');
-        document.getElementById('depositBtn').disabled = false;
+      // If Admin Override is checked, blindly enable all operations
+      if (isOverride) {
+        [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
+          if (btn) {
+            btn.classList.remove('btn-disabled');
+            btn.disabled = false;
+          }
+        });
+        return;
       }
 
-      document.getElementById('depositBtn').classList.remove('btn-disabled');
-      document.getElementById('depositBtn').disabled = false;
+      if (!selectedStudentData) {
+        console.warn("No student data in cache to determine button states.");
+        return;
+      }
+
+      const dateStr = selectedStudentData.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + withdrawDays);
+
+      const isLocked = dateStr && ((futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) < withdrawDays);
+
+      if (isLocked) {
+        [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
+          if (btn) {
+            btn.classList.add('btn-disabled');
+            btn.disabled = true;
+          }
+        });
+      } else {
+        if (depositBtn) {
+          depositBtn.classList.remove('btn-disabled');
+          depositBtn.disabled = false;
+        }
+
+        const hasCod = selectedStudentData.netCurrentAmount && selectedStudentData.netCurrentAmount > 0;
+        [withdrawBtn, depositCashCodBtn].forEach(btn => {
+          if (btn) {
+            if (hasCod) {
+              btn.classList.remove('btn-disabled');
+              btn.disabled = false;
+            } else {
+              btn.classList.add('btn-disabled');
+              btn.disabled = true;
+            }
+          }
+        });
+      }
     }
 
     function handleDeposit() {
-      if (!document.getElementById('depositAmount').valueAsNumber) {
-        alert("Please enter a deposit amount.");
-        return;
-      }
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
 
-      const depositAmount = document.getElementById('depositAmount').valueAsNumber;
-      const isOverrideChecked = document.getElementById('overrideCheck').checked;
-
-      if (isNaN(depositAmount) || depositAmount <= 0) {
+      const depositInput = document.getElementById('depositAmount');
+      if (!depositInput || isNaN(depositInput.valueAsNumber) || depositInput.valueAsNumber <= 0) {
         alert("Please enter a valid deposit amount greater than 0.");
         return;
       }
 
-      if (!document.getElementById('cashAmount').textContent.split('$')[1]) {
-        alert("Please enter a cash amount.");
+      const depositAmount = depositInput.valueAsNumber;
+
+      if (!document.getElementById('overrideCheck')) {
+        alert("Dev issue: Override checkbox not found.");
         return;
       }
 
-      const cashAmount = document.getElementById('cashAmount').textContent.split('$')[1];
+      const overrideCheck = document.getElementById('overrideCheck');
+      if (!overrideCheck) {
+        alert("Dev issue: Override checkbox not found.");
+        return;
+      }
+      const isOverrideChecked = overrideCheck.checked;
+      console.log("Override checked:", isOverrideChecked);
+
+      const cashAmountText = document.getElementById('cashAmount').textContent.split('$')[1];
+      const cashAmount = parseFloat(cashAmountText);
       if (isNaN(cashAmount)) {
-        alert("Please enter a valid cash amount.");
+        alert("Please select a student with a valid cash amount.");
         return;
       }
 
       if (!isOverrideChecked && cashAmount < 0) {
-        alert("You have a negative cash balance. Please enter a valid cash amount greater than 0.");
+        alert("You have a negative cash balance. Cannot process deposit without Admin Override.");
         return;
       }
 
       let totalAmount = 0;
 
       const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
-      const selectedStudentData = window.appStateCache['selectedStudentData'];
-      const dateStr = selectedStudentData?.date ? new Date(selectedStudentData.date).toLocaleDateString() : null;
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + withdrawDays); // Use withdrawal lock days
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const studentDate = new Date(selectedStudentData.date);
+
+      // Calculate elapsed days between current time and purchase date
+      const daysElapsed = (new Date() - studentDate) / msPerDay;
+      const isPastLockout = daysElapsed >= withdrawDays;
+      futureDate.setDate(futureDate.getDate() + withdrawDays);
+
 
       // Add the CoD amount to the deposit amount if the withdrawal lockout period has passed or if the override is checked
-      if ((dateStr && (futureDate - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24) >= withdrawDays) || isOverrideChecked) {
-        if (!document.getElementById('codAmount').textContent.split('$')[1]) {
-          alert("Please enter a CoD amount.");
-          return;
-        }
+      if (isPastLockout || isOverrideChecked) {
+        const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
+        const codAmount = parseFloat(codAmountText);
 
-        const codAmount = document.getElementById('codAmount').textContent.split('$')[1];
-
-        if (isNaN(codAmount) || codAmount < 0) {
-          alert("You have a negative investment balance. This column cannot be used for deposits.");
-          return;
+        if (!isNaN(codAmount) && codAmount >= 0) {
+          totalAmount = codAmount + depositAmount;
+        } else {
+          totalAmount = depositAmount;
         }
-        totalAmount = codAmount + depositAmount;
       } else {
-        totalAmount = depositAmount;
-      }
-
-      if (isNaN(totalAmount) || totalAmount <= 0) {
-        alert("Please enter a valid total amount greater than 0.");
-        return;
-      }
-
-      if (totalAmount < depositAmount && !isOverrideChecked) {
-        alert("The total deposit amount is less than the deposit amount.");
+        alert("The withdrawal period is still active. Please wait until the lockout period has passed or check the override box to proceed.");
         return;
       }
 
