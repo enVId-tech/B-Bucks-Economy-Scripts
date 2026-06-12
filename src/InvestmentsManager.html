@@ -525,8 +525,54 @@
     }
 
     function handleWithdraw() {
-      // Similar to handleDeposit, this function will get the necessary information from the UI, such as the amount to withdraw, and then call a server function to process the withdrawal. The server function will need to validate the withdrawal, ensure that the student has enough CoD to withdraw, update the balances accordingly, and return any relevant information or errors back to the client to update the UI.
-      alert("Withdraw functionality is not yet implemented.");
+      const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
+      const codAmount = parseFloat(codAmountText);
+
+      if (isNaN(codAmount) || codAmount <= 0) {
+        alert("No money available for withdrawal.");
+        return;
+      }
+
+      const selectedStudent = document.getElementById('studentSelect').value;
+      const selectedPeriod = document.getElementById('periodSelect').value;
+
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const studentDate = new Date(selectedStudentData.date);
+
+      // Calculate elapsed days between current time and purchase date
+      const daysElapsed = (new Date() - studentDate) / msPerDay;
+      const isPastLockout = daysElapsed >= withdrawDays;
+
+      const overrideCheck = document.getElementById('overrideCheck');
+      if (!overrideCheck) {
+        alert("Dev issue: Override checkbox not found.");
+        return;
+      }
+      
+      const isOverrideChecked = overrideCheck.checked;
+      console.log("Override checked:", isOverrideChecked);
+
+      if (!isPastLockout && !isOverrideChecked) {
+        alert("Withdrawal is not allowed yet. Please try again or check the override option.");
+        return;
+      }
+
+      console.log("Data to send:", { amount: codAmount, student: selectedStudent, period: selectedPeriod });
+
+      // Call server function to handle the withdrawal logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the withdrawal, ensure that the student has enough CoD to withdraw, update the balances accordingly, and return any relevant information or errors back to the client to update the UI.
+      callServer('handleWithdraw', JSON.stringify({ amount: codAmount, student: selectedStudent, period: selectedPeriod }), (response) => {
+        console.log("Withdrawal response from server:", response);
+        if (response) {
+          alert("Withdrawal successful!");
+          fetchAndDisplayStudentData(false); // Refresh the displayed data after a successful withdrawal
+        } else {
+          alert("Withdrawal failed.");
+        }
+      }, (error) => {
+        console.error("Error during withdrawal server call:", error);
+        alert("An error occurred while processing the withdrawal. Please try again.");
+      });
     }
 
     function handlePredictions() {
@@ -536,8 +582,6 @@
         document.getElementById('customRate').value = "";
         return;
       }
-
-
     }
   </script>
 </body>
