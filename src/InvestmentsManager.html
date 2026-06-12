@@ -478,8 +478,6 @@
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
       const isPastLockout = daysElapsed >= withdrawDays;
-      futureDate.setDate(futureDate.getDate() + withdrawDays);
-
 
       // Add the CoD amount to the deposit amount if the withdrawal lockout period has passed or if the override is checked
       if (isPastLockout || isOverrideChecked) {
