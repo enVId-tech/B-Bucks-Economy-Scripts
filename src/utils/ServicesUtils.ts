@@ -40,15 +40,15 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
-            const cachedString = getCachedData(SERVICES_CACHED);
+            const cachedString = getCachedData(SERVICES_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Services data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as ItemData[];
             }
 
-            const savedProperties = props.getProperty(SERVICES_CACHED);
+            const savedProperties = props.getProperty(SERVICES_CACHED_KEY);
             if (savedProperties) {
-                cache.put(SERVICES_CACHED, savedProperties, SERVER_SIDE_CACHE_AGE);
+                cache.put(SERVICES_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
                 return JSON.parse(savedProperties);
             }
         }
@@ -58,7 +58,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         const freshServices = fetchServicesData();
 
         if (Array.isArray(freshServices)) {
-            setCachedData(SERVICES_CACHED, freshServices);
+            setCachedData(SERVICES_CACHED_KEY, freshServices);
         }
 
         return freshServices;
@@ -75,7 +75,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
  */
 function fetchServicesData(): ItemData[] | { error: string } {
     try {
-        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SERVICES_SHEET_NAME);
+        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DEFAULT_SERVICES_SHEET);
         if (!servicesSheet) {
             Logger.log("Services sheet not found.");
             SpreadsheetApp.getUi().alert("Services sheet not found.");

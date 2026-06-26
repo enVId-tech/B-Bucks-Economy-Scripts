@@ -24,9 +24,6 @@ function fillSheetsWithData(data: string): boolean {
         const spreadsheetId = spreadsheet.getId();
         let sheets = spreadsheet.getSheets();
 
-        const cellToStartFrom = "A7";
-        const cellToSetName = "A2"; // Cell to set the identifier name
-
         let targetSheet = sheets.find(s => s.getName() === "Period " + entry.identifier);
 
         let isFreshlyCreated = false;
@@ -55,7 +52,7 @@ function fillSheetsWithData(data: string): boolean {
 
         // Attempt to add with the Google Sheets API first, only if it fails run the fallback
         try {
-            const startRow = targetSheet.getRange(cellToStartFrom).getRow(); // Row 7
+            const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
             const lengthParsed = entry.individuals.length;
             if (lengthParsed === 0) {
                 Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
@@ -88,7 +85,7 @@ function fillSheetsWithData(data: string): boolean {
             }
 
             valueUpdates.push({
-                range: `${targetSheet.getName()}!${cellToSetName}`,
+                range: `${targetSheet.getName()}!${SHEET_CELL_NAME}`,
                 values: [[`Period ${entry.identifier}`]]
             });
 
@@ -141,10 +138,11 @@ function fillSheetsWithData(data: string): boolean {
             SpreadsheetApp.flush();
             return true;
         } catch (err: any) {
-            const startRow = targetSheet.getRange(cellToStartFrom).getRow(); // Row 7
+            Logger.log(`Error occurred in fillSheetWithEntry: ${err.message}`);
+            const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
             let lengthParsed = entry.individuals.length;
 
-            targetSheet.getRange(cellToSetName).setValue("Period " + entry.identifier);
+            targetSheet.getRange(SHEET_CELL_NAME).setValue("Period " + entry.identifier);
 
             targetSheet.showSheet();
 

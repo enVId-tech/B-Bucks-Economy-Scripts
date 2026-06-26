@@ -54,19 +54,6 @@ interface SettingsData {
     limits: Limits;
 }
 
-// -- DO NOT CHANGE THESE COLUMNS UNLESS YOU KNOW WHAT YOU ARE DOING --
-// no but really actually dont pls ty, the sheet is named settings cuz ppl are stupid asf :D
-const DEFAULT_SETTINGS_SHEET: string = "Settings";
-// change only if u dont want the default option which is like wai bro ts beautiful
-const COLUMNS = {
-    importantDates: { keyCol: 2, valCol: 3 },
-    standardPercentages: { keyCol: 5, valCol: 6 },
-    mandatedPolicies: { keyCol: 8, valCol: 9 },
-    ledgersAndRecords: { keyCol: 11, valCol: 12 },
-    limits: { keyCol: 14, valCol: 15 },
-}
-const ROW_START = 4;
-
 /**
  * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
  * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
@@ -84,22 +71,21 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
 
-        const CACHE_KEY = "cachedSettings";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
-            const cachedString = getCachedData(CACHE_KEY);
+            const cachedString = getCachedData(SETTINGS_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Settings data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as SettingsData;
             }
 
-            const savedProperties = props.getProperty(CACHE_KEY);
+            const savedProperties = props.getProperty(SETTINGS_CACHED_KEY);
             if (savedProperties) {
-                Logger.log(`Server Cache Hit (Properties) for ${CACHE_KEY}`);
+                Logger.log(`Server Cache Hit (Properties) for ${SETTINGS_CACHED_KEY}`);
                 // Repopulate fast RAM cache so the next window open loads even faster
-                cache.put(CACHE_KEY, savedProperties, 21600);
+                cache.put(SETTINGS_CACHED_KEY, savedProperties, 21600);
                 return JSON.parse(savedProperties);
             }
         }
@@ -109,7 +95,7 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
         const freshSettings = fetchSettingsData();
 
         if (freshSettings && !('error' in freshSettings)) {
-            setCachedData(CACHE_KEY, freshSettings);
+            setCachedData(SETTINGS_CACHED_KEY, freshSettings);
         }
 
         return freshSettings;
@@ -139,9 +125,9 @@ function fetchSettingsData(): SettingsData | { error: string } {
         const rawGrid: any[][] = settingsSheet.getDataRange().getValues();
 
         const extractSettings = (keyName: string): SettingsData[keyof SettingsData] => {
-            const { keyCol, valCol } = COLUMNS[keyName];
+            const { keyCol, valCol } = SETTINGS_COLUMNS[keyName];
             const resultObject: any = {};
-            for (let i = ROW_START - 1; i < rawGrid.length; i++) {
+            for (let i = SETTINGS_ROW_START - 1; i < rawGrid.length; i++) {
                 // Ensure key exists and isn't whitespace padding
                 const key = rawGrid[i][keyCol - 1];
                 let val = rawGrid[i][valCol - 1];
@@ -171,11 +157,11 @@ function fetchSettingsData(): SettingsData | { error: string } {
         };
 
         return {
-            importantDates: extractSettings("importantDates") as ImportantDates,
-            standardPercentages: extractSettings("standardPercentages") as StandardPercentages,
-            mandatedPolicies: extractSettings("mandatedPolicies") as MandatedPolicies,
-            ledgersAndRecords: extractSettings("ledgersAndRecords") as LedgersAndRecords,
-            limits: extractSettings("limits") as Limits,
+            importantDates: extractSettings(Object.keys(SETTINGS_COLUMNS)[0]) as ImportantDates,
+            standardPercentages: extractSettings(Object.keys(SETTINGS_COLUMNS)[1]) as StandardPercentages,
+            mandatedPolicies: extractSettings(Object.keys(SETTINGS_COLUMNS)[2]) as MandatedPolicies,
+            ledgersAndRecords: extractSettings(Object.keys(SETTINGS_COLUMNS)[3]) as LedgersAndRecords,
+            limits: extractSettings(Object.keys(SETTINGS_COLUMNS)[4]) as Limits,
         };
     } catch (err: any) {
         Logger.log(`Error in fetchSettingsData: ${err.message}`);
@@ -237,9 +223,9 @@ function setSettingsProperty(data: any): boolean {
 
         // Also update the server properties for persistence across sessions and cache misses
         const props = PropertiesService.getScriptProperties();
-        props.setProperty("cachedSettings", JSON.stringify(settings));
+        props.setProperty(SETTINGS_CACHED_KEY, JSON.stringify(settings));
 
-        CacheService.getScriptCache().put("cachedSettings", JSON.stringify(settings), 21600);
+        CacheService.getScriptCache().put(SETTINGS_CACHED_KEY, JSON.stringify(settings), 21600);
 
         // Update the sheet directly to ensure the source of truth is consistent
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -251,7 +237,7 @@ function setSettingsProperty(data: any): boolean {
         }
 
         // Find the row and column for the property key
-        const columnInfo = COLUMNS[propertyKey as keyof typeof COLUMNS];
+        const columnInfo = SETTINGS_COLUMNS[propertyKey as keyof typeof SETTINGS_COLUMNS];
 
         // SpreadsheetApp.getUi().alert(`Found column info for property key "${propertyKey}": keyCol=${columnInfo.keyCol}, valCol=${columnInfo.valCol}, columnInfo: ${JSON.stringify(columnInfo)}`);
         if (!columnInfo) {
@@ -270,7 +256,7 @@ function setSettingsProperty(data: any): boolean {
             let itemUpdated = false;
 
             // Look down the column to find the row matching this specific configuration parameter label
-            for (let row = ROW_START; row <= lastRow; row++) {
+            for (let row = SETTINGS_ROW_START; row <= lastRow; row++) {
                 const cellValue = settingsSheet.getRange(row, keyCol).getValue().toString().trim();
 
                 if (cellValue === innerKey) {

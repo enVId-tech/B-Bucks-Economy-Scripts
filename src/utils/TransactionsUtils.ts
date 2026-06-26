@@ -34,19 +34,18 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
 
-        const CACHE_KEY = "cachedTransactions";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
-            const cachedString = getCachedData(CACHE_KEY);
+            const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as TransactionRecord[];
             }
-            const savedProperties = props.getProperty(CACHE_KEY);
+            const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
             if (savedProperties) {
-                cache.put(CACHE_KEY, savedProperties, 21600);
+                cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
                 return JSON.parse(savedProperties);
             }
         }
@@ -54,7 +53,7 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
         console.log("Cache miss: Re-extracting transactions from sheet rows...");
         // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting transactions from sheet rows...");
         const freshTransactions = fetchTransactionsData();
-        setCachedData(CACHE_KEY, JSON.stringify(freshTransactions));
+        setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
         return freshTransactions;
      } catch (error: any) {
         Logger.log(`Error in fetchTransactionsDataCached: ${error.message}`);
@@ -75,15 +74,13 @@ function fetchTransactionsData(): TransactionRecord[] {
  */
 function addTransactionRecords(records: TransactionRecord[]): boolean {
   try {
-    const SHEET_NAME = "Transactions";
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(SHEET_NAME);
-    const ROW_TO_START_FROM = 3;
+    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
 
     // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
     if (!sheet) {
-      Logger.log(`Sheet "${SHEET_NAME}" not found.`);
-      SpreadsheetApp.getUi().alert(`Sheet "${SHEET_NAME}" not found.`);
+      Logger.log(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`);
+      SpreadsheetApp.getUi().alert(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`);
       return false;
     }
 
@@ -97,13 +94,13 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
     const currentMaxRows = sheet.getMaxRows();
     let biggestId = 0;
 
-    if (lastRowWithData >= (ROW_TO_START_FROM - 1) && lastRowWithData > 0) {
+    if (lastRowWithData >= (TRANSACTIONS_ROW_START - 1) && lastRowWithData > 0) {
       const rawIdValue = sheet.getRange(lastRowWithData, 1).getValue();
       const parsedId = parseInt(rawIdValue, 10);
       biggestId = isNaN(parsedId) ? 0 : parsedId;
     }
 
-    const insertStartRow = Math.max(lastRowWithData + 1, ROW_TO_START_FROM);
+    const insertStartRow = Math.max(lastRowWithData + 1, TRANSACTIONS_ROW_START);
     const rowsNeeded = records.length;
 
     // Expand the sheet grid at the very last moment if required
@@ -162,12 +159,12 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         Sheets.Spreadsheets.Values.append(
           resource,
           spreadsheetId,
-          `${SHEET_NAME}!A${insertStartRow}`,
+          `${DEFAULT_TRANSACTIONS_SHEET}!A${insertStartRow}`,
           { valueInputOption: "USER_ENTERED" }
         );
 
         // Cache invalidation so that transaction records will be refetched
-        clearGlobalCache(["transactionRecords"]);
+        clearGlobalCache([TRANSACTIONS_CACHED_KEY]);
 
         return true;
       } else {
@@ -184,11 +181,12 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       ).setValues(values);
 
       // Cache invalidation so that transaction records will be refetched
-      clearGlobalCache(["transactionRecords"]);
+      clearGlobalCache([TRANSACTIONS_CACHED_KEY]);
 
       return true;
     }
   } catch (error: any) {
+    Logger.log(`Error occurred in addTransactionRecord: ${error.message}`);
     SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);
     return false;
   }

@@ -82,17 +82,17 @@ function launchModelessDialog(templateName: string, title: string, width: number
     const cache = CacheService.getScriptCache();
 
     const globalData = {
-        "cachedServices": cache.get("cachedServices") || "{}",
-        "cachedSettings": cache.get("cachedSettings") || "{}",
-        "cachedTransactions": cache.get("cachedTransactions") || "[]",
-        "cachedInvestmentsLedger": cache.get("cachedInvestmentsLedger") || "{}"
+        [SERVICES_CACHED_KEY]: cache.get(SERVICES_CACHED_KEY) || "{}",
+        [SETTINGS_CACHED_KEY]: cache.get(SETTINGS_CACHED_KEY) || "{}",
+        [TRANSACTIONS_CACHED_KEY]: cache.get(TRANSACTIONS_CACHED_KEY) || "[]",
+        [INVESTMENTS_LEDGER_CACHED_KEY]: cache.get(INVESTMENTS_LEDGER_CACHED_KEY) || "{}"
     };
 
     template.initialServerPayload = `{
-        "cachedServices": ${globalData.cachedServices},
-        "cachedSettings": ${globalData.cachedSettings},
-        "cachedTransactions": ${globalData.cachedTransactions},
-        "cachedInvestmentsLedger": ${globalData.cachedInvestmentsLedger}
+        "${SERVICES_CACHED_KEY}": ${globalData[SERVICES_CACHED_KEY]},
+        "${SETTINGS_CACHED_KEY}": ${globalData[SETTINGS_CACHED_KEY]},
+        "${TRANSACTIONS_CACHED_KEY}": ${globalData[TRANSACTIONS_CACHED_KEY]},
+        "${INVESTMENTS_LEDGER_CACHED_KEY}": ${globalData[INVESTMENTS_LEDGER_CACHED_KEY]}
     }`;
 
     const html = template.evaluate()

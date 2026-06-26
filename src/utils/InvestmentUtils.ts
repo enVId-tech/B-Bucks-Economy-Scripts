@@ -59,7 +59,7 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
             if (savedProperties) {
                 Logger.log(`Server Cache Hit (Properties) for ${CACHE_KEY}`);
                 // Repopulate fast RAM cache so the next window open loads even faster
-                cache.put(CACHE_KEY, savedProperties, 21600);
+                cache.put(CACHE_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
                 return JSON.parse(savedProperties);
             }
         }

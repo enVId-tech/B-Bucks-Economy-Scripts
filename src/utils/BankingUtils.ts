@@ -67,6 +67,8 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       return "Value must be a number.";
     }
 
+    Logger.log(`Applying math operation: ${operation}, value: ${value}`);
+
     // Absolutely ENSURE there is no floating point precision issues
     // god damn floating point issues kms
     value = Number(value.toFixed(2));
@@ -283,7 +285,6 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
  */
 function commentExpenditureOnSelection(rows: number[], comment: string): boolean {
   try {
-    const EXPENDITURE_COL = 5;
     if (!rows || comment === undefined || comment === null) {
       Logger.log("You must provide both a cell range and a note string.");
       return false;
@@ -305,11 +306,11 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
 
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     for (const row of rows) {
-      const currentNote = sheet.getRange(row, EXPENDITURE_COL).getNote();
+      const currentNote = sheet.getRange(row, EXPENDITURES_COL).getNote();
       if (currentNote) {
-        sheet.getRange(row, EXPENDITURE_COL).setNote(currentNote + "\n" + comment);
+        sheet.getRange(row, EXPENDITURES_COL).setNote(currentNote + "\n" + comment);
       } else {
-        sheet.getRange(row, EXPENDITURE_COL).setNote(comment);
+        sheet.getRange(row, EXPENDITURES_COL).setNote(comment);
       }
     }
     return true;
