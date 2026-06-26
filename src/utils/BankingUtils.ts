@@ -14,14 +14,46 @@ enum Operation {
 }
 
 /**
+ * Executes a balance action based on the provided payload string.
+ * @param payloadStr The JSON string containing the operation and amount to apply.
+ * @returns The result of the operation or an error message.
+ */
+function executeBalanceAction(payloadStr: string): string | void {
+  try {
+    // Check if a string payload was provided
+    if (!payloadStr) {
+      Logger.log("No payload provided for balance action.");
+      SpreadsheetApp.getUi().alert("No payload provided for balance action.");
+      return "No payload provided for balance action.";
+    }
+
+    // Parse the clean JSON string into a JSON object for the util function to process
+    const payload = JSON.parse(payloadStr);
+    const { operation, amount, transactionReason = undefined } = payload;
+
+    if (!operation || !amount || typeof amount !== 'number') {
+      Logger.log("Invalid payload. Please provide a valid operation and amount.");
+      SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, amount: ${amount}`);
+      return "Invalid payload. Please provide a valid operation and amount.";
+    }
+
+    return applyMathToSelection(operation, amount, true, transactionReason).toString();
+  } catch (error: any) {
+    SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
+    return `Error occurred in executeBalanceAction: ${error.message}`;
+  }
+}
+
+/**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
  * @param value The value to use in the mathematical operation on the selected cells. Must be a number.
+ * @param isManualTransaction Whether the transaction is manual or not.
  * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range): string | boolean {
+function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
   try {
     if (!operation || !value || !isManualTransaction) {
       Logger.log(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
@@ -99,33 +131,33 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
         const values = range.getValues();
 
         const startRowIndex = range.getRow();
+        const startColIndex = range.getColumn();
 
         const updatedValues = values.map((row, rowIndex) => {
-
           const absoluteRowIndex = startRowIndex + rowIndex;
 
           return row.map(cell => {
             if (typeof cell === 'number' && !isNaN(cell)) {
+              const balance = range.getSheet().getRange(absoluteRowIndex, 2).getValue();
+
               const result = Number(operationFunc(cell).toFixed(2));
 
               Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
 
               const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
 
-              if (result && typeof result === 'number' && !isNaN(result)) {
-                transactionRecords.push({
-                  individual: individualName,
-                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                  initialAmount: Number(cell.toFixed(2)),
-                  tenderedAmount: Number(value.toFixed(2)),
-                  finalAmount: Number(result.toFixed(2)),
-                  quantityOfServices: 1,
-                  timestamp: new Date()
-                });
-              } else {
-                Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
-              }
+              const targetColumnIndex = startColIndex;
+
+              transactionRecords.push({
+                individual: individualName,
+                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                initialAmount: Number(balance.toFixed(2)),
+                tenderedAmount: Number(value.toFixed(2)),
+                tenderedColumn: targetColumnIndex,
+                quantityOfServices: 1,
+                timestamp: new Date()
+              });
 
               return result;
             }
@@ -150,11 +182,13 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       }
 
       // Comment on the rows affected by the operation with the reason and amount, with error handling to ensure it doesn't interfere with the main operation if it fails
-      commentExpenditureOnSelection(ranges.flatMap(range => {
-        const startRow = range.getRow();
-        const numRows = range.getNumRows();
-        return Array.from({ length: numRows }, (_, i) => startRow + i);
-      }), `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
+      if (commentOnExpenditures) {
+        commentExpenditureOnSelection(ranges.flatMap(range => {
+          const startRow = range.getRow();
+          const numRows = range.getNumRows();
+          return Array.from({ length: numRows }, (_, i) => startRow + i);
+        }), `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
+      }
 
       // After successfully applying the operations, add the transaction records
       if (transactionRecords.length > 0) {
@@ -187,33 +221,33 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           const values = subRange.getValues();
           const targetSheet = subRange.getSheet();
           const startRowIndex = subRange.getRow();
+          const startColIndex = subRange.getColumn();
 
           const updatedValues = values.map((row, rowIndex) => {
             const absoluteRowIndex = startRowIndex + rowIndex;
 
             return row.map(cell => {
               if (typeof cell === 'number' && !isNaN(cell)) {
+                const balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
+
                 const result = Number(operationFunc(cell).toFixed(2));
 
                 Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
 
-                if (result && typeof result === 'number' && !isNaN(result)) {
-                  // Absolutely ENSURE there is no floating point precision issues
-                  const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
+                // Absolutely ENSURE there is no floating point precision issues
+                const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
+                const targetColumnIndex = startColIndex;
 
-                  transactionRecords.push({
-                    individual: individualName,
-                    type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                    service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                    initialAmount: Number(cell.toFixed(2)),
-                    tenderedAmount: Number(result.toFixed(2)),
-                    finalAmount: Number(result.toFixed(2)),
-                    quantityOfServices: 1,
-                    timestamp: new Date()
-                  });
-                } else {
-                  Logger.log(`Result of operation "${normalMapping}" on cell "${cell}" is not a valid number. Result: "${result}". Skipping transaction record.`);
-                }
+                transactionRecords.push({
+                  individual: individualName,
+                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
+                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                  initialAmount: Number(balance.toFixed(2)),
+                  tenderedAmount: Number(value.toFixed(2)),
+                  tenderedColumn: targetColumnIndex,
+                  quantityOfServices: 1,
+                  timestamp: new Date()
+                });
 
                 return result;
               }

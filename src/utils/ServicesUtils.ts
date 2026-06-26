@@ -157,3 +157,34 @@ function fetchServicesData(): ItemData[] | { error: string } {
         return { error: `Error occurred in fetchServicesData: ${error.message}` };
     }
 }
+
+/**
+ * Executes a balance action based on the provided payload string.
+ * @param payloadStr The JSON string containing the operation and amount to apply.
+ * @returns The result of the operation or an error message.
+ */
+function executeServiceAction(payloadStr: string): string | void {
+    try {
+        // Check if a string payload was provided
+        if (!payloadStr) {
+            Logger.log("No payload provided for balance action.");
+            SpreadsheetApp.getUi().alert("No payload provided for balance action.");
+            return "No payload provided for balance action.";
+        }
+
+        // Parse the clean JSON string into a JSON object for the util function to process
+        const payload = JSON.parse(payloadStr);
+        const { operation, amount, transactionReason = undefined } = payload;
+        
+        if (!operation || !amount || typeof amount !== 'number') {
+            Logger.log("Invalid payload. Please provide a valid operation and amount.");
+            SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, amount: ${amount}`);
+            return "Invalid payload. Please provide a valid operation and amount.";
+        }
+
+        return applyMathToSelection(operation, amount, false, transactionReason).toString();
+    } catch (error: any) {
+        SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
+        return `Error occurred in executeBalanceAction: ${error.message}`;
+    }
+}
