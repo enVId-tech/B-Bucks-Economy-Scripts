@@ -230,7 +230,7 @@
 
                 let payload = {
                     operation: isIncome ? "ADD" : "SUBTRACT",
-                    amount: price * (multiplier > 0 ? multiplier : 1),
+                    amount: price * (multiplier > 0 ? multiplier : 1) * (isIncome ? 1 : -1),
                     transactionReason: `$${price} - ${name} (x${multiplier})`
                 };
 
@@ -241,7 +241,7 @@
                     document.getElementById("submitSpendingBtn").classList.add("disabled");
                     
                     // Forward payload securely to your backend execution router
-                    callServer('executeBalanceAction', JSON.stringify(payload), (response) => {
+                    callServer('executeServiceAction', JSON.stringify(payload), (response) => {
                         const balanceElement = document.getElementById('balanceAmount');
                         if (balanceElement) {
                             balanceElement.textContent = `$${response.newBalance}`;

@@ -547,10 +547,8 @@
       const selectedStudent = document.getElementById('studentSelect').value;
       const selectedPeriod = document.getElementById('periodSelect').value;
 
-      console.log("Data to send:", { amount: depositAmount, student: selectedStudent, period: selectedPeriod });
-
       // Call server function to handle the deposit logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the deposit, update the student's balance and CoD accordingly, and return any relevant information or errors back to the client to update the UI.
-      callServer('handleDeposit', JSON.stringify({ amount: depositAmount, student: selectedStudent, period: selectedPeriod }), (response) => {
+      callServer('handleDeposit', JSON.stringify({ amount: depositAmount, student: selectedStudent, period: selectedPeriod, override: isOverrideChecked }), (response) => {
         console.log("Deposit response from server:", response);
         if (response) {
           alert("Deposit successful!");
@@ -607,7 +605,7 @@
       console.log("Data to send:", { amount: codAmount, student: selectedStudent, period: selectedPeriod });
 
       // Call server function to handle the withdrawal logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the withdrawal, ensure that the student has enough CoD to withdraw, update the balances accordingly, and return any relevant information or errors back to the client to update the UI.
-      callServer('handleWithdraw', JSON.stringify({ amount: codAmount, student: selectedStudent, period: selectedPeriod }), (response) => {
+      callServer('handleWithdraw', JSON.stringify({ amount: codAmount, student: selectedStudent, period: selectedPeriod, override: isOverrideChecked }), (response) => {
         console.log("Withdrawal response from server:", response);
         if (response) {
           alert("Withdrawal successful!");
