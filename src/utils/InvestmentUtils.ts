@@ -24,16 +24,6 @@ interface InvestmentRecord {
     netPercentageGain?: number;
 }
 
-const STARTING_ROW = 7;
-
-const INITIAL_AMOUNT_COL = 7;
-const EXPENDITURE_COL = 5;
-const DATE_COL = 8;
-const RETURNS_COL = 6;
-const NET_CURRENT_AMOUNT_COL = 10;
-const GROSS_CURRENT_AMOUNT_COL = 9;
-const NET_PERCENTAGE_GAIN_COL = 11;
-
 /**
  *  Fetches investments ledger data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the investments ledger data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access investments ledger data while also providing a mechanism to refresh the data when necessary.
  * @param data A string containing the data for the function, including a forceRefresh flag.
@@ -115,7 +105,6 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period"));
         let periodDataArray: PeriodData[] = [];
 
-        const startingRow = 7;
 
         periodSheets.forEach(sheet => {
             const dataRange = sheet.getDataRange();
@@ -123,7 +112,7 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
 
             let investments: InvestmentRecord[] = [];
 
-            for (let row = startingRow - 1; row < values.length; row++) {
+            for (let row = USER_STARTING_ROW - 1; row < values.length; row++) {
                 const individualName = values[row][0];
                 const balance = Number(values[row][1].toFixed(2));
                 const returnsAmount = Number(values[row][5].toFixed(2));
@@ -195,18 +184,18 @@ function refreshAllInvestments(): boolean {
 
             // read from columns 9 (I), 10 (J), and 11 (K)
             const lastRow = sheet.getLastRow();
-            if (lastRow < STARTING_ROW) return;
+            if (lastRow < USER_STARTING_ROW) return;
 
-            const totalRowsToProcess = (lastRow - STARTING_ROW) + 1;
+            const totalRowsToProcess = (lastRow - USER_STARTING_ROW) + 1;
             // Grab current values I, J and K
-            const range = sheet.getRange(STARTING_ROW, GROSS_CURRENT_AMOUNT_COL || 9, totalRowsToProcess, 3);
+            const range = sheet.getRange(USER_STARTING_ROW, GROSS_INVESTMENT_GAIN_COL || 9, totalRowsToProcess, 3);
             const values = range.getValues();
 
             // match values and only modify the necessary columns
             const currentSheetValues = sheet.getDataRange().getValues();
 
             for (let i = 0; i < totalRowsToProcess; i++) {
-                const sheetRowIndex = STARTING_ROW - 1 + i;
+                const sheetRowIndex = USER_STARTING_ROW - 1 + i;
                 const studentName = currentSheetValues[sheetRowIndex][0];
                 if (!studentName) continue;
 
@@ -288,7 +277,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             let targetRow = -1;
             const totalRows = values.length;
 
-            for (let i = STARTING_ROW - 1; i < totalRows; i++) {
+            for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
                 if (values[i][0] === individualName) {
                     targetRow = i + 1;
                     break;
@@ -326,7 +315,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
 
         // Locate individual row
         const totalRows = values.length;
-        for (let i = STARTING_ROW - 1; i < totalRows; i++) {
+        for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
             if (values[i][0] === investment.individualName) {
                 investmentRow = i + 1;
                 break;
@@ -352,7 +341,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
             dateObj                                                                    // Col 8
         ]];
 
-        sheet.getRange(investmentRow, EXPENDITURE_COL, 1, 4).setValues(inputsBatchRow);
+        sheet.getRange(investmentRow, EXPENDITURES_COL, 1, 4).setValues(inputsBatchRow);
 
         SpreadsheetApp.flush();
         return true;
@@ -381,7 +370,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
 
             investments.forEach(investment => {
                 let targetRow = -1;
-                for (let i = STARTING_ROW - 1; i < totalRows; i++) {
+                for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
                     if (values[i][0] === investment.individualName) {
                         targetRow = i + 1;
                         break;
@@ -404,7 +393,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                         dateObj
                     ]];
 
-                    sheet.getRange(targetRow, EXPENDITURE_COL, 1, 4).setValues(batchData);
+                    sheet.getRange(targetRow, EXPENDITURES_COL, 1, 4).setValues(batchData);
                 }
             });
         });
@@ -425,7 +414,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
 function handleDeposit(data: string): boolean {
     try {
         const parsedData = JSON.parse(data);
-        const { amount, student, period } = parsedData;
+        const { amount, student, period, override } = parsedData;
 
         if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
             SpreadsheetApp.getUi().alert("Invalid data format for deposit. Please check the input.");
@@ -447,7 +436,7 @@ function handleDeposit(data: string): boolean {
         const values = dataRange.getValues();
         let studentRow = -1;
 
-        for (let i = STARTING_ROW - 1; i < values.length; i++) {
+        for (let i = USER_STARTING_ROW - 1; i < values.length; i++) {
             if (values[i][0] === student) {
                 studentRow = i + 1;
                 break;
@@ -459,39 +448,68 @@ function handleDeposit(data: string): boolean {
             return false;
         }
 
+        const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
+        let previousBalance = parseFloat(previousBalanceCell.getValue()) || 0;
+
         // fetch the net amount first, then add it to the returns if it exists
-        const netCurrentAmountCell = sheet.getRange(studentRow, NET_CURRENT_AMOUNT_COL);
+        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
 
         if (!isNaN(currentNetAmount) && currentNetAmount !== 0) {
-            const currentReturnsCell = sheet.getRange(studentRow, RETURNS_COL);
+            const currentReturnsCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
             const currentReturns = parseFloat(currentReturnsCell.getValue()) || 0;
             currentReturnsCell.setValue(currentReturns + currentNetAmount);
+
+            const withdrawalTransactionRecord: TransactionRecord[] = [{
+                individual: student,
+                type: "Investment",
+                service: `Withdrawal ${override ? '(Override)' : ''}`,
+                initialAmount: previousBalance,
+                tenderedAmount: currentNetAmount,
+                tenderedColumn: NET_INVESTMENT_GAIN_COL,
+                quantityOfServices: 1,
+                timestamp: new Date()
+            }];
+
+            addTransactionRecords(withdrawalTransactionRecord);
+
+            previousBalance += currentNetAmount;
         }
 
         // Update the expenditure for the student
-        const expenditureCell = sheet.getRange(studentRow, EXPENDITURE_COL);
+        const expenditureCell = sheet.getRange(studentRow, EXPENDITURES_COL);
         if (isNaN(expenditureCell.getValue())) {
             expenditureCell.setValue(amount);
+        } else {
+            const currentExpenditure = parseFloat(expenditureCell.getValue()) || 0;
+            expenditureCell.setValue(currentExpenditure + amount);
         }
 
-        const currentExpenditure = parseFloat(expenditureCell.getValue()) || 0;
-        expenditureCell.setValue(currentExpenditure + amount);
-
-        const initDepositCell = sheet.getRange(studentRow, INITIAL_AMOUNT_COL);
+        const initDepositCell = sheet.getRange(studentRow, INITIAL_DEPOSIT_COL);
         initDepositCell.setValue(amount);
 
         // Update the date for the student to the current date (which is also the transaction date)
         const today = new Date();
-        sheet.getRange(studentRow, DATE_COL).setValue(today);
+        sheet.getRange(studentRow, DATE_DEPOSIT_COL).setValue(today);
 
         // Add a comment to the expenditure cell with the transaction details
         const dateString = today.toLocaleDateString("en-US");
-        commentExpenditureOnSelection([studentRow], `$${amount} - ${dateString} CoDs/Investments`);
-
-        SpreadsheetApp.flush();
+        commentExpenditureOnSelection([studentRow], `$${amount} - ${dateString} CoDs/Investments ${override ? '(Override)' : ''}`);
 
         refreshSingleInvestment(student, period);
+
+        const transactionRecord: TransactionRecord[] = [{
+            individual: student,
+            type: "Investment",
+            service: `Deposit ${override ? '(Override)' : ''}`,
+            initialAmount: previousBalance,
+            tenderedAmount: -amount,
+            tenderedColumn: NET_INVESTMENT_GAIN_COL,
+            quantityOfServices: 1,
+            timestamp: today
+        }];
+
+        addTransactionRecords(transactionRecord);
 
         return true;
     } catch (err) {
@@ -513,7 +531,7 @@ function handleDeposit(data: string): boolean {
 function handleWithdraw(data: string): boolean {
     try {
         const withdrawData = JSON.parse(data);
-        const { amount, student, period } = withdrawData;
+        const { amount, student, period, override } = withdrawData;;
 
         if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
             SpreadsheetApp.getUi().alert("Invalid data format for deposit. Please check the input.");
@@ -535,7 +553,7 @@ function handleWithdraw(data: string): boolean {
         const values = dataRange.getValues();
         let studentRow = -1;
 
-        for (let i = STARTING_ROW - 1; i < values.length; i++) {
+        for (let i = USER_STARTING_ROW - 1; i < values.length; i++) {
             if (values[i][0] === student) {
                 studentRow = i + 1;
                 break;
@@ -547,8 +565,15 @@ function handleWithdraw(data: string): boolean {
             return false;
         }
 
+        const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
+        const previousBalance = parseFloat(previousBalanceCell.getValue());
+        if (isNaN(previousBalance)) {
+            SpreadsheetApp.getUi().alert(`Invalid balance for student "${student}".`);
+            return false;
+        }
+
         // fetch the net value of the student's account
-        const netCurrentAmountCell = sheet.getRange(studentRow, NET_CURRENT_AMOUNT_COL);
+        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
         if (isNaN(currentNetAmount)) {
             SpreadsheetApp.getUi().alert(`Invalid net amount for student "${student}".`);
@@ -556,7 +581,7 @@ function handleWithdraw(data: string): boolean {
         }
 
         // add net amount to returns
-        const returnsAmountCell = sheet.getRange(studentRow, RETURNS_COL);
+        const returnsAmountCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
         const currentReturnsAmount = parseFloat(returnsAmountCell.getValue());
         if (isNaN(currentReturnsAmount)) {
             SpreadsheetApp.getUi().alert(`Invalid returns amount for student "${student}".`);
@@ -567,8 +592,22 @@ function handleWithdraw(data: string): boolean {
         returnsAmountCell.setValue(newReturnsAmount);
 
         // clear the initial dep, date, gross value, net value and percentage gain
-        sheet.getRange(studentRow, INITIAL_AMOUNT_COL, 1, 5).setValues([[0, '', 0, 0, 0]]);
+        sheet.getRange(studentRow, INITIAL_DEPOSIT_COL, 1, 5).setValues([[0, '', 0, 0, 0]]);
 
+        refreshSingleInvestment(student, period);
+
+        const transactionRecord: TransactionRecord[] = [{
+            individual: student,
+            type: "Investment",
+            service: `Withdrawal ${override ? '(Override)' : ''}`,
+            initialAmount: previousBalance,
+            tenderedAmount: amount,
+            tenderedColumn: NET_INVESTMENT_GAIN_COL,
+            quantityOfServices: 1,
+            timestamp: new Date()
+        }];
+
+        addTransactionRecords(transactionRecord);
         return true;
     } catch (err) {
         Logger.log(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`);

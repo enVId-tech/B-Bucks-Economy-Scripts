@@ -21,7 +21,7 @@ function getCachedData(cacheKey: string): string | void {
         const permanentData = PropertiesService.getScriptProperties().getProperty(cacheKey);
 
         if (permanentData) {
-            cache.put(cacheKey, permanentData, 1500);
+            cache.put(cacheKey, permanentData, SERVER_SIDE_CACHE_AGE);
             return permanentData;
         }
 
@@ -46,10 +46,10 @@ function setCachedData(cacheKey: string, data: any): boolean {
 
         try {
             // Attempt to acquire the lock with a timeout to prevent indefinite waiting in case of issues
-            lock.waitLock(5000);
+            lock.waitLock(WAIT_LOCK_TIME);
 
             // Update the cache and properties within the lock simultaneously to ensure consistency
-            CacheService.getScriptCache().put(cacheKey, serializedData, 1500);
+            CacheService.getScriptCache().put(cacheKey, serializedData, SERVER_SIDE_CACHE_AGE);
             PropertiesService.getScriptProperties().setProperty(cacheKey, serializedData);
         } catch (lockError: any) {
             Logger.log(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`);
@@ -124,7 +124,7 @@ function setServerCacheValue(data: string): boolean {
     try {
         const cache = CacheService.getScriptCache();
         // Cache strings up to 100KB per key. 
-        cache.put(key, value, 21600);
+        cache.put(key, value, SERVER_SIDE_CACHE_AGE);
         return true;
     } catch (error: any) {
         Logger.log(`Failed to write to server cache layer: ${error.message} for key: ${key}`);

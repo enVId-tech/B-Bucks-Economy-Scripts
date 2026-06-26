@@ -36,20 +36,19 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
 
-        const CACHE_KEY = "cachedServices";
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
 
         if (!forceRefresh) {
-            const cachedString = getCachedData(CACHE_KEY);
+            const cachedString = getCachedData(SERVICES_CACHED);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
                 // SpreadsheetApp.getUi().alert(`Cache hit: Services data loaded from cache. String: ${cachedString}`);
                 return JSON.parse(cachedString) as ItemData[];
             }
 
-            const savedProperties = props.getProperty(CACHE_KEY);
+            const savedProperties = props.getProperty(SERVICES_CACHED);
             if (savedProperties) {
-                cache.put(CACHE_KEY, savedProperties, 21600);
+                cache.put(SERVICES_CACHED, savedProperties, SERVER_SIDE_CACHE_AGE);
                 return JSON.parse(savedProperties);
             }
         }
@@ -59,7 +58,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         const freshServices = fetchServicesData();
 
         if (Array.isArray(freshServices)) {
-            setCachedData(CACHE_KEY, freshServices);
+            setCachedData(SERVICES_CACHED, freshServices);
         }
 
         return freshServices;
@@ -76,19 +75,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
  */
 function fetchServicesData(): ItemData[] | { error: string } {
     try {
-        const SHEET_NAME = "Services";
-        const ROW_START = 3;
-
-        const columns: { [key: string]: number | number[] } = {
-            itemName: 1,
-            category: 2,
-            // Represents Q1-Q4 pricing columns
-            pricing: [3, 4, 5, 6],
-            // Represents Q1-Q4 max per person columns
-            limit: [7, 8, 9, 10]
-        }
-
-        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SERVICES_SHEET_NAME);
         if (!servicesSheet) {
             Logger.log("Services sheet not found.");
             SpreadsheetApp.getUi().alert("Services sheet not found.");
@@ -96,7 +83,7 @@ function fetchServicesData(): ItemData[] | { error: string } {
         }
 
         const lastRow = servicesSheet.getLastRow();
-        if (lastRow < ROW_START) {
+        if (lastRow < SERVICES_ROW_START) {
             Logger.log("No services data found.");
             SpreadsheetApp.getUi().alert("No services data found.");
             return { error: "No services data found." };
@@ -105,14 +92,14 @@ function fetchServicesData(): ItemData[] | { error: string } {
         const servicesData: ItemData[] = [];
 
         // Extract data from each row
-        for (let row = ROW_START; row <= lastRow; row++) {
-            const itemName = servicesSheet.getRange(row, columns.itemName as number).getValue().toString().trim();
-            const category = servicesSheet.getRange(row, columns.category as number).getValue().toString().trim() as "Income" | "Expense";
+        for (let row = SERVICES_ROW_START; row <= lastRow; row++) {
+            const itemName = servicesSheet.getRange(row, SERVICES_COLUMNS.itemName as number).getValue().toString().trim();
+            const category = servicesSheet.getRange(row, SERVICES_COLUMNS.category as number).getValue().toString().trim() as "Income" | "Expense";
             const pricing: QuarterlyData = {};
             const limit: QuarterlyData = {};
 
-            const pricingCols = columns.pricing as number[];
-            const limitCols = columns.limit as number[];
+            const pricingCols = SERVICES_COLUMNS.pricing as number[];
+            const limitCols = SERVICES_COLUMNS.limit as number[];
 
             // Find boundaries
             const minCol = Math.min(...pricingCols, ...limitCols);
@@ -182,7 +169,9 @@ function executeServiceAction(payloadStr: string): string | void {
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
-        return applyMathToSelection(operation, amount, false, transactionReason).toString();
+        const commentOnExpenditures = payload.operation === "ADD" || payload.operation === "MULTIPLY" ? true : false;
+
+        return applyMathToSelection(operation, amount, false, transactionReason, undefined, commentOnExpenditures).toString();
     } catch (error: any) {
         SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
         return `Error occurred in executeBalanceAction: ${error.message}`;

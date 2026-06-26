@@ -12,7 +12,7 @@ interface TransactionRecord {
   service: string;
   initialAmount: number;
   tenderedAmount: number;
-  finalAmount: number;
+  tenderedColumn: number;
   quantityOfServices: number;
   timestamp: Date;
 }
@@ -125,7 +125,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         record.service === undefined || record.service === null ||
         record.initialAmount === undefined || record.initialAmount === null ||
         record.tenderedAmount === undefined || record.tenderedAmount === null ||
-        record.finalAmount === undefined || record.finalAmount === null ||
+        record.tenderedColumn === undefined || record.tenderedColumn === null ||
         record.quantityOfServices === undefined || record.quantityOfServices === null ||
         record.timestamp === undefined || record.timestamp === null
       ) {
@@ -143,7 +143,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         record.service,
         Number(record.initialAmount.toFixed(2)),
         Number(record.tenderedAmount.toFixed(2)),
-        Number(record.finalAmount.toFixed(2)),
+        Number(record.tenderedColumn.toFixed(2)),
         Number(record.quantityOfServices.toFixed(2)),
         record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
       ];
