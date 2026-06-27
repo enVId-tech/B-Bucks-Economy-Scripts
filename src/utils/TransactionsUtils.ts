@@ -9,61 +9,64 @@
 interface TransactionRecord {
   individual: string;
   type: "Income" | "Expense" | "Investment";
-  service: string;
-  initialAmount: number;
-  tenderedAmount: number;
-  tenderedColumn: number;
-  quantityOfServices: number;
-  timestamp: Date;
+  serviceProvided: string;
+  quantity: number;
+  modifiedColumn: number;
+  tenderedMoney: number;
+  initialColumnAmount: number;
+  newColumnAmount: number;
+  initialBalance: number;
+  newBalance: number;
+  timestamp: string;
 }
 
 /**
- * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
+ * Fetches transactions data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the transactions data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access transactions data while also providing a mechanism to refresh the data when necessary.
  * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
- * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
+ * @returns {TransactionRecord[] | { error: string }} An array of transaction records or an error message if the sheet is not found or an error occurs.
  */
 function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { error: string } {
-    try {
-        if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchTransactionsDataCached: ${data}`);
-        } else {
-            Logger.log("No data received for fetchTransactionsDataCached, proceeding with default cache retrieval.");
-            data = JSON.stringify({ forceRefresh: false });
-        }
-
-        const parsedData = data ? JSON.parse(data) : null;
-        const forceRefresh = parsedData?.forceRefresh || false;
-
-        const cache = CacheService.getScriptCache();
-        const props = PropertiesService.getScriptProperties();
-
-        if (!forceRefresh) {
-            const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
-            if (cachedString && cachedString !== "{}" && cachedString !== "") {
-                // SpreadsheetApp.getUi().alert(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`);
-                return JSON.parse(cachedString) as TransactionRecord[];
-            }
-            const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
-            if (savedProperties) {
-                cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
-                return JSON.parse(savedProperties);
-            }
-        }
-
-        console.log("Cache miss: Re-extracting transactions from sheet rows...");
-        // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting transactions from sheet rows...");
-        const freshTransactions = fetchTransactionsData();
-        setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
-        return freshTransactions;
-     } catch (error: any) {
-        Logger.log(`Error in fetchTransactionsDataCached: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Error in fetchTransactionsDataCached: ${error.message}`);
-        return { error: `Error in fetchTransactionsDataCached: ${error.message}` };
+  try {
+    if (data && typeof data === 'string') {
+      Logger.log(`Received data for fetchTransactionsDataCached: ${data}`);
+    } else {
+      Logger.log("No data received for fetchTransactionsDataCached, proceeding with default cache retrieval.");
+      data = JSON.stringify({ forceRefresh: false });
     }
+
+    const parsedData = data ? JSON.parse(data) : null;
+    const forceRefresh = parsedData?.forceRefresh || false;
+
+    const cache = CacheService.getScriptCache();
+    const props = PropertiesService.getScriptProperties();
+
+    if (!forceRefresh) {
+      const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
+      if (cachedString && cachedString !== "{}" && cachedString !== "") {
+        // SpreadsheetApp.getUi().alert(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`);
+        return JSON.parse(cachedString) as TransactionRecord[];
+      }
+      const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
+      if (savedProperties) {
+        cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
+        return JSON.parse(savedProperties);
+      }
+    }
+
+    console.log("Cache miss: Re-extracting transactions from sheet rows...");
+    // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting transactions from sheet rows...");
+    const freshTransactions = fetchTransactionsData();
+    setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
+    return freshTransactions;
+  } catch (error: any) {
+    Logger.log(`Error in fetchTransactionsDataCached: ${error.message}`);
+    SpreadsheetApp.getUi().alert(`Error in fetchTransactionsDataCached: ${error.message}`);
+    return { error: `Error in fetchTransactionsDataCached: ${error.message}` };
+  }
 }
 
 function fetchTransactionsData(): TransactionRecord[] {
-    return [];
+  return [];
 }
 
 /**
@@ -113,18 +116,12 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
     const values = new Array(rowsNeeded);
 
     for (let i = 0; i < rowsNeeded; i++) {
-      const record = records[i];
+      const record: TransactionRecord = records[i];
 
       // Native, short-circuiting check. Fast memory lookup.
       if (
-        record.individual === undefined || record.individual === null ||
-        record.type === undefined || record.type === null ||
-        record.service === undefined || record.service === null ||
-        record.initialAmount === undefined || record.initialAmount === null ||
-        record.tenderedAmount === undefined || record.tenderedAmount === null ||
-        record.tenderedColumn === undefined || record.tenderedColumn === null ||
-        record.quantityOfServices === undefined || record.quantityOfServices === null ||
-        record.timestamp === undefined || record.timestamp === null
+        Object.keys(record)
+        .some(key => record[key as keyof TransactionRecord] === undefined || record[key as keyof TransactionRecord] === null)
       ) {
         const errMsg = `Validation failed: A required field is missing.`;
         Logger.log(errMsg);
@@ -135,14 +132,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       // If valid, map directly to the row matrix array
       values[i] = [
         biggestId + i + 1,
-        record.individual,
-        record.type,
-        record.service,
-        Number(record.initialAmount.toFixed(2)),
-        Number(record.tenderedAmount.toFixed(2)),
-        Number(record.tenderedColumn.toFixed(2)),
-        Number(record.quantityOfServices.toFixed(2)),
-        record.timestamp instanceof Date ? record.timestamp.toISOString() : new Date(record.timestamp).toISOString()
+        ...Object.values(record)
       ];
     }
 

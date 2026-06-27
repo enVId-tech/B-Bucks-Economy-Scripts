@@ -463,30 +463,34 @@ function handleDeposit(data: string): boolean {
             const withdrawalTransactionRecord: TransactionRecord[] = [{
                 individual: student,
                 type: "Investment",
-                service: `Withdrawal ${override ? '(Override)' : ''}`,
-                initialAmount: previousBalance,
-                tenderedAmount: currentNetAmount,
-                tenderedColumn: NET_INVESTMENT_GAIN_COL,
-                quantityOfServices: 1,
-                timestamp: new Date()
+                serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
+                quantity: 1,
+                modifiedColumn: INVESTMENT_RETURNS_COL,
+                tenderedMoney: Number(currentNetAmount.toFixed(2)),
+                initialColumnAmount: Number(currentReturns.toFixed(2)),
+                newColumnAmount: Number((currentReturns + currentNetAmount).toFixed(2)),
+                initialBalance: Number(previousBalance.toFixed(2)),
+                newBalance: Number((previousBalance + currentNetAmount).toFixed(2)),
+                timestamp: new Date().toISOString()
             }];
 
             addTransactionRecords(withdrawalTransactionRecord);
 
             previousBalance += currentNetAmount;
+            previousBalance = Number(previousBalance.toFixed(2));
         }
 
         // Update the expenditure for the student
         const expenditureCell = sheet.getRange(studentRow, EXPENDITURES_COL);
         if (isNaN(expenditureCell.getValue())) {
-            expenditureCell.setValue(amount);
+            expenditureCell.setValue(Number(amount.toFixed(2)));
         } else {
             const currentExpenditure = parseFloat(expenditureCell.getValue()) || 0;
-            expenditureCell.setValue(currentExpenditure + amount);
+            expenditureCell.setValue(Number((currentExpenditure + amount).toFixed(2)));
         }
 
         const initDepositCell = sheet.getRange(studentRow, INITIAL_DEPOSIT_COL);
-        initDepositCell.setValue(amount);
+        initDepositCell.setValue(Number(amount.toFixed(2)));
 
         // Update the date for the student to the current date (which is also the transaction date)
         const today = new Date();
@@ -501,12 +505,15 @@ function handleDeposit(data: string): boolean {
         const transactionRecord: TransactionRecord[] = [{
             individual: student,
             type: "Investment",
-            service: `Deposit ${override ? '(Override)' : ''}`,
-            initialAmount: previousBalance,
-            tenderedAmount: -amount,
-            tenderedColumn: NET_INVESTMENT_GAIN_COL,
-            quantityOfServices: 1,
-            timestamp: today
+            serviceProvided: `Deposit ${override ? '(Override)' : ''}`,
+            quantity: 1,
+            modifiedColumn: INITIAL_DEPOSIT_COL,
+            tenderedMoney: Number(amount.toFixed(2)),
+            initialColumnAmount: 0,
+            newColumnAmount: Number(amount.toFixed(2)),
+            initialBalance: Number(previousBalance.toFixed(2)),
+            newBalance: Number((previousBalance - amount).toFixed(2)),
+            timestamp: new Date().toISOString()
         }];
 
         addTransactionRecords(transactionRecord);
@@ -534,12 +541,12 @@ function handleWithdraw(data: string): boolean {
         const { amount, student, period, override } = withdrawData;;
 
         if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
-            SpreadsheetApp.getUi().alert("Invalid data format for deposit. Please check the input.");
+            SpreadsheetApp.getUi().alert("Invalid data format for withdrawal. Please check the input.");
             return false;
         }
 
         if (amount <= 0) {
-            SpreadsheetApp.getUi().alert("Deposit amount must be greater than zero.");
+            SpreadsheetApp.getUi().alert("Withdrawal amount must be greater than zero.");
             return false;
         }
 
@@ -566,11 +573,12 @@ function handleWithdraw(data: string): boolean {
         }
 
         const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
-        const previousBalance = parseFloat(previousBalanceCell.getValue());
+        let previousBalance = parseFloat(previousBalanceCell.getValue());
         if (isNaN(previousBalance)) {
             SpreadsheetApp.getUi().alert(`Invalid balance for student "${student}".`);
             return false;
         }
+        previousBalance = Number(previousBalance.toFixed(2));
 
         // fetch the net value of the student's account
         const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
@@ -589,7 +597,7 @@ function handleWithdraw(data: string): boolean {
         }
 
         const newReturnsAmount = currentReturnsAmount + currentNetAmount;
-        returnsAmountCell.setValue(newReturnsAmount);
+        returnsAmountCell.setValue(Number(newReturnsAmount.toFixed(2)));
 
         // clear the initial dep, date, gross value, net value and percentage gain
         sheet.getRange(studentRow, INITIAL_DEPOSIT_COL, 1, 5).setValues([[0, '', 0, 0, 0]]);
@@ -599,12 +607,15 @@ function handleWithdraw(data: string): boolean {
         const transactionRecord: TransactionRecord[] = [{
             individual: student,
             type: "Investment",
-            service: `Withdrawal ${override ? '(Override)' : ''}`,
-            initialAmount: previousBalance,
-            tenderedAmount: amount,
-            tenderedColumn: NET_INVESTMENT_GAIN_COL,
-            quantityOfServices: 1,
-            timestamp: new Date()
+            serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
+            quantity: 1,
+            modifiedColumn: NET_INVESTMENT_GAIN_COL,
+            tenderedMoney: Number(currentNetAmount.toFixed(2)),
+            initialColumnAmount: Number(currentNetAmount.toFixed(2)),
+            newColumnAmount: 0,
+            initialBalance: Number(previousBalance.toFixed(2)),
+            newBalance: Number(newReturnsAmount.toFixed(2)),
+            timestamp: new Date().toISOString()
         }];
 
         addTransactionRecords(transactionRecord);

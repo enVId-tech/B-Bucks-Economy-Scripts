@@ -153,12 +153,15 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
               transactionRecords.push({
                 individual: individualName,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
-                service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                initialAmount: Number(balance.toFixed(2)),
-                tenderedAmount: Number(value.toFixed(2)),
-                tenderedColumn: targetColumnIndex,
-                quantityOfServices: 1,
-                timestamp: new Date()
+                serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                quantity: 1,
+                modifiedColumn: targetColumnIndex,
+                tenderedMoney: Number(value.toFixed(2)),
+                initialColumnAmount: Number(balance.toFixed(2)),
+                newColumnAmount: result,
+                initialBalance: Number(balance.toFixed(2)),
+                newBalance: result,
+                timestamp: new Date().toISOString()
               });
 
               return result;
@@ -242,13 +245,16 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
                 transactionRecords.push({
                   individual: individualName,
-                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense", // TODO: Add support for investments and other transaction types in the future
-                  service: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                  initialAmount: Number(balance.toFixed(2)),
-                  tenderedAmount: Number(value.toFixed(2)),
-                  tenderedColumn: targetColumnIndex,
-                  quantityOfServices: 1,
-                  timestamp: new Date()
+                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
+                  serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                  quantity: 1,
+                  modifiedColumn: targetColumnIndex,
+                  tenderedMoney: Number(value.toFixed(2)),
+                  initialColumnAmount: Number(balance.toFixed(2)),
+                  newColumnAmount: result,
+                  initialBalance: Number(balance.toFixed(2)),
+                  newBalance: result,
+                  timestamp: new Date().toISOString()
                 });
 
                 return result;
