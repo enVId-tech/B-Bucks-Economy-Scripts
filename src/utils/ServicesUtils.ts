@@ -171,7 +171,13 @@ function executeServiceAction(payloadStr: string): string | void {
 
         const commentOnExpenditures = payload.operation === "ADD" || payload.operation === "MULTIPLY" ? true : false;
 
-        return applyMathToSelection(operation, amount, false, transactionReason, undefined, commentOnExpenditures).toString();
+        return applyMathToSelection(
+            operation, 
+            amount, 
+            false, 
+            transactionReason,
+            undefined,  
+            commentOnExpenditures).toString();
     } catch (error: any) {
         SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
         return `Error occurred in executeBalanceAction: ${error.message}`;

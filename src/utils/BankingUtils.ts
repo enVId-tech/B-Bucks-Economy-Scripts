@@ -55,7 +55,12 @@ function executeBalanceAction(payloadStr: string): string | void {
  */
 function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
   try {
-    if (!operation || !value || !isManualTransaction) {
+    // must explicitly include undefined check because isManualTransaction is a boolean so it will always evaluate as its boolean value if you check if !isManualTranscation.
+    if (
+      operation === undefined ||
+      value === undefined ||
+      isManualTransaction === undefined
+    ) {
       Logger.log(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
       SpreadsheetApp.getUi().alert(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
       return `You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`;
@@ -140,7 +145,7 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
           return row.map(cell => {
             if (typeof cell === 'number' && !isNaN(cell)) {
-              const balance = range.getSheet().getRange(absoluteRowIndex, 2).getValue();
+              const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
               const result = Number(operationFunc(cell).toFixed(2));
 
@@ -150,6 +155,8 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
               const targetColumnIndex = startColIndex;
 
+              const targetColumnInitValue = range.getSheet().getRange(absoluteRowIndex, targetColumnIndex).getValue();
+
               transactionRecords.push({
                 individual: individualName,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
@@ -157,10 +164,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                 quantity: 1,
                 modifiedColumn: targetColumnIndex,
                 tenderedMoney: Number(value.toFixed(2)),
-                initialColumnAmount: Number(balance.toFixed(2)),
+                initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
                 newColumnAmount: result,
                 initialBalance: Number(balance.toFixed(2)),
-                newBalance: result,
+                newBalance: 0,
                 timestamp: new Date().toISOString()
               });
 
@@ -184,7 +191,12 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           valueInputOption: "USER_ENTERED",
           data: requests
         }, spreadsheetId);
+      } else {
+        SpreadsheetApp.getUi().alert("No valid ranges found to update.");
+        return false;
       }
+
+      SpreadsheetApp.flush()
 
       // Comment on the rows affected by the operation with the reason and amount, with error handling to ensure it doesn't interfere with the main operation if it fails
       if (commentOnExpenditures) {
@@ -194,6 +206,21 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
           return Array.from({ length: numRows }, (_, i) => startRow + i);
         }), `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
       }
+
+      // Get the new balance for the selected range after performing the operation
+      const newBalances = ranges.map(range => {
+        const getRow = range.getRow();
+
+        SpreadsheetApp.getUi().alert("Found row " + getRow + "  and column " + BALANCE_COL + " to get the new balance.");
+
+        return Number(range.getSheet().getRange(getRow, BALANCE_COL).getValue().toFixed(2));
+      })
+
+      // Change the transaction balance property to the new calculated balance
+      transactionRecords.forEach((record: TransactionRecord, index: number) => {
+        record.newBalance = Number(newBalances[index].toFixed(2));
+      });
+
 
       // After successfully applying the operations, add the transaction records
       if (transactionRecords.length > 0) {
@@ -242,7 +269,9 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                 // Absolutely ENSURE there is no floating point precision issues
                 const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
                 const targetColumnIndex = startColIndex;
+                const targetColumnInitValue = targetSheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
 
+                // If the operation is applied on column 3
                 transactionRecords.push({
                   individual: individualName,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
@@ -250,10 +279,10 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                   quantity: 1,
                   modifiedColumn: targetColumnIndex,
                   tenderedMoney: Number(value.toFixed(2)),
-                  initialColumnAmount: Number(balance.toFixed(2)),
+                  initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
                   newColumnAmount: result,
                   initialBalance: Number(balance.toFixed(2)),
-                  newBalance: result,
+                  newBalance: 0,
                   timestamp: new Date().toISOString()
                 });
 
@@ -266,6 +295,22 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
           subRange.setValues(updatedValues);
 
+          // Update balance column for each row in the range
+          // Get the new balance for the selected range after performing the operation
+          const newBalances = rangesToProcess.map(range => {
+            const getRow = range.getRow();
+
+            SpreadsheetApp.getUi().alert("Found row " + getRow + "  and column " + BALANCE_COL + " to get the new balance.");
+
+            return Number(range.getSheet().getRange(getRow, BALANCE_COL).getValue().toFixed(2));
+          });
+
+          // Update transaction records with new balances
+          transactionRecords.forEach((record, index) => {
+            record.newBalance = Number(newBalances[index].toFixed(2));
+          });
+
+          // After successfully applying the operations, add the transaction records
           if (transactionRecords.length > 0) {
             addTransactionRecords(transactionRecords);
           }
