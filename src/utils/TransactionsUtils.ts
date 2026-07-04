@@ -5,19 +5,22 @@
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
 // This file contains utility functions for managing transactions in the B-Bucks Economy Scripts project, including functions for executing balance actions based on user input and fetching transaction data with caching to optimize performance.
 
-// Transaction record interface
+// Transaction record interfaces
+type TransactionType = "Income" | "Expense" | "Investment" | "Unknown";
+
 interface TransactionRecord {
-  individual: string;
-  type: "Income" | "Expense" | "Investment";
-  serviceProvided: string;
-  quantity: number;
-  modifiedColumn: number;
-  tenderedMoney: number;
-  initialColumnAmount: number;
-  newColumnAmount: number;
-  initialBalance: number;
-  newBalance: number;
-  timestamp: string;
+  id?: number
+  individual?: string;
+  type?: TransactionType;
+  serviceProvided?: string;
+  quantity?: number;
+  modifiedColumn?: number;
+  tenderedMoney?: number;
+  initialColumnAmount?: number;
+  newColumnAmount?: number;
+  initialBalance?: number;
+  newBalance?: number;
+  timestamp?: string;
 }
 
 /**
@@ -57,6 +60,7 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
     // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting transactions from sheet rows...");
     const freshTransactions = fetchTransactionsData();
     setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
+    if (!Array.isArray(freshTransactions)) throw new Error("Failed to fetch transactions data from sheet.");
     return freshTransactions;
   } catch (error: any) {
     Logger.log(`Error in fetchTransactionsDataCached: ${error.message}`);
@@ -65,9 +69,6 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
   }
 }
 
-function fetchTransactionsData(): TransactionRecord[] {
-  return [];
-}
 
 /**
  * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
@@ -121,7 +122,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       // Native, short-circuiting check. Fast memory lookup.
       if (
         Object.keys(record)
-        .some(key => record[key as keyof TransactionRecord] === undefined || record[key as keyof TransactionRecord] === null)
+          .some(key => record[key as keyof TransactionRecord] === undefined || record[key as keyof TransactionRecord] === null)
       ) {
         const errMsg = `Validation failed: A required field is missing.`;
         Logger.log(errMsg);
@@ -176,8 +177,65 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       return true;
     }
   } catch (error: any) {
-    Logger.log(`Error occurred in addTransactionRecord: ${error.message}`);
+    Logger.log(`Error occurred in addTransactionRecords: ${error.message}`);
     SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Fetches transaction records from the spreadsheet and returns them as an array of TransactionRecord objects. 
+ * If the transactions sheet is not found or an error occurs during the fetch operation, it returns false.
+ * @param {string} transactionId - The ID of the transaction to fetch. If not provided, all transactions will be fetched.
+ * @returns {TransactionRecord[] | boolean} - An array of TransactionRecord objects if successful, or false if an error occurs or the sheet is not found.
+ */
+function fetchTransactionsData(): TransactionRecord[] | boolean {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
+    let sheetData: any | undefined = undefined;
+
+    if (!spreadsheet || !sheet || sheet === undefined || sheet === null) {
+      SpreadsheetApp.getUi().alert("Unable to fetch transaction records sheet. Records will not be filled");
+      return false;
+    }
+
+    try {
+      if (typeof Sheets === 'undefined' || !Sheets.Spreadsheets || !Sheets.Spreadsheets.Values) {
+        throw new Error("Advanced Sheets API service not enabled in script settings")
+      }
+      // Use the Sheets API to efficiently fetch all transaction records in one request, with error handling to fall back to the slower method if the API call fails
+      sheetData = Sheets.Spreadsheets.Values.get(spreadsheet.getId(), `${DEFAULT_TRANSACTIONS_SHEET}!A${TRANSACTIONS_ROW_START}:L`);
+
+      if (!sheetData.values || sheetData.values.length <= 0) return false;
+    } catch (err: any) {
+      Logger.log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`);
+
+      // Fall back to the slower method of fetching all transaction records using the native SpreadsheetApp service
+      sheetData = sheet.getRange(TRANSACTIONS_ROW_START, 1, sheet.getLastRow() - TRANSACTIONS_ROW_START + 1, 12).getValues(); // A1:L
+    }
+
+    const transactionRecords: TransactionRecord[] = sheetData.values.map((row: any[]) => {
+      return {
+        id: row[0] as number | 0,
+        individual: row[1] as string | "",
+        type: row[2] as TransactionType | "Unknown",
+        serviceProvided: row[3] as string | "",
+        quantity: row[4] as number | 0,
+        modifiedColumn: row[5] as number | 0,
+        tenderedMoney: row[6] as number | 0,
+        initialColumnAmount: row[7] as number | 0,
+        newColumnAmount: row[8] as number | 0,
+        initialBalance: row[9] as number | 0,
+        newBalance: row[10] as number | 0,
+        timestamp: row[11] as string | 0
+      }
+    })
+
+    return transactionRecords;
+  } catch (error: any) {
+    Logger.log(`An error occurred in fetchTransactionRecords: ${error.message}`);
+    SpreadsheetApp.getUi().alert(`An error occurred in fetchTransactionRecords: ${error.message}`);
     return false;
   }
 }

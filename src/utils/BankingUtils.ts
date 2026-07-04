@@ -149,8 +149,6 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
 
               const result = Number(operationFunc(cell).toFixed(2));
 
-              Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
-
               const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
 
               const targetColumnIndex = startColIndex;
@@ -220,7 +218,6 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
       transactionRecords.forEach((record: TransactionRecord, index: number) => {
         record.newBalance = Number(newBalances[index].toFixed(2));
       });
-
 
       // After successfully applying the operations, add the transaction records
       if (transactionRecords.length > 0) {
