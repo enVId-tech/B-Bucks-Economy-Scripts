@@ -29,15 +29,15 @@ function executeBalanceAction(payloadStr: string): string | void {
 
     // Parse the clean JSON string into a JSON object for the util function to process
     const payload = JSON.parse(payloadStr);
-    const { operation, amount, transactionReason = undefined } = payload;
+    const { operation, unitPrice = undefined, quantity = undefined, transactionReason = undefined } = payload;
 
-    if (!operation || !amount || typeof amount !== 'number') {
+    if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
       Logger.log("Invalid payload. Please provide a valid operation and amount.");
-      SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, amount: ${amount}`);
+      SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}`);
       return "Invalid payload. Please provide a valid operation and amount.";
     }
 
-    return applyMathToSelection(operation, amount, true, transactionReason).toString();
+    return applyMathToSelection(operation, unitPrice, quantity, true, transactionReason).toString();
   } catch (error: any) {
     SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
     return `Error occurred in executeBalanceAction: ${error.message}`;
@@ -47,36 +47,42 @@ function executeBalanceAction(payloadStr: string): string | void {
 /**
  * Uses an operand and a value to apply to the existing value of all selected cells.
  * @param operation The mathematical operation to apply to the selected cells. Must be one of "ADD", "SUBTRACT", "MULTIPLY", or "DIVIDE".
- * @param value The value to use in the mathematical operation on the selected cells. Must be a number.
+ * @param unitPrice The unit price to use in the operation. Must be a number.
+ * @param quantity The quantity to use in the operation. Must be a number.
  * @param isManualTransaction Whether the transaction is manual or not.
  * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
  * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, value: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
+function applyMathToSelection(operation: Operation | string, unitPrice: number, quantity: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
   try {
     // must explicitly include undefined check because isManualTransaction is a boolean so it will always evaluate as its boolean value if you check if !isManualTranscation.
     if (
       operation === undefined ||
-      value === undefined ||
+      unitPrice === undefined ||
+      quantity === undefined ||
       isManualTransaction === undefined
     ) {
-      Logger.log(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
-      SpreadsheetApp.getUi().alert(`You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`);
-      return `You must have an operation, a value, and a manual transaction flag. Received operation: ${operation}, value: ${value}, isManualTransaction: ${isManualTransaction}`;
+      Logger.log(`You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided. Received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}, isManualTransaction: ${isManualTransaction}`);
+      SpreadsheetApp.getUi().alert(`You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided. Received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}, isManualTransaction: ${isManualTransaction}`);
+      return "You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided.";
     }
 
-    if (typeof value !== 'number' || isNaN(value)) {
-      Logger.log("Value must be a number.");
-      SpreadsheetApp.getUi().alert("Value must be a number.");
-      return "Value must be a number.";
+    if (typeof unitPrice !== 'number' || isNaN(unitPrice)) {
+      Logger.log("Unit price must be denominated in an integer quantity.");
+      SpreadsheetApp.getUi().alert("Unit price must be denominated in an integer quantity.");
+      return "Unit price must be denominated in an integer quantity.";
     }
 
-    Logger.log(`Applying math operation: ${operation}, value: ${value}`);
-
+    if (typeof quantity !== 'number' || isNaN(quantity)) {
+      Logger.log("Quantity must be denominated in an integer quantity.");
+      SpreadsheetApp.getUi().alert("Quantity must be denominated in an integer quantity.");
+      return "Quantity must be denominated in an integer quantity.";
+    }
+    
     // Absolutely ENSURE there is no floating point precision issues
     // god damn floating point issues kms
-    value = Number(value.toFixed(2));
+    const value = Number((unitPrice * quantity).toFixed(2));
 
     // Ensure the operation is in an enum format
     // Edge case handling
@@ -159,7 +165,8 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                 individual: individualName,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                 serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                quantity: 1,
+                unitPrice: unitPrice,
+                quantity: quantity,
                 modifiedColumn: targetColumnIndex,
                 tenderedMoney: Number(value.toFixed(2)),
                 initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
@@ -273,7 +280,8 @@ function applyMathToSelection(operation: Operation | string, value: number, isMa
                   individual: individualName,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                   serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
-                  quantity: 1,
+                  unitPrice: unitPrice,
+                  quantity: quantity,
                   modifiedColumn: targetColumnIndex,
                   tenderedMoney: Number(value.toFixed(2)),
                   initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),

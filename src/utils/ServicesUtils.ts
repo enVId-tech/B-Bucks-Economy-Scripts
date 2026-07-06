@@ -161,11 +161,11 @@ function executeServiceAction(payloadStr: string): string | void {
 
         // Parse the clean JSON string into a JSON object for the util function to process
         const payload = JSON.parse(payloadStr);
-        const { operation, amount, transactionReason = undefined } = payload;
+        const { operation, unitPrice, quantity, transactionReason = undefined } = payload;
         
-        if (!operation || !amount || typeof amount !== 'number') {
+        if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
             Logger.log("Invalid payload. Please provide a valid operation and amount.");
-            SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, amount: ${amount}`);
+            SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}`);
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
@@ -173,8 +173,9 @@ function executeServiceAction(payloadStr: string): string | void {
 
         return applyMathToSelection(
             operation, 
-            amount, 
-            false, 
+            unitPrice,
+            quantity,
+            false,
             transactionReason,
             undefined,  
             commentOnExpenditures).toString();

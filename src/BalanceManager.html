@@ -238,7 +238,8 @@
                 // Prevents an illegal value error
                 const payload = JSON.stringify({ 
                     operation: operation, 
-                    amount: amount,
+                    unitPrice: amount,
+                    quantity: 1,
                     transactionReason: transactionReason
                 });
 

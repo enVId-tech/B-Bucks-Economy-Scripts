@@ -230,6 +230,8 @@
 
                 let payload = {
                     operation: isIncome ? "ADD" : "SUBTRACT",
+                    unitPrice: price || undefined,
+                    quantity: multiplier || undefined,
                     amount: price * (multiplier > 0 ? multiplier : 1) * (isIncome ? 1 : -1),
                     transactionReason: `$${price} - ${name} (x${multiplier})`
                 };

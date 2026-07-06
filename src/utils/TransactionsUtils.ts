@@ -13,6 +13,7 @@ interface TransactionRecord {
   individual?: string;
   type?: TransactionType;
   serviceProvided?: string;
+  unitPrice: number;
   quantity?: number;
   modifiedColumn?: number;
   tenderedMoney?: number;
@@ -221,15 +222,16 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
         individual: row[1] as string | "",
         type: row[2] as TransactionType | "Unknown",
         serviceProvided: row[3] as string | "",
-        quantity: row[4] as number | 0,
-        modifiedColumn: row[5] as number | 0,
-        tenderedMoney: row[6] as number | 0,
-        initialColumnAmount: row[7] as number | 0,
-        newColumnAmount: row[8] as number | 0,
-        initialBalance: row[9] as number | 0,
-        newBalance: row[10] as number | 0,
-        timestamp: row[11] as string | 0
-      }
+        unitPrice: row[4] as number | 0,
+        quantity: row[5] as number | 0,
+        modifiedColumn: row[6] as number | 0,
+        tenderedMoney: row[7] as number | 0,
+        initialColumnAmount: row[8] as number | 0,
+        newColumnAmount: row[9] as number | 0,
+        initialBalance: row[10] as number | 0,
+        newBalance: row[11] as number | 0,
+        timestamp: row[12] as string | 0
+      } as TransactionRecord;
     })
 
     return transactionRecords;
