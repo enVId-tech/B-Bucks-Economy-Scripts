@@ -27,9 +27,9 @@ interface ItemData {
 function fetchServicesDataCached(data?: string): ItemData[] | { error: string } {
     try {
         if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchServicesDataCached: ${data}`);
+            log(`Received data for fetchServicesDataCached: ${data}`, false);
         } else {
-            Logger.log("No data received for fetchServicesDataCached, proceeding with default cache retrieval.");
+            log("No data received for fetchServicesDataCached, proceeding with default cache retrieval.", false);
             data = JSON.stringify({ forceRefresh: false });
         }
 
@@ -42,7 +42,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         if (!forceRefresh) {
             const cachedString = getCachedData(SERVICES_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
-                // SpreadsheetApp.getUi().alert(`Cache hit: Services data loaded from cache. String: ${cachedString}`);
+                log(`Cache hit: Services data loaded from cache. String: ${cachedString}`, false);
                 return JSON.parse(cachedString) as ItemData[];
             }
 
@@ -53,8 +53,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
             }
         }
 
-        console.log("Cache miss: Re-extracting items from Services sheet rows...");
-        // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting items from Services sheet rows...");
+        log("Cache miss: Re-extracting items from Services sheet rows...", false);
         const freshServices = fetchServicesData();
 
         if (Array.isArray(freshServices)) {
@@ -63,8 +62,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
         return freshServices;
     } catch (error: any) {
-        Logger.log(`Error occurred in fetchServicesDataCached: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Error occurred in fetchServicesDataCached: ${error.message}`);
+        log(`Error in fetchServicesDataCached: ${error.message}`, true);
         return { error: `Error occurred in fetchServicesDataCached: ${error.message}` };
     }
 }
@@ -77,15 +75,13 @@ function fetchServicesData(): ItemData[] | { error: string } {
     try {
         const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DEFAULT_SERVICES_SHEET);
         if (!servicesSheet) {
-            Logger.log("Services sheet not found.");
-            SpreadsheetApp.getUi().alert("Services sheet not found.");
+            log("Services sheet not found.", true);
             return { error: "Services sheet not found." };
         }
 
         const lastRow = servicesSheet.getLastRow();
         if (lastRow < SERVICES_ROW_START) {
-            Logger.log("No services data found.");
-            SpreadsheetApp.getUi().alert("No services data found.");
+            log("No services data found.", true);
             return { error: "No services data found." };
         }
 
@@ -133,14 +129,13 @@ function fetchServicesData(): ItemData[] | { error: string } {
         }
 
         if (servicesData.length === 0) {
-            Logger.log("No valid services data found.");
-            SpreadsheetApp.getUi().alert("No valid services data found.");
+            log("No valid services data found.", true);
             return { error: "No valid services data found." };
         }
 
         return servicesData;
     } catch (error: any) {
-        SpreadsheetApp.getUi().alert(`Error occurred in fetchServicesData: ${error.message}`);
+        log(`Error in fetchServicesData: ${error.message}`, true);
         return { error: `Error occurred in fetchServicesData: ${error.message}` };
     }
 }
@@ -154,8 +149,7 @@ function executeServiceAction(payloadStr: string): string | void {
     try {
         // Check if a string payload was provided
         if (!payloadStr) {
-            Logger.log("No payload provided for balance action.");
-            SpreadsheetApp.getUi().alert("No payload provided for balance action.");
+            log("No payload provided for balance action.", true);
             return "No payload provided for balance action.";
         }
 
@@ -164,8 +158,7 @@ function executeServiceAction(payloadStr: string): string | void {
         const { operation, unitPrice, quantity, transactionReason = undefined } = payload;
         
         if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
-            Logger.log("Invalid payload. Please provide a valid operation and amount.");
-            SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}`);
+            log("Invalid payload. Please provide a valid operation and amount. Received - operation: " + operation + ", unitPrice: " + unitPrice + ", quantity: " + quantity, true);
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
@@ -180,7 +173,7 @@ function executeServiceAction(payloadStr: string): string | void {
             undefined,  
             commentOnExpenditures).toString();
     } catch (error: any) {
-        SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
+        log(`Error in executeBalanceAction: ${error.message}`, true);
         return `Error occurred in executeBalanceAction: ${error.message}`;
     }
 }

@@ -27,7 +27,7 @@ function getCachedData(cacheKey: string): string | void {
 
         return
     } catch (error: any) {
-        Logger.log(`Error in getCachedData for key ${cacheKey}: ${error.message}`);
+        log(`Error in getCachedData for key ${cacheKey}: ${error.message}`, true);
         return
     }
 }
@@ -52,20 +52,14 @@ function setCachedData(cacheKey: string, data: any): boolean {
             CacheService.getScriptCache().put(cacheKey, serializedData, SERVER_SIDE_CACHE_AGE);
             PropertiesService.getScriptProperties().setProperty(cacheKey, serializedData);
         } catch (lockError: any) {
-            Logger.log(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`);
-            SpreadsheetApp.getUi().alert(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`);
+            log(`Failed to acquire lock for cache update on key ${cacheKey}: ${lockError.message}`, true);
             return false;
         } finally {
             lock.releaseLock();
         }
         return true;
     } catch (error: any) {
-        Logger.log(`Error in setCachedData for key ${cacheKey}: ${error.message}`);
-        try {
-            SpreadsheetApp.getUi().alert(`Error updating cached data for key ${cacheKey}: ${error.message}`);
-        } catch (uiError: any) {
-            Logger.log(`Additionally, failed to show alert for cache update error: ${uiError.message}`);
-        }
+        log(`Error in setCachedData for key ${cacheKey}: ${error.message}`, true);
         return false;
     }
 }
@@ -127,8 +121,7 @@ function setServerCacheValue(data: string): boolean {
         cache.put(key, value, SERVER_SIDE_CACHE_AGE);
         return true;
     } catch (error: any) {
-        Logger.log(`Failed to write to server cache layer: ${error.message} for key: ${key}`);
-        SpreadsheetApp.getUi().alert(`Failed to write to server cache layer: ${error.message} for key: ${key}`);
+        log(`Failed to write to server cache layer: ${error.message} for key: ${key}`, true);
         return false;
     }
 }
@@ -147,12 +140,10 @@ function clearGlobalCache(keys: string[]): boolean {
 
         keys.forEach(key => props.deleteProperty(key));
 
-        Logger.log(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`);
-        // SpreadsheetApp.getUi().alert(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`);
+        log(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`, false);
         return true;
     } catch (error: any) {
-        Logger.log(`Failed to purge global cache layer: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Failed to purge global cache layer: ${error.message}`);
+        log(`Failed to purge global cache layer: ${error.message}`, true);
         return false;
     }
 }
@@ -163,11 +154,10 @@ function clearServerCacheValue(key: string): boolean {
         const props = PropertiesService.getScriptProperties();
         cache.remove(key);
         props.deleteProperty(key);
-        Logger.log(`Cleared duplicate server cache value for key: ${key}`);
+        log(`Cleared duplicate server cache value for key: ${key}`, false);
         return true;
     } catch (error: any) {
-        Logger.log(`Failed to clear duplicate server cache value for key ${key}: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Failed to clear duplicate server cache value for key ${key}: ${error.message}`);
+        log(`Failed to clear duplicate server cache value for key ${key}: ${error.message}`, true);
         return false;
     }
 }

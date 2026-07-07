@@ -62,9 +62,9 @@ interface SettingsData {
 function fetchSettingsDataCached(data?: string): SettingsData | { error: string } {
     try {
         if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchSettingsDataCached: ${data}`);
+            log(`Received data for fetchSettingsDataCached: ${data}`, false);
         } else {
-            Logger.log("No data received for fetchSettingsDataCached, proceeding with default cache retrieval.");
+            log("No data received for fetchSettingsDataCached, proceeding with default cache retrieval.", false);
             data = JSON.stringify({ forceRefresh: false });
         }
 
@@ -77,21 +77,20 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
         if (!forceRefresh) {
             const cachedString = getCachedData(SETTINGS_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
-                // SpreadsheetApp.getUi().alert(`Cache hit: Settings data loaded from cache. String: ${cachedString}`);
+                log(`Cache hit: Settings data loaded from cache. String: ${cachedString}`, false);
                 return JSON.parse(cachedString) as SettingsData;
             }
 
             const savedProperties = props.getProperty(SETTINGS_CACHED_KEY);
             if (savedProperties) {
-                Logger.log(`Server Cache Hit (Properties) for ${SETTINGS_CACHED_KEY}`);
+                log(`Cache hit: Settings data loaded from server properties. String: ${savedProperties}`, false);
                 // Repopulate fast RAM cache so the next window open loads even faster
                 cache.put(SETTINGS_CACHED_KEY, savedProperties, 21600);
                 return JSON.parse(savedProperties);
             }
         }
 
-        console.log("Cache miss: Re-calculating policy vectors from Settings sheet cells...");
-        // SpreadsheetApp.getUi().alert("Cache miss: Re-calculating policy vectors from Settings sheet cells...");
+        log("Cache miss: Re-calculating policy vectors from Settings sheet cells...", false);
         const freshSettings = fetchSettingsData();
 
         if (freshSettings && !('error' in freshSettings)) {
@@ -100,7 +99,7 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
 
         return freshSettings;
     } catch (error: any) {
-        // SpreadsheetApp.getUi().alert(`Error occurred in fetchSettingsDataCached: ${error.message}`);
+        log(`Error occurred in fetchSettingsDataCached: ${error.message}`, true);
         return { error: `Error occurred in fetchSettingsDataCached: ${error.message}` };
     }
 }
@@ -117,8 +116,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
         const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
 
         if (!settingsSheet) {
-            Logger.log("Settings sheet not found.");
-            try { SpreadsheetApp.getUi().alert("Settings sheet not found."); } catch (e) { }
+            log("Settings sheet not found.", true);
             return { error: "Settings sheet not found." };
         }
 
@@ -164,8 +162,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
             limits: extractSettings(Object.keys(SETTINGS_COLUMNS)[4]) as Limits,
         };
     } catch (err: any) {
-        Logger.log(`Error in fetchSettingsData: ${err.message}`);
-        try { SpreadsheetApp.getUi().alert(`Error in fetchSettingsData: ${err.message}`); } catch (e) { }
+        log(`Error in fetchSettingsData: ${err.message}`, true);
         return { error: `Error in fetchSettingsData: ${err.message}` };
     }
 }
@@ -175,6 +172,7 @@ function fetchProperty(propertyKey: string): string | { error: string } {
         const settings = fetchSettingsDataCached();
 
         if ('error' in settings) {
+            log(`Failed to fetch settings data: ${settings.error}`, false);
             return { error: `Failed to fetch settings data: ${settings.error}` };
         }
 
@@ -188,11 +186,12 @@ function fetchProperty(propertyKey: string): string | { error: string } {
         }
 
         if (propertyValue === undefined) {
+            log(`Property key "${propertyKey}" not found in any settings section.`, false);
             return { error: `Property key "${propertyKey}" not found in any settings section.` };
         }
         return String(propertyValue);
     } catch (error: any) {
-        Logger.log(`Error in fetchProperty for key ${propertyKey}: ${error.message}`);
+        log(`Error in fetchProperty for key ${propertyKey}: ${error.message}`, true);
         return { error: `Error in fetchProperty for key ${propertyKey}: ${error.message}` };
     }
 }
@@ -206,15 +205,13 @@ function setSettingsProperty(data: any): boolean {
     try {
         const settings = fetchSettingsDataCached();
         if ('error' in settings) {
-            Logger.log(`Failed to fetch settings data: ${settings.error}`);
-            SpreadsheetApp.getUi().alert(`Failed to fetch settings data: ${settings.error}`);
+            log(`Failed to fetch settings data: ${settings.error}`, true);
             return false;
         }
 
         const settingKeys = Object.keys(settings) as (keyof SettingsData)[];
         if (!settingKeys.includes(propertyKey as keyof SettingsData)) {
-            Logger.log(`Invalid property key "${propertyKey}". Must be one of: ${settingKeys.join(", ")}`);
-            SpreadsheetApp.getUi().alert(`Invalid property key "${propertyKey}". Must be one of: ${settingKeys.join(", ")}`);
+            log(`Invalid property key "${propertyKey}". Must be one of: ${settingKeys.join(", ")}`, true);
             return false;
         }
 
@@ -231,25 +228,23 @@ function setSettingsProperty(data: any): boolean {
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
         const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
         if (!settingsSheet) {
-            Logger.log(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`);
-            SpreadsheetApp.getUi().alert(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`);
+            log(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`, true);
             return false;
         }
 
         // Find the row and column for the property key
         const columnInfo = SETTINGS_COLUMNS[propertyKey as keyof typeof SETTINGS_COLUMNS];
 
-        // SpreadsheetApp.getUi().alert(`Found column info for property key "${propertyKey}": keyCol=${columnInfo.keyCol}, valCol=${columnInfo.valCol}, columnInfo: ${JSON.stringify(columnInfo)}`);
+        log(`Attempting to update settings for property key "${propertyKey}" with value: ${JSON.stringify(propertyValue)}`, false);
         if (!columnInfo) {
-            Logger.log(`Column information for property key "${propertyKey}" not found.`);
-            SpreadsheetApp.getUi().alert(`Column information for property key "${propertyKey}" not found.`);
+            log(`Column information for property key "${propertyKey}" not found.`, true);
             return false;
         }
 
         const { keyCol, valCol } = columnInfo;
         const lastRow = settingsSheet.getLastRow();
 
-        // SpreadsheetApp.getUi().alert(`Attempting to update with ${JSON.stringify({ propertyValue })}}`)
+        log(`Updating settings sheet "${DEFAULT_SETTINGS_SHEET}" for property key "${propertyKey}" in column ${keyCol} with value: ${JSON.stringify(propertyValue)}`, false);
 
         // Format the values to match the expected object structure in the sheet, which is key-value pairs where the key is the setting name and the value is the setting value. The keys are listed in the keyCol and the values are listed in the valCol, so we need to find the correct row for the propertyKey and update its corresponding value in valCol.
         Object.entries(propertyValue).forEach(([innerKey, innerValue]) => {
@@ -274,15 +269,13 @@ function setSettingsProperty(data: any): boolean {
             }
 
             if (!itemUpdated) {
-                Logger.log(`Warning: Inner setting key "${innerKey}" was not found in column ${keyCol}.`);
-                SpreadsheetApp.getUi().alert(`Warning: Inner setting key "${innerKey}" was not found in column ${keyCol}. Please ensure the key exists in the sheet for it to be updated.`);
+                log(`Warning: Inner setting key "${innerKey}" was not found in column ${keyCol}.`, true);
             }
         });
 
         return true;
     } catch (error: any) {
-        Logger.log(`Error in setSettingsProperty: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Error in setSettingsProperty: ${error.message}`);
+        log(`Error in setSettingsProperty: ${error.message}`, true);
         return false;
     }
 }

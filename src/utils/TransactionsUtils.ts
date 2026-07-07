@@ -32,9 +32,9 @@ interface TransactionRecord {
 function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { error: string } {
   try {
     if (data && typeof data === 'string') {
-      Logger.log(`Received data for fetchTransactionsDataCached: ${data}`);
+      log(`Received data for fetchTransactionsDataCached: ${data}`, false);
     } else {
-      Logger.log("No data received for fetchTransactionsDataCached, proceeding with default cache retrieval.");
+      log("No data received for fetchTransactionsDataCached, proceeding with default cache retrieval.", false);
       data = JSON.stringify({ forceRefresh: false });
     }
 
@@ -47,7 +47,7 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
     if (!forceRefresh) {
       const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
       if (cachedString && cachedString !== "{}" && cachedString !== "") {
-        // SpreadsheetApp.getUi().alert(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`);
+        log(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`, false);
         return JSON.parse(cachedString) as TransactionRecord[];
       }
       const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
@@ -57,15 +57,13 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
       }
     }
 
-    console.log("Cache miss: Re-extracting transactions from sheet rows...");
-    // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting transactions from sheet rows...");
+    log(`Cache miss: Re-extracting transactions from sheet rows...`, false);
     const freshTransactions = fetchTransactionsData();
     setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
     if (!Array.isArray(freshTransactions)) throw new Error("Failed to fetch transactions data from sheet.");
     return freshTransactions;
   } catch (error: any) {
-    Logger.log(`Error in fetchTransactionsDataCached: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`Error in fetchTransactionsDataCached: ${error.message}`);
+    log(`Error in fetchTransactionsDataCached: ${error.message}`, true);
     return { error: `Error in fetchTransactionsDataCached: ${error.message}` };
   }
 }
@@ -84,13 +82,12 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
 
     // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
     if (!sheet) {
-      Logger.log(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`);
-      SpreadsheetApp.getUi().alert(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`);
+      log(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
       return false;
     }
 
     if (!records || records.length === 0) {
-      Logger.log("No records provided to add.");
+      log("No transaction records provided to add. Operation aborted.", false);
       return true;
     }
 
@@ -125,9 +122,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         Object.keys(record)
           .some(key => record[key as keyof TransactionRecord] === undefined || record[key as keyof TransactionRecord] === null)
       ) {
-        const errMsg = `Validation failed: A required field is missing.`;
-        Logger.log(errMsg);
-        SpreadsheetApp.getUi().alert(errMsg);
+        log(`Validation failed: A required field is missing in record at index ${i}. Record: ${JSON.stringify(record)}`, true);
         return false;
       }
 
@@ -163,7 +158,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         throw new Error("Advanced Sheets API service not enabled in script settings.");
       }
     } catch (apiError: any) {
-      Logger.log(`Advanced API pipeline bypassed/failed. Error: ${apiError.message}. Running native fallback setup...`);
+      log(`Advanced API pipeline bypassed/failed. Error: ${apiError.message}. Running native fallback setup...`, true);
 
       sheet.getRange(
         insertStartRow,
@@ -178,8 +173,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       return true;
     }
   } catch (error: any) {
-    Logger.log(`Error occurred in addTransactionRecords: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`Error occured in addTransactionRecord: ${error.message}`);
+    log(`Error occurred in addTransactionRecords: ${error.message}`, true);
     return false;
   }
 }
@@ -197,7 +191,7 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
     let sheetData: any | undefined = undefined;
 
     if (!spreadsheet || !sheet || sheet === undefined || sheet === null) {
-      SpreadsheetApp.getUi().alert("Unable to fetch transaction records sheet. Records will not be filled");
+      log(`Transactions sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
       return false;
     }
 
@@ -210,7 +204,7 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
 
       if (!sheetData.values || sheetData.values.length <= 0) return false;
     } catch (err: any) {
-      Logger.log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`);
+      log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`, true);
 
       // Fall back to the slower method of fetching all transaction records using the native SpreadsheetApp service
       sheetData = sheet.getRange(TRANSACTIONS_ROW_START, 1, sheet.getLastRow() - TRANSACTIONS_ROW_START + 1, 12).getValues(); // A1:L
@@ -236,8 +230,7 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
 
     return transactionRecords;
   } catch (error: any) {
-    Logger.log(`An error occurred in fetchTransactionRecords: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`An error occurred in fetchTransactionRecords: ${error.message}`);
+    log(`Error occurred in fetchTransactionRecords: ${error.message}`, true);
     return false;
   }
 }

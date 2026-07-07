@@ -32,9 +32,9 @@ interface InvestmentRecord {
 function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: string } {
     try {
         if (data && typeof data === 'string') {
-            Logger.log(`Received data for fetchInvestmentsDataCached: ${data}`);
+            log(`Received data for fetchInvestmentsDataCached: ${data}`, false);
         } else {
-            Logger.log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.");
+            log("No data received for fetchInvestmentsDataCached, proceeding with default cache retrieval.", false);
             data = JSON.stringify({ forceRefresh: false });
         }
 
@@ -49,7 +49,7 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         if (!forceRefresh) {
             const cachedData = getCachedData(CACHE_KEY);
             if (cachedData && cachedData !== "{}" && cachedData !== "") {
-                // SpreadsheetApp.getUi().alert(`Cache hit: Investments ledger data loaded from cache. String: ${cachedData}`);
+                log(`Cache hit: Investments ledger data loaded from cache. String: ${cachedData}`, false);
                 return JSON.parse(cachedData) as PeriodData[];
             }
         }
@@ -57,40 +57,36 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         if (!forceRefresh) {
             const savedProperties = props.getProperty(CACHE_KEY);
             if (savedProperties) {
-                Logger.log(`Server Cache Hit (Properties) for ${CACHE_KEY}`);
+                log(`Cache hit: Investments ledger data loaded from script properties for cache key ${CACHE_KEY}. String: ${savedProperties}`, false);
                 // Repopulate fast RAM cache so the next window open loads even faster
                 cache.put(CACHE_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
                 return JSON.parse(savedProperties);
             }
         }
 
-        console.log("Cache miss: Re-extracting items from Investments sheet rows...");
-        // SpreadsheetApp.getUi().alert("Cache miss: Re-extracting items from Investments sheet rows...");
+        log("Cache miss: Re-extracting items from Investments sheet rows...", false);
         const periodDataArray: PeriodData[] | { error: string } = fetchInvestmentsLedgerData();
 
         if ('error' in periodDataArray) {
-            Logger.log(`Error fetching investments ledger data: ${periodDataArray.error}`);
-            SpreadsheetApp.getUi().alert(`Error fetching investments ledger data: ${periodDataArray.error}`);
+            log(`Error fetching investments ledger data: ${periodDataArray.error}`, true);
             return { error: periodDataArray.error };
         }
 
-        // SpreadsheetApp.getUi().alert(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`);
+        log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
 
         if (Array.isArray(periodDataArray)) {
             try {
                 setCachedData(CACHE_KEY, periodDataArray);
             } catch (cacheErr) {
-                Logger.log(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`);
-                SpreadsheetApp.getUi().alert(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`);
+                log(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`, true);
             }
         }
 
-        // SpreadsheetApp.getUi().alert(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`);
+        log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
 
         return periodDataArray as PeriodData[];
     } catch (err) {
-        Logger.log(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`);
-        SpreadsheetApp.getUi().alert(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`, true);
         return { error: "Failed to fetch cached investments data" };
     }
 }
@@ -104,7 +100,6 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period"));
         let periodDataArray: PeriodData[] = [];
-
 
         periodSheets.forEach(sheet => {
             const dataRange = sheet.getDataRange();
@@ -147,8 +142,7 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
         // Cache the transactions data for use in the Investments Manager dialog
         return periodDataArray;
     } catch (err) {
-        Logger.log(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`);
-        SpreadsheetApp.getUi().alert(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in fetchInvestmentsLedgerData: ${err instanceof Error ? err.message : String(err)}`, true);
         return { error: "Failed to fetch investments ledger data from sheet" };
     }
 }
@@ -225,7 +219,7 @@ function refreshAllInvestments(): boolean {
         SpreadsheetApp.flush();
         return true;
     } catch (err) {
-        Logger.log(`Error in refreshAllInvestments: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in refreshAllInvestments: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }
@@ -293,7 +287,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
         }
         return true;
     } catch (err) {
-        Logger.log(`Error in refreshSingleInvestment: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in refreshSingleInvestment: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }
@@ -346,7 +340,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
         SpreadsheetApp.flush();
         return true;
     } catch (err) {
-        Logger.log(`Error in writeSingleInvestmentToSheet: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in writeSingleInvestmentToSheet: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }
@@ -401,7 +395,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
         SpreadsheetApp.flush();
         return true;
     } catch (err) {
-        Logger.log(`Error in writeInvestmentsDataToSheet: ${err instanceof Error ? err.message : String(err)}`);
+        log(`Error in writeInvestmentsDataToSheet: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }
@@ -417,18 +411,18 @@ function handleDeposit(data: string): boolean {
         const { amount, student, period, override } = parsedData;
 
         if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
-            SpreadsheetApp.getUi().alert("Invalid data format for deposit. Please check the input.");
+            log(`Invalid data format for deposit. Received data: ${data}. Please check the input`, true);
             return false;
         }
 
         if (amount <= 0) {
-            SpreadsheetApp.getUi().alert("Deposit amount must be greater than zero.");
+            log(`Deposit amount must be greater than zero. Received amount: ${amount}.`, true);
             return false;
         }
 
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
         if (!sheet) {
-            SpreadsheetApp.getUi().alert(`Sheet for period "${period}" not found.`);
+            log(`Sheet for period "${period}" not found. Please check the period name.`, true);
             return false;
         }
 
@@ -444,7 +438,7 @@ function handleDeposit(data: string): boolean {
         }
 
         if (studentRow === -1) {
-            SpreadsheetApp.getUi().alert(`Student "${student}" not found in period "${period}".`);
+            log(`Student "${student}" not found in period "${period}". Please check the student name and period.`, true);
             return false;
         }
 
@@ -522,12 +516,7 @@ function handleDeposit(data: string): boolean {
 
         return true;
     } catch (err) {
-        Logger.log(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
-        try {
-            SpreadsheetApp.getUi().alert(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`);
-        } catch (e) {
-            Logger.log(`Additionally, failed to show alert for error in handleDeposit: ${e instanceof Error ? e.message : String(e)}`);
-        }
+        log(`Error in handleDeposit: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }
@@ -543,18 +532,18 @@ function handleWithdraw(data: string): boolean {
         const { amount, student, period, override } = withdrawData;;
 
         if (typeof amount !== 'number' || typeof student !== 'string' || typeof period !== 'string') {
-            SpreadsheetApp.getUi().alert("Invalid data format for withdrawal. Please check the input.");
+            log(`Invalid data format for withdrawal. Received data: ${data}. Please check the input`, true);
             return false;
         }
 
         if (amount <= 0) {
-            SpreadsheetApp.getUi().alert("Withdrawal amount must be greater than zero.");
+            log(`Withdrawal amount must be greater than zero. Received amount: ${amount}.`, true);
             return false;
         }
 
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
         if (!sheet) {
-            SpreadsheetApp.getUi().alert(`Sheet for period "${period}" not found.`);
+            log(`Sheet for period "${period}" not found. Please check the period name.`, true);
             return false;
         }
 
@@ -570,14 +559,14 @@ function handleWithdraw(data: string): boolean {
         }
 
         if (studentRow === -1) {
-            SpreadsheetApp.getUi().alert(`Student "${student}" not found.`);
+            log(`Student "${student}" not found in period "${period}". Please check the student name and period.`, true);
             return false;
         }
 
         const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
         let previousBalance = parseFloat(previousBalanceCell.getValue());
         if (isNaN(previousBalance)) {
-            SpreadsheetApp.getUi().alert(`Invalid balance for student "${student}".`);
+            log(`Invalid balance for student "${student}". Please check the balance value in the sheet.`, true);
             return false;
         }
         previousBalance = Number(previousBalance.toFixed(2));
@@ -586,7 +575,7 @@ function handleWithdraw(data: string): boolean {
         const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
         if (isNaN(currentNetAmount)) {
-            SpreadsheetApp.getUi().alert(`Invalid net amount for student "${student}".`);
+            log(`Invalid net amount for student "${student}". Please check the net investment gain value in the sheet.`, true);
             return false;
         }
 
@@ -594,7 +583,7 @@ function handleWithdraw(data: string): boolean {
         const returnsAmountCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
         const currentReturnsAmount = parseFloat(returnsAmountCell.getValue());
         if (isNaN(currentReturnsAmount)) {
-            SpreadsheetApp.getUi().alert(`Invalid returns amount for student "${student}".`);
+            log(`Invalid returns amount for student "${student}". Please check the investment returns value in the sheet.`, true);
             return false;
         }
 
@@ -624,12 +613,7 @@ function handleWithdraw(data: string): boolean {
         addTransactionRecords(transactionRecord);
         return true;
     } catch (err) {
-        Logger.log(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`);
-        try {
-            SpreadsheetApp.getUi().alert(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`);
-        } catch (e) {
-            Logger.log(`Additionally, failed to show alert for error in handleWithdraw: ${e instanceof Error ? e.message : String(e)}`);
-        }
+        log(`Error in handleWithdraw: ${err instanceof Error ? err.message : String(err)}`, true);
         return false;
     }
 }

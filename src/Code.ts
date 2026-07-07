@@ -45,25 +45,6 @@ function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of
 /** Opens a dialog displaying documentation and attribution information for the B-Bucks Economy Scripts project, including details about the author, client, and GitHub repository. */
 function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - Credits & Docs", 400, 600) }
 
-/** Updates timestamps for all records in the spreadsheet. */
-function updateTimestamps(): void { SpreadsheetApp.getUi().alert("✅ All timestamps have been updated to current time.") }
-
-/** Records a daily data snapshot to preserve historical information. */
-function recordDailyData(): void { SpreadsheetApp.getUi().alert("✅ Daily data snapshot has been recorded.") }
-
-/** Resets all historical records (admin function requiring confirmation). */
-function resetHistoricalRecords(): void {
-  const ui = SpreadsheetApp.getUi();
-  const response = ui.alert(
-    'Are you sure you want to reset all historical records? This action cannot be undone.',
-    ui.ButtonSet.YES_NO
-  );
-
-  if (response === ui.Button.YES) {
-    ui.alert("✅ Historical records have been reset.");
-  }
-}
-
 /** A placeholder function for menu items that are not yet implemented. */
 function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!") }
 

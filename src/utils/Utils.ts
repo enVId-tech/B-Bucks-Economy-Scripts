@@ -45,7 +45,7 @@ function fillSheetsWithData(data: string): boolean {
                 isFreshlyCreated = true;
                 forceUnideFreshSheet = true;
             } else {
-                Logger.log("Template sheet not found. Skipping period: " + entry.identifier);
+                log("Template sheet not found. Skipping period: " + entry.identifier, true);
                 return false;
             }
         }
@@ -55,7 +55,7 @@ function fillSheetsWithData(data: string): boolean {
             const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
             const lengthParsed = entry.individuals.length;
             if (lengthParsed === 0) {
-                Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
+                log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.", false);
                 return true;
             }
 
@@ -138,7 +138,7 @@ function fillSheetsWithData(data: string): boolean {
             SpreadsheetApp.flush();
             return true;
         } catch (err: any) {
-            Logger.log(`Error occurred in fillSheetWithEntry: ${err.message}`);
+            log(`Error occurred in fillSheetWithEntry: ${err.message}`, true);
             const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
             let lengthParsed = entry.individuals.length;
 
@@ -147,7 +147,7 @@ function fillSheetsWithData(data: string): boolean {
             targetSheet.showSheet();
 
             if (lengthParsed === 0) {
-                Logger.log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.");
+                log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.", false);
                 return true;
             }
 
@@ -189,31 +189,67 @@ function fillSheetsWithData(data: string): boolean {
         }
         return true;
     } catch (err: any) {
-        Logger.log(`An error occurred in function fillSheetsWithData: ${err as string}`);
+
         console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
         return false;
     }
 }
 
 /**
+ * Caller information utility to retrieve the function name and file name of the caller in the stack trace.
+ * @returns {object} An object containing the function name and file name of the caller.
+ * If the caller information cannot be determined, it returns 'unknown' for both function name and file name.
+ */
+function getCallerInfo() {
+  const stack = new Error().stack?.split('\n') ?? [];
+  const callerLine = stack[2] ?? '';
+
+  const match =
+    callerLine.match(/at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/) ??
+    callerLine.match(/at\s+(.*?):(\d+):(\d+)/);
+
+  if (!match) return { functionName: 'unknown', fileName: 'unknown' };
+
+  if (match.length === 5) {
+    return {
+      functionName: match[1] || 'unknown',
+      fileName: match[2].split('/').pop() ?? match[2],
+    };
+  }
+
+  return {
+    functionName: 'anonymous',
+    fileName: match[1].split('/').pop() ?? match[1],
+  };
+}
+
+/**
  * Logger for the entire B-Bucks Economy project
  * @param {any} message The message to log, can be of type string, number, boolean, or an array of any type.
- * @param {boolean} enableConsoleLogger Whether to log the message to the console. Default is true.
  * @param {boolean} isVisibleToClient Whether to show the log message to the client via a toast notification. Default is true.
  * @returns {boolean} Returns true if the logging operation was successful, false otherwise.
  */
-function log(message: any[] | string | number | boolean, enableConsoleLogger: boolean = true, isVisibleToClient: boolean = true): boolean {
+function log(message: any[] | string | number | boolean, isVisibleToClient: boolean = true): boolean {
     try {
         const timestamp = new Date().toISOString();
         const formattedMessage = `[${timestamp}] ${message}`;
+        const callerInfo = getCallerInfo();
 
-        if (enableConsoleLogger) {
-            Logger.log(formattedMessage);
+        // Will always log to console for developer purposes
+        // Will also always log to Apps Script Logger for debugging
+        if (!SpreadsheetApp.getActiveSpreadsheet()) {
+            console.error("No active spreadsheet found. Logging aborted (likely an error unless this is intended).");
+            Logger.log("No active spreadsheet found. Logging aborted (likely an error unless this is intended).");
+            return false;
         }
+        
+        console.error(`[${callerInfo.fileName} > ${callerInfo.functionName}] ${formattedMessage}`);
+        Logger.log(`[${callerInfo.fileName} > ${callerInfo.functionName}] ${formattedMessage}`);
 
         if (isVisibleToClient) {
-            SpreadsheetApp.getUi().alert(formattedMessage);
+            SpreadsheetApp.getUi().alert(`[${callerInfo.functionName}] ${formattedMessage}`);
         }
+
         return true;
     } catch (err: any) {
         Logger.log(`Error formatting log message: ${err.message}`);

@@ -22,8 +22,7 @@ function executeBalanceAction(payloadStr: string): string | void {
   try {
     // Check if a string payload was provided
     if (!payloadStr) {
-      Logger.log("No payload provided for balance action.");
-      SpreadsheetApp.getUi().alert("No payload provided for balance action.");
+      log("No payload provided for balance action.", true);
       return "No payload provided for balance action.";
     }
 
@@ -32,14 +31,13 @@ function executeBalanceAction(payloadStr: string): string | void {
     const { operation, unitPrice = undefined, quantity = undefined, transactionReason = undefined } = payload;
 
     if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
-      Logger.log("Invalid payload. Please provide a valid operation and amount.");
-      SpreadsheetApp.getUi().alert(`Invalid payload. Please provide a valid operation and amount. Information received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}`);
+      log("Invalid payload. Please provide a valid operation and amount.", true);
       return "Invalid payload. Please provide a valid operation and amount.";
     }
 
     return applyMathToSelection(operation, unitPrice, quantity, true, transactionReason).toString();
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(`Error occurred in executeBalanceAction: ${error.message}`);
+    log(`Error occurred in executeBalanceAction: ${error.message}`, true);
     return `Error occurred in executeBalanceAction: ${error.message}`;
   }
 }
@@ -63,20 +61,17 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       quantity === undefined ||
       isManualTransaction === undefined
     ) {
-      Logger.log(`You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided. Received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}, isManualTransaction: ${isManualTransaction}`);
-      SpreadsheetApp.getUi().alert(`You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided. Received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}, isManualTransaction: ${isManualTransaction}`);
+      log(`You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided. Received - operation: ${operation}, unitPrice: ${unitPrice}, quantity: ${quantity}, isManualTransaction: ${isManualTransaction}`, true);
       return "You must have an operation, unitPrice, quantity, and isManualTransaction boolean provided.";
     }
 
     if (typeof unitPrice !== 'number' || isNaN(unitPrice)) {
-      Logger.log("Unit price must be denominated in an integer quantity.");
-      SpreadsheetApp.getUi().alert("Unit price must be denominated in an integer quantity.");
+      log("Unit price must be denominated in an integer quantity.", true);
       return "Unit price must be denominated in an integer quantity.";
     }
 
     if (typeof quantity !== 'number' || isNaN(quantity)) {
-      Logger.log("Quantity must be denominated in an integer quantity.");
-      SpreadsheetApp.getUi().alert("Quantity must be denominated in an integer quantity.");
+      log("Quantity must be denominated in an integer quantity.", true);
       return "Quantity must be denominated in an integer quantity.";
     }
 
@@ -99,14 +94,12 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
     }
 
     if (!Object.values(Operation).includes(normalMapping)) {
-      Logger.log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
-      SpreadsheetApp.getUi().alert("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.");
+      log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.", true);
       return "Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.";
     }
 
     if (operation === Operation.DIVIDE && value === 0) {
-      Logger.log("You cannot divide by zero.");
-      SpreadsheetApp.getUi().alert("You cannot divide by zero.");
+      log("You cannot divide by zero.", true);
       return "You cannot divide by zero.";
     }
 
@@ -126,8 +119,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
     try {
       const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
       if (!activeRangeList) {
-        Logger.log("No active range found. Please select cells to apply the operation to.");
-        SpreadsheetApp.getUi().alert("No active range found. Please select cells to apply the operation to.");
+        log("No active range found. Please select cells to apply the operation to.", true);
         return "No active range found. Please select cells to apply the operation to.";
       }
 
@@ -154,8 +146,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
               if (balance === undefined || balance === null || isNaN(balance)) {
-                Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if balance is invalid
               }
 
@@ -164,8 +155,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
 
               if (!individualName) {
-                Logger.log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
-                SpreadsheetApp.getUi().alert(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if individual name is missing
               }
 
@@ -174,8 +164,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               const targetColumnInitValue = range.getSheet().getRange(absoluteRowIndex, targetColumnIndex).getValue();
 
               if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
-                Logger.log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                SpreadsheetApp.getUi().alert(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if target column initial value is invalid
               }
 
@@ -183,8 +172,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
 
               if (!tenderedMoney || isNaN(tenderedMoney)) {
-                Logger.log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                SpreadsheetApp.getUi().alert(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if tendered money is invalid
               }
 
@@ -205,7 +193,8 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
               return result;
             }
-            Logger.log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`);
+
+            log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`, true);
             return cell; // Return the original value if it's not a number
           });
         });
@@ -224,7 +213,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           data: requests
         }, spreadsheetId);
       } else {
-        SpreadsheetApp.getUi().alert("No valid ranges found to update.");
+        log("No valid ranges found to update.", true);
         return false;
       }
 
@@ -256,8 +245,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
               if (balance === undefined || balance === null || isNaN(balance)) {
-                Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if balance is invalid
               }
               newBalancesRecords.push(Number(balance.toFixed(2)));
@@ -267,7 +255,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
         });
       });
 
-      SpreadsheetApp.getUi().alert("New balances calculated: " + newBalancesRecords.join(", "));
+      log(`New balances calculated: ${newBalancesRecords.join(", ")}`, false);
 
       // Change the transaction balance property to the new calculated balance
       transactionRecords.forEach((record: TransactionRecord, index: number) => {
@@ -282,7 +270,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       return true;
     } catch (error: any) {
       // Try using the slower, API heavy method if the faster Sheets API doesn't work, with error handling for both methods
-      SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
+      log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`, true);
 
       try {
         let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
@@ -294,8 +282,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           if (activeRangeList) {
             rangesToProcess = activeRangeList.getRanges();
           } else {
-            Logger.log("No active range found. Please select cells to apply the operation to.");
-            SpreadsheetApp.getUi().alert("No active range found. Please select cells to apply the operation to.");
+            log("No active range found. Please select cells to apply the operation to.", true);
             return "No active range found. Please select cells to apply the operation to.";
           }
         }
@@ -316,30 +303,27 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
                 const result = operationFunc(cell);
 
-                Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
+                log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`, false);
 
                 // Absolutely ENSURE there is no floating point precision issues
                 const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
 
                 if (!individualName) {
-                  Logger.log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
-                  SpreadsheetApp.getUi().alert(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                  log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);
                   return cell; // Return the original value if individual name is missing
                 }
 
                 const targetColumnIndex = startColIndex;
 
                 if (targetColumnIndex === undefined || targetColumnIndex === null || isNaN(targetColumnIndex)) {
-                  Logger.log(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                  SpreadsheetApp.getUi().alert(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  log(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                   return cell; // Return the original value if target column index is invalid
                 }
 
                 const targetColumnInitValue = targetSheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
 
                 if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
-                  Logger.log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                  SpreadsheetApp.getUi().alert(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                   return cell; // Return the original value if target column initial value is invalid
                 }
 
@@ -347,8 +331,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                 const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
 
                 if (!tenderedMoney || isNaN(tenderedMoney)) {
-                  Logger.log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                  SpreadsheetApp.getUi().alert(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                   return cell; // Return the original value if tendered money is invalid
                 }
 
@@ -370,7 +353,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
                 return result;
               }
-              Logger.log(`Non-numeric value "${cell}" found. Skipping this cell.`);
+              log(`Non-numeric value "${cell}" found in range ${subRange.getSheet().getName()}!${subRange.getA1Notation()}. Skipping this cell.`, true);
               return cell; // Return the original value if it's not a number
             });
           });
@@ -379,13 +362,6 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
           // Update balance column for each row in the range
           // Get the new balance for the selected range after performing the operation
-          const newBalances = rangesToProcess.map(range => {
-            const getRow = range.getRow();
-
-            SpreadsheetApp.getUi().alert("Found row " + getRow + "  and column " + BALANCE_COL + " to get the new balance.");
-
-            return Number(range.getSheet().getRange(getRow, BALANCE_COL).getValue().toFixed(2));
-          });
 
           // Update transaction records with new balances
           const newBalancesRecords: number[] = [];
@@ -403,8 +379,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                   const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
                   if (balance === undefined || balance === null || isNaN(balance)) {
-                    Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
-                    SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                    log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
                     return cell; // Return the original value if balance is invalid
                   }
                   newBalancesRecords.push(Number(balance.toFixed(2)));
@@ -420,14 +395,12 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           }
         });
       } catch (error: any) {
-        Logger.log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
-        SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
+        log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`, true);
         return `Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`;
       }
     }
   } catch (error: any) {
-    Logger.log(`Error occurred in applyMathToSelection: ${error.message}`);
-    SpreadsheetApp.getUi().alert(`Error occured in applyMathToSelection: ${error}`);
+    log(`Error occurred in applyMathToSelection: ${error.message}`, true);
     return error.message;
   }
   return true;
@@ -443,21 +416,21 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 function commentExpenditureOnSelection(rows: number[], comment: string): boolean {
   try {
     if (!rows || comment === undefined || comment === null) {
-      Logger.log("You must provide both a cell range and a note string.");
+      log("You must provide both a cell range and a note string.", false);
       return false;
     }
 
     if (typeof comment !== 'string') {
-      Logger.log("Comment must be a string.");
+      log("Comment must be a string.", false);
       return false;
     }
 
     if (comment.length > 255) {
-      Logger.log("Comment cannot exceed 255 characters.");
+      log("Comment cannot exceed 255 characters.", false);
       return false;
     }
     if (comment.includes("\n") || comment.includes("\r")) {
-      Logger.log("Comment cannot contain line breaks.");
+      log("Comment cannot contain line breaks.", false);
       return false;
     }
 
@@ -473,12 +446,7 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
     return true;
 
   } catch (error: any) {
-    Logger.log(`Error occurred in commentExpenditureOnSelection: ${error.message}`);
-    try {
-      SpreadsheetApp.getUi().alert(`Error occurred in commentExpenditureOnSelection: ${error}`);
-    } catch (e) {
-      Logger.log(`Additionally, failed to show alert in commentExpenditureOnSelection error handling: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    log(`Error occurred in commentExpenditureOnSelection: ${error.message}`, true);
     return false;
   }
 }
