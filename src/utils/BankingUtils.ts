@@ -79,7 +79,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       SpreadsheetApp.getUi().alert("Quantity must be denominated in an integer quantity.");
       return "Quantity must be denominated in an integer quantity.";
     }
-    
+
     // Absolutely ENSURE there is no floating point precision issues
     // god damn floating point issues kms
     const value = Number((unitPrice * quantity).toFixed(2));
@@ -153,13 +153,40 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
             if (typeof cell === 'number' && !isNaN(cell)) {
               const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
-              const result = Number(operationFunc(cell).toFixed(2));
+              if (balance === undefined || balance === null || isNaN(balance)) {
+                Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                return cell; // Return the original value if balance is invalid
+              }
+
+              const result = operationFunc(cell);
 
               const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
+
+              if (!individualName) {
+                Logger.log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                SpreadsheetApp.getUi().alert(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                return cell; // Return the original value if individual name is missing
+              }
 
               const targetColumnIndex = startColIndex;
 
               const targetColumnInitValue = range.getSheet().getRange(absoluteRowIndex, targetColumnIndex).getValue();
+
+              if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
+                Logger.log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                SpreadsheetApp.getUi().alert(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                return cell; // Return the original value if target column initial value is invalid
+              }
+
+              const rawTenderedMoney = unitPrice * quantity;
+              const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
+
+              if (!tenderedMoney || isNaN(tenderedMoney)) {
+                Logger.log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                SpreadsheetApp.getUi().alert(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                return cell; // Return the original value if tendered money is invalid
+              }
 
               transactionRecords.push({
                 individual: individualName,
@@ -168,7 +195,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                 unitPrice: unitPrice,
                 quantity: quantity,
                 modifiedColumn: targetColumnIndex,
-                tenderedMoney: Number(value.toFixed(2)),
+                tenderedMoney: Number(tenderedMoney.toFixed(2)),
                 initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
                 newColumnAmount: result,
                 initialBalance: Number(balance.toFixed(2)),
@@ -213,17 +240,38 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       }
 
       // Get the new balance for the selected range after performing the operation
-      const newBalances = ranges.map(range => {
-        const getRow = range.getRow();
 
-        SpreadsheetApp.getUi().alert("Found row " + getRow + "  and column " + BALANCE_COL + " to get the new balance.");
+      const newBalancesRecords: number[] = [];
 
-        return Number(range.getSheet().getRange(getRow, BALANCE_COL).getValue().toFixed(2));
-      })
+      ranges.forEach(range => {
+        const values = range.getValues();
+
+        const startRowIndex = range.getRow();
+
+        values.map((row, rowIndex) => {
+          const absoluteRowIndex = startRowIndex + rowIndex;
+
+          return row.map(cell => {
+            if (typeof cell === 'number' && !isNaN(cell)) {
+              const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
+
+              if (balance === undefined || balance === null || isNaN(balance)) {
+                Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                return cell; // Return the original value if balance is invalid
+              }
+              newBalancesRecords.push(Number(balance.toFixed(2)));
+              return cell;
+            }
+          });
+        });
+      });
+
+      SpreadsheetApp.getUi().alert("New balances calculated: " + newBalancesRecords.join(", "));
 
       // Change the transaction balance property to the new calculated balance
       transactionRecords.forEach((record: TransactionRecord, index: number) => {
-        record.newBalance = Number(newBalances[index].toFixed(2));
+        record.newBalance = Number(newBalancesRecords[index].toFixed(2));
       });
 
       // After successfully applying the operations, add the transaction records
@@ -266,14 +314,43 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               if (typeof cell === 'number' && !isNaN(cell)) {
                 const balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
 
-                const result = Number(operationFunc(cell).toFixed(2));
+                const result = operationFunc(cell);
 
                 Logger.log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`);
 
                 // Absolutely ENSURE there is no floating point precision issues
                 const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
+
+                if (!individualName) {
+                  Logger.log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                  SpreadsheetApp.getUi().alert(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`);
+                  return cell; // Return the original value if individual name is missing
+                }
+
                 const targetColumnIndex = startColIndex;
+
+                if (targetColumnIndex === undefined || targetColumnIndex === null || isNaN(targetColumnIndex)) {
+                  Logger.log(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  SpreadsheetApp.getUi().alert(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  return cell; // Return the original value if target column index is invalid
+                }
+
                 const targetColumnInitValue = targetSheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
+
+                if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
+                  Logger.log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  SpreadsheetApp.getUi().alert(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  return cell; // Return the original value if target column initial value is invalid
+                }
+
+                const rawTenderedMoney = unitPrice * quantity;
+                const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
+
+                if (!tenderedMoney || isNaN(tenderedMoney)) {
+                  Logger.log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  SpreadsheetApp.getUi().alert(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                  return cell; // Return the original value if tendered money is invalid
+                }
 
                 // If the operation is applied on column 3
                 transactionRecords.push({
@@ -283,7 +360,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                   unitPrice: unitPrice,
                   quantity: quantity,
                   modifiedColumn: targetColumnIndex,
-                  tenderedMoney: Number(value.toFixed(2)),
+                  tenderedMoney: tenderedMoney,
                   initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
                   newColumnAmount: result,
                   initialBalance: Number(balance.toFixed(2)),
@@ -311,22 +388,46 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           });
 
           // Update transaction records with new balances
-          transactionRecords.forEach((record, index) => {
-            record.newBalance = Number(newBalances[index].toFixed(2));
-          });
+          const newBalancesRecords: number[] = [];
 
+          rangesToProcess.forEach(range => {
+            const values = range.getValues();
+
+            const startRowIndex = range.getRow();
+
+            values.map((row, rowIndex) => {
+              const absoluteRowIndex = startRowIndex + rowIndex;
+
+              return row.map(cell => {
+                if (typeof cell === 'number' && !isNaN(cell)) {
+                  const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
+
+                  if (balance === undefined || balance === null || isNaN(balance)) {
+                    Logger.log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                    SpreadsheetApp.getUi().alert(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`);
+                    return cell; // Return the original value if balance is invalid
+                  }
+                  newBalancesRecords.push(Number(balance.toFixed(2)));
+                  return cell;
+                }
+              });
+            });
+          });
+          
           // After successfully applying the operations, add the transaction records
           if (transactionRecords.length > 0) {
             addTransactionRecords(transactionRecords);
           }
         });
       } catch (error: any) {
+        Logger.log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
         SpreadsheetApp.getUi().alert(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`);
         return `Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`;
       }
     }
   } catch (error: any) {
-    SpreadsheetApp.getUi().alert(`Error occured in applyMathToSelection: ${error.message}`);
+    Logger.log(`Error occurred in applyMathToSelection: ${error.message}`);
+    SpreadsheetApp.getUi().alert(`Error occured in applyMathToSelection: ${error}`);
     return error.message;
   }
   return true;
@@ -374,7 +475,7 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
   } catch (error: any) {
     Logger.log(`Error occurred in commentExpenditureOnSelection: ${error.message}`);
     try {
-      SpreadsheetApp.getUi().alert(`Error occurred in commentExpenditureOnSelection: ${error.message}`);
+      SpreadsheetApp.getUi().alert(`Error occurred in commentExpenditureOnSelection: ${error}`);
     } catch (e) {
       Logger.log(`Additionally, failed to show alert in commentExpenditureOnSelection error handling: ${e instanceof Error ? e.message : String(e)}`);
     }
