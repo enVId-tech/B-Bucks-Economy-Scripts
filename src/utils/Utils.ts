@@ -107,7 +107,7 @@ function fillSheetsWithData(data: string): boolean {
             if (lengthParsed > 1) {
                 const sourceTemplateRange = targetSheet.getRange(startRow, 1, 1, maxColumns); // Row 7 master template
                 const destinationTargetRange = targetSheet.getRange(startRow + 1, 1, lengthParsed - 1, maxColumns); // Target Rows 8 and below
-                
+
                 // Copy formulas and styling layouts securely over the newly assigned rows block
                 // Copies formatting, formulas, AND static cell values from Row 7
                 sourceTemplateRange.copyTo(destinationTargetRange, SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
@@ -184,13 +184,40 @@ function fillSheetsWithData(data: string): boolean {
                 const rowsToDelete = updatedMaxRows - lastActiveRow;
                 targetSheet.deleteRows(lastActiveRow + 1, rowsToDelete);
             }
-            
+
             SpreadsheetApp.flush();
         }
         return true;
     } catch (err: any) {
         Logger.log(`An error occurred in function fillSheetsWithData: ${err as string}`);
         console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
+        return false;
+    }
+}
+
+/**
+ * Logger for the entire B-Bucks Economy project
+ * @param {any} message The message to log, can be of type string, number, boolean, or an array of any type.
+ * @param {boolean} enableConsoleLogger Whether to log the message to the console. Default is true.
+ * @param {boolean} isVisibleToClient Whether to show the log message to the client via a toast notification. Default is true.
+ * @returns {boolean} Returns true if the logging operation was successful, false otherwise.
+ */
+function log(message: any[] | string | number | boolean, enableConsoleLogger: boolean = true, isVisibleToClient: boolean = true): boolean {
+    try {
+        const timestamp = new Date().toISOString();
+        const formattedMessage = `[${timestamp}] ${message}`;
+
+        if (enableConsoleLogger) {
+            Logger.log(formattedMessage);
+        }
+
+        if (isVisibleToClient) {
+            SpreadsheetApp.getUi().alert(formattedMessage);
+        }
+        return true;
+    } catch (err: any) {
+        Logger.log(`Error formatting log message: ${err.message}`);
+        SpreadsheetApp.getActiveSpreadsheet().toast(`Error formatting log message: ${err.message}`, "Logging Error", 5);
         return false;
     }
 }
