@@ -202,6 +202,55 @@
                     }
                 }
             });
+
+            /**
+             * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+             */
+            function loadTransactionData() {
+                try {
+                    const logContainer = document.getElementById('log-container');
+                    logContainer.innerHTML = ''; // Clear existing entries
+
+                    callServer('fetchTransactionsDataCached', null, (res) => {
+                        const response = JSON.parse(res);
+
+                        console.log("Last Response:", response[response.length - 1]);
+
+                        if (response && Array.isArray(response)) {
+                            let htmlContent = '';
+                            response.reverse().forEach(transaction => {
+                                // Type is either "Income", "Expense", or "Investment"
+                                const { id, individual, initialBalance, initialAmountAmount, modifiedColumn, newBalance, newColumnAmount, quantity, serverProvided, tenderedMoney, type, unitPrice, timestamp } = transaction;
+
+                                const mathOperation = `${initialBalance} ${modifiedColumn} ${unitPrice} = ${newBalance}`;
+
+                                htmlContent += `
+                                    <div class="log-item" data-selectable="true">
+                                        <div class="log-item-content">
+                                            <div class="log-item-header">
+                                                <span class="log-item-name">${individual}</span>
+                                                <span class="log-item-id">TXN#${id}</span>
+                                                <span class="log-item-date">${new Date(timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                            <div class="log-item-math ${modifiedColumn === '+' ? 'positive' : 'negative'}">${mathOperation}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+
+                            logContainer.innerHTML = htmlContent;
+                        } else {
+                            console.error("Invalid response format from server.");
+                        }
+                    }, (error) => {
+                        console.error("Error fetching transaction data:", error);
+                    });
+                } catch (err) {
+                    console.error("Error in loadTransactionData:", err);
+                }
+            }
+
+            loadTransactionData();
         })
 
         /**
@@ -236,8 +285,8 @@
 
                 // Must stringify the payload to ensure consistent data format when sent to the server
                 // Prevents an illegal value error
-                const payload = JSON.stringify({ 
-                    operation: operation, 
+                const payload = JSON.stringify({
+                    operation: operation,
                     unitPrice: amount,
                     quantity: 1,
                     transactionReason: transactionReason
