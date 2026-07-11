@@ -179,7 +179,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               transactionRecords.push({
                 individual: individualName,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
-                serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`,
                 unitPrice: unitPrice,
                 quantity: quantity,
                 modifiedColumn: targetColumnIndex,
