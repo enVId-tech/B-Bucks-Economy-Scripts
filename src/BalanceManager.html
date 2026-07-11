@@ -129,41 +129,7 @@
                 <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
             </div>
 
-            <div id="log-container">
-                <!-- Example Entry 1 -->
-                <div class="log-item" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-item-header">
-                            <span class="log-item-name">Sarah Mitchell</span>
-                            <span class="log-item-id">TXN#2847</span>
-                            <span class="log-item-date">5-25-2026</span>
-                        </div>
-                        <div class="log-item-math positive">$45.50 + $10.00 = $55.50</div>
-                    </div>
-                </div>
-                <!-- Example Entry 2 -->
-                <div class="log-item" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-item-header">
-                            <span class="log-item-name">Marcus Johnson</span>
-                            <span class="log-item-id">TXN#2846</span>
-                            <span class="log-item-date">5-25-2026</span>
-                        </div>
-                        <div class="log-item-math negative">$32.00 - $5.00 = $27.00</div>
-                    </div>
-                </div>
-                <!-- Example Entry 3 -->
-                <div class="log-item" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-item-header">
-                            <span class="log-item-name">Emma Rodriguez</span>
-                            <span class="log-item-id">TXN#2845</span>
-                            <span class="log-item-date">5-24-2026</span>
-                        </div>
-                        <div class="log-item-math positive">$20.00 × 2 = $40.00</div>
-                    </div>
-                </div>
-            </div>
+            <div id="log-container"></div>
         </div>
     </div>
     <script>
@@ -221,8 +187,7 @@
                             let htmlContent = '';
                             response.reverse().forEach(transaction => {
                                 // Type is either "Income", "Expense", or "Investment"
-                                const { id, individual, initialBalance, initialAmountAmount, modifiedColumn, newBalance, newColumnAmount, quantity, serverProvided, tenderedMoney, type, unitPrice, timestamp } = transaction;
-
+                                const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
                                 let allLogItems = document.querySelectorAll('.log-item');
 
@@ -238,7 +203,7 @@
 
                                 
                                 const mathBalanceOperationElement = `<span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newBalance - initialBalance < 0 ? 'class="negative"' : 'class="positive"'}>$${Number(Math.abs(newBalance - initialBalance).toFixed(2))}</span> = <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>`;
-                                const mathColumnOperationElement = `<span ${initialAmountAmount < 0 ? 'class="negative"' : ''}>$${initialAmountAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialAmountAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialAmountAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
+                                const mathColumnOperationElement = `<span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialColumnAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialColumnAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
 
                                 htmlContent += `
                                     <div class="log-item" data-selectable="true">
@@ -247,6 +212,10 @@
                                                 <span class="log-item-name">${individual}</span>
                                                 <span class="log-item-id">TXN#${id}</span>
                                                 <span class="log-item-date">${new Date(timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                            <div class="log-item-service">
+                                                <p class="log-item-service-label">Service</p>
+                                                <p class="log-item-service-value">${serviceProvided}</p>
                                             </div>
                                             <div class="log-item-math">
                                                 <p class="log-item-math-label">Balance</p>
