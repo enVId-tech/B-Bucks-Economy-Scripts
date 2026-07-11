@@ -126,7 +126,8 @@
 
             <!-- Undo Action Bar -->
             <div class="log-action-bar">
-                <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶ Undo Selected</button>
+                <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶
+                    Undo Selected</button>
             </div>
 
             <div id="log-container"></div>
@@ -172,43 +173,43 @@
             loadTransactionData();
         })
 
-                    /**
-             * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
-             */
-            function loadTransactionData() {
-                try {
-                    const logContainer = document.getElementById('log-container');
-                    logContainer.innerHTML = ''; // Clear existing entries
+        /**
+ * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+ */
+        function loadTransactionData() {
+            try {
+                const logContainer = document.getElementById('log-container');
+                logContainer.innerHTML = ''; // Clear existing entries
 
-                    callServer('fetchTransactionsDataCached', null, (res) => {
-                        const response = JSON.parse(res);
+                callServer('fetchTransactionsDataCached', null, (res) => {
+                    const response = JSON.parse(res);
 
-                        console.log("Last Response:", response[response.length - 1]);
+                    console.log("Last Response:", response[response.length - 1]);
 
-                        if (response && Array.isArray(response)) {
-                            let currentHtmlContent = logContainer.innerHTML;
-                            let htmlContent = '';
-                            response.reverse().forEach(transaction => {
-                                // Type is either "Income", "Expense", or "Investment"
-                                const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+                    if (response && Array.isArray(response)) {
+                        let currentHtmlContent = logContainer.innerHTML;
+                        let htmlContent = '';
+                        response.reverse().forEach(transaction => {
+                            // Type is either "Income", "Expense", or "Investment"
+                            const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
-                                let allLogItems = document.querySelectorAll('.log-item');
+                            let allLogItems = document.querySelectorAll('.log-item');
 
-                                // Remove any existing log item with the same transaction ID to prevent duplicates
-                                if (allLogItems.length > 0) {
-                                    allLogItems.forEach(item => {
-                                        const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
-                                        if (itemId === id.toString()) {
-                                            item.remove();
-                                        }
-                                    });
-                                }
+                            // Remove any existing log item with the same transaction ID to prevent duplicates
+                            if (allLogItems.length > 0) {
+                                allLogItems.forEach(item => {
+                                    const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
+                                    if (itemId === id.toString()) {
+                                        item.remove();
+                                    }
+                                });
+                            }
 
-                                
-                                const mathBalanceOperationElement = `<span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newBalance - initialBalance < 0 ? 'class="negative"' : 'class="positive"'}>$${Number(Math.abs(newBalance - initialBalance).toFixed(2))}</span> = <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>`;
-                                const mathColumnOperationElement = `<span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialColumnAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialColumnAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
 
-                                htmlContent += `
+                            const mathBalanceOperationElement = `<span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newBalance - initialBalance < 0 ? 'class="negative"' : 'class="positive"'}>$${Number(Math.abs(newBalance - initialBalance).toFixed(2))}</span> = <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>`;
+                            const mathColumnOperationElement = `<span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialColumnAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialColumnAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
+
+                            htmlContent += `
                                     <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
                                         <div class="log-item-content">
                                             <div class="log-item-header">
@@ -231,19 +232,19 @@
                                         </div>
                                     </div>
                                     `
-                            });
+                        });
 
-                            logContainer.innerHTML = htmlContent;
-                        } else {
-                            console.error("Invalid response format from server.");
-                        }
-                    }, (error) => {
-                        console.error("Error fetching transaction data:", error);
-                    });
-                } catch (err) {
-                    console.error("Error in loadTransactionData:", err);
-                }
+                        logContainer.innerHTML = htmlContent;
+                    } else {
+                        console.error("Invalid response format from server.");
+                    }
+                }, (error) => {
+                    console.error("Error fetching transaction data:", error);
+                });
+            } catch (err) {
+                console.error("Error in loadTransactionData:", err);
             }
+        }
 
         /**
          * Applies a balance modification based on the specified operation and amount. It validates the input, disables buttons during processing, and communicates with the server to execute the action. Error handling is included to manage invalid inputs and server errors gracefully.
@@ -343,10 +344,16 @@
 
             const transactionIds = Array.from(selectedItems).map(item => item.querySelector('.log-item-id').textContent.replace('TXN#', ''));
 
+            console.log("Undoing Transactions:", transactionIds);
+
             callServer('undoTransactions', JSON.stringify({ transactionIds }), (response) => {
-                console.log("Undo Response:", response);
-                // Refresh the log after undoing
-                loadTransactionData();
+                if (response) {
+                    console.log("Successfully undone transactions:", transactionIds);
+                    // Refresh the log after undoing
+                    loadTransactionData();
+                } else {
+                    console.error("Failed to undo transactions:", response.error);
+                }
             }, (error) => {
                 console.error("Error undoing transactions:", error);
             });
