@@ -217,12 +217,28 @@
                         console.log("Last Response:", response[response.length - 1]);
 
                         if (response && Array.isArray(response)) {
+                            let currentHtmlContent = logContainer.innerHTML;
                             let htmlContent = '';
                             response.reverse().forEach(transaction => {
                                 // Type is either "Income", "Expense", or "Investment"
                                 const { id, individual, initialBalance, initialAmountAmount, modifiedColumn, newBalance, newColumnAmount, quantity, serverProvided, tenderedMoney, type, unitPrice, timestamp } = transaction;
 
-                                const mathOperation = `${initialBalance} ${modifiedColumn} ${unitPrice} = ${newBalance}`;
+
+                                let allLogItems = document.querySelectorAll('.log-item');
+
+                                // Remove any existing log item with the same transaction ID to prevent duplicates
+                                if (allLogItems.length > 0) {
+                                    allLogItems.forEach(item => {
+                                        const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
+                                        if (itemId === id.toString()) {
+                                            item.remove();
+                                        }
+                                    });
+                                }
+
+                                
+                                const mathBalanceOperationElement = `<span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newBalance - initialBalance < 0 ? 'class="negative"' : 'class="positive"'}>$${Number(Math.abs(newBalance - initialBalance).toFixed(2))}</span> = <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>`;
+                                const mathColumnOperationElement = `<span ${initialAmountAmount < 0 ? 'class="negative"' : ''}>$${initialAmountAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialAmountAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialAmountAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
 
                                 htmlContent += `
                                     <div class="log-item" data-selectable="true">
@@ -232,10 +248,17 @@
                                                 <span class="log-item-id">TXN#${id}</span>
                                                 <span class="log-item-date">${new Date(timestamp).toLocaleDateString()}</span>
                                             </div>
-                                            <div class="log-item-math ${modifiedColumn === '+' ? 'positive' : 'negative'}">${mathOperation}</div>
+                                            <div class="log-item-math">
+                                                <p class="log-item-math-label">Balance</p>
+                                                ${mathBalanceOperationElement}
+                                            </div>
+                                            <div class="log-item-math">
+                                                <p class="log-item-math-label">Col ${modifiedColumn}</p>
+                                                ${mathColumnOperationElement}
+                                            </div>
                                         </div>
                                     </div>
-                                `;
+                                    `
                             });
 
                             logContainer.innerHTML = htmlContent;
