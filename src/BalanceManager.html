@@ -126,7 +126,7 @@
 
             <!-- Undo Action Bar -->
             <div class="log-action-bar">
-                <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+                <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶ Undo Selected</button>
             </div>
 
             <div id="log-container"></div>
@@ -169,7 +169,10 @@
                 }
             });
 
-            /**
+            loadTransactionData();
+        })
+
+                    /**
              * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
              */
             function loadTransactionData() {
@@ -206,7 +209,7 @@
                                 const mathColumnOperationElement = `<span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialColumnAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialColumnAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
 
                                 htmlContent += `
-                                    <div class="log-item" data-selectable="true">
+                                    <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
                                         <div class="log-item-content">
                                             <div class="log-item-header">
                                                 <span class="log-item-name">${individual}</span>
@@ -241,9 +244,6 @@
                     console.error("Error in loadTransactionData:", err);
                 }
             }
-
-            loadTransactionData();
-        })
 
         /**
          * Applies a balance modification based on the specified operation and amount. It validates the input, disables buttons during processing, and communicates with the server to execute the action. Error handling is included to manage invalid inputs and server errors gracefully.
@@ -288,6 +288,8 @@
                     console.log("Server Response:", response);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
                     getButtons.forEach(btn => btn.disabled = false);
+                    // Refresh the log after applying the value
+                    loadTransactionData();
                 }, (error) => {
                     console.error("Server Error:", error);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
@@ -327,6 +329,27 @@
             } catch (err) {
                 console.error("Error in handleCustomInput:", err);
             }
+        }
+
+        function updateUndoButtonState() {
+            const undoBtn = document.getElementById('undoSelectedBtn');
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            undoBtn.disabled = selectedItems.length === 0;
+        }
+
+        function undoSelectedTransactions() {
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            if (selectedItems.length === 0) return;
+
+            const transactionIds = Array.from(selectedItems).map(item => item.querySelector('.log-item-id').textContent.replace('TXN#', ''));
+
+            callServer('undoTransactions', JSON.stringify({ transactionIds }), (response) => {
+                console.log("Undo Response:", response);
+                // Refresh the log after undoing
+                loadTransactionData();
+            }, (error) => {
+                console.error("Error undoing transactions:", error);
+            });
         }
     </script>
 </body>
