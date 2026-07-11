@@ -234,3 +234,113 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
     return false;
   }
 }
+
+function undoTransactions(data?: string): boolean {
+  try {
+    if (!data || typeof data !== 'string') {
+      log("No data provided for undoTransaction. Operation aborted.", true);
+      return false;
+    }
+
+    // Gives an array of transaction ids
+    let parsedData = JSON.parse(data);
+
+    log(`Parsed data for undoTransactions: ${JSON.stringify(parsedData)}`, false);
+
+    const objectToArray = (obj: any) => Object.keys(obj).map(key => obj[key]);
+
+    if (typeof parsedData === 'object' && !Array.isArray(parsedData)) {
+      parsedData = objectToArray(parsedData);
+    }
+
+    if (!Array.isArray(parsedData) || parsedData.length === 0) {
+      log("Parsed data is not a valid array or is empty. Operation aborted.", true);
+      return false;
+    }
+
+    let transactionRecords = fetchTransactionsDataCached() as TransactionRecord[];
+
+    // Convert transactionRecords to an array if it's not already
+    if (!Array.isArray(transactionRecords)) {
+      log("Fetched transaction records are not in an array format. Attempting convert from string if possible.", false);
+      if (typeof transactionRecords === 'string') {
+        try {
+          const parsedRecords = JSON.parse(transactionRecords);
+          if (Array.isArray(parsedRecords)) {
+            log("Successfully converted fetched transaction records from string to array.", false);
+            transactionRecords = parsedRecords;
+          } else {
+            log("Fetched transaction records string could not be converted to an array. Operation aborted.", true);
+            return false;
+          }
+        } catch (parseError: any) {
+          log(`Error parsing fetched transaction records string: ${parseError.message}. Operation aborted.`, true);
+          return false;
+        }
+      } else {
+        log("Fetched transaction records are neither an array nor a string. Operation aborted.", true);
+        return false;
+      }
+    }
+
+    log(`Fetched ${transactionRecords[0]} transaction records for undo operation.`, false);
+    log(`Parsed data for undoTransactions: ${JSON.stringify(parsedData)}`, false);
+    const recordsToUndo = transactionRecords.filter(record => parsedData[0].includes(record.id));
+
+    if (recordsToUndo.length === 0) {
+      log("No matching transaction records found for the provided IDs. Operation aborted.", true);
+      return false
+    }
+
+    // Reverse the operations for each record to undo
+    for (const record of recordsToUndo) {
+      if (!record.individual || !record.type || !record.unitPrice || !record.quantity || !record.modifiedColumn) {
+        log(`Incomplete transaction record found for ID ${record.id}. Cannot undo.`, true);
+        return false;
+      }
+
+      const operation = record.type === "Income" ? Operation.SUBTRACT : Operation.ADD;
+
+      log(`Undoing transaction ID ${record.id} for individual ${record.individual} with operation ${operation}.`, false);
+      log(`Details: Service Provided: ${record.serviceProvided}, Unit Price: ${record.unitPrice}, Quantity: ${record.quantity}, Modified Column: ${record.modifiedColumn}`, false);
+
+      const result = applyMathToSelection(
+        operation,
+        Number(record.unitPrice.toString()),
+        Number(record.quantity.toString()),
+        true, // isManualTransaction
+        `Undoing transaction ID ${record.id} - ${record.serviceProvided}`,
+        undefined, // range
+        true // commentOnExpenditures
+      );
+
+      if (typeof result === 'string') {
+        log(`Failed to undo transaction ID ${record.id}: ${result}`, true);
+        return false;
+      }
+
+      // Remove the transaction record from the sheet after successfully undoing it
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
+      if (!sheet) {
+        log(`Transactions sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found. Cannot remove transaction record.`, true);
+        return false;
+      }
+      const lastRowWithData = sheet.getLastRow();
+
+      for (let row = TRANSACTIONS_ROW_START; row <= lastRowWithData; row++) {
+        const idCellValue = sheet.getRange(row, 1).getValue();
+        if (idCellValue === record.id) {
+          sheet.deleteRow(row);
+          break;
+        }
+      }
+    }
+
+    log(`Successfully undone ${recordsToUndo.length} transaction(s).`, true);
+    return true;
+  } catch (error: any) {
+    log(`Error occurred in undoTransaction: ${error.message}`, true);
+    return false;
+  }
+}
