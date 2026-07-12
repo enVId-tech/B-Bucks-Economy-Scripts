@@ -205,9 +205,43 @@
                                 });
                             }
 
+                            const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
+                            const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
+                            const balanceDeltaSymbol = balanceDelta < 0 ? '-' : '+';
 
-                            const mathBalanceOperationElement = `<span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newBalance - initialBalance < 0 ? 'class="negative"' : 'class="positive"'}>$${Number(Math.abs(newBalance - initialBalance).toFixed(2))}</span> = <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>`;
-                            const mathColumnOperationElement = `<span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span> <span ${type === 'Income' ? 'class="positive"' : 'class="negative"'}>${type === 'Income' ? '+' : '-'}</span> <span ${newColumnAmount - initialColumnAmount < 0 ? 'class="negative"' : 'class="positive"'}>$${Number((newColumnAmount - initialColumnAmount).toFixed(2))}</span> = <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>`;
+                            const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
+                            const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
+                            const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
+                            
+                            const mathBalanceOperationElement = `
+                                <span ${initialBalance < 0 ? 'class="negative"' : ''}>
+                                    $${initialBalance}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    ${balanceDeltaSymbol}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    $${Number(Math.abs(balanceDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newBalance < 0 ? 'class="negative"' : ''}>
+                                    $${newBalance}
+                                </span>
+                            `;
+
+                            const mathColumnOperationElement = `
+                                <span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${initialColumnAmount}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    ${columnDeltaSymbol}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    $${Number(Math.abs(columnDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${newColumnAmount}
+                                </span>
+                            `;
 
                             htmlContent += `
                                     <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
