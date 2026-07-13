@@ -109,95 +109,12 @@
 
         <!-- Action Bar -->
         <div class="log-action-bar">
-            <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+            <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>Undo
+                Selected</button>
         </div>
 
         <!-- Records Container -->
-        <div class="records-container" id="recordsContainer">
-            <!-- Example Transaction 1 -->
-            <div class="record-item income" data-selectable="true">
-                <div class="record-item-content">
-                    <div class="record-header">
-                        <span class="record-student">Alex Chen</span>
-                        <span class="record-type income">Income</span>
-                    </div>
-                    <div class="record-details">
-                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
-                                class="record-detail-value">#5041</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
-                                class="record-detail-value">5-25-2026</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
-                                class="record-detail-value">2</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span
-                                class="record-detail-value">Homework</span></div>
-                    </div>
-                    <div class="record-amount positive">$45.50 + $5.00 = $50.50</div>
-                </div>
-            </div>
-
-            <!-- Example Transaction 2 -->
-            <div class="record-item spending" data-selectable="true">
-                <div class="record-item-content">
-                    <div class="record-header">
-                        <span class="record-student">Marcus Johnson</span>
-                        <span class="record-type spending">Spending</span>
-                    </div>
-                    <div class="record-details">
-                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
-                                class="record-detail-value">#5040</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
-                                class="record-detail-value">5-25-2026</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
-                                class="record-detail-value">3</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span
-                                class="record-detail-value">Movie Pass</span></div>
-                    </div>
-                    <div class="record-amount negative">$32.00 - $12.50 = $19.50</div>
-                </div>
-            </div>
-
-            <!-- Example Transaction 3 -->
-            <div class="record-item deposit" data-selectable="true">
-                <div class="record-item-content">
-                    <div class="record-header">
-                        <span class="record-student">Emma Rodriguez</span>
-                        <span class="record-type deposit">Deposit</span>
-                    </div>
-                    <div class="record-details">
-                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
-                                class="record-detail-value">#5039</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
-                                class="record-detail-value">5-24-2026</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
-                                class="record-detail-value">1</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Amount:</span> <span
-                                class="record-detail-value">$25.00</span></div>
-                    </div>
-                    <div class="record-amount positive">$55.25 + $25.00 = $80.25 CoD</div>
-                </div>
-            </div>
-
-            <!-- Example Transaction 4 -->
-            <div class="record-item withdraw" data-selectable="true">
-                <div class="record-item-content">
-                    <div class="record-header">
-                        <span class="record-student">Jordan Taylor</span>
-                        <span class="record-type withdraw">Withdraw</span>
-                    </div>
-                    <div class="record-details">
-                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
-                                class="record-detail-value">#5038</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
-                                class="record-detail-value">5-23-2026</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Period:</span> <span
-                                class="record-detail-value">4</span></div>
-                        <div class="record-detail-item"><span class="record-detail-label">Earnings:</span> <span
-                                class="record-detail-value">+$8.75</span></div>
-                    </div>
-                    <div class="record-amount positive">$25.00 + $8.75 = $33.75</div>
-                </div>
-            </div>
-        </div>
+        <div class="records-container" id="recordsContainer"></div>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -226,7 +143,181 @@
                     updateUndoButtonState();
                 }
             });
+
+            loadTransactionData();
         });
+
+        /**
+         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+         */
+        function loadTransactionData() {
+            try {
+                const logContainer = document.getElementById('recordsContainer');
+                logContainer.innerHTML = ''; // Clear existing entries
+
+                callServer('fetchTransactionsDataCached', null, (res) => {
+                    const response = JSON.parse(res);
+
+                    console.log("Last Response:", response[response.length - 1]);
+
+                    if (response && Array.isArray(response)) {
+                        let currentHtmlContent = logContainer.innerHTML;
+                        let htmlContent = '';
+                        response.reverse().forEach(transaction => {
+                            // Type is either "Income", "Expense", or "Investment"
+                            const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+
+                            let allLogItems = document.querySelectorAll('.log-item');
+
+                            // Remove any existing log item with the same transaction ID to prevent duplicates
+                            if (allLogItems.length > 0) {
+                                allLogItems.forEach(item => {
+                                    const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
+                                    if (itemId === id.toString()) {
+                                        item.remove();
+                                    }
+                                });
+                            }
+
+                            const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
+                            const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
+                            const balanceDeltaSymbol = balanceDelta < 0 ? '-' : '+';
+
+                            const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
+                            const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
+                            const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
+
+                            const mathBalanceOperationElement = `
+                                <span ${initialBalance < 0 ? 'class="negative"' : ''}>
+                                    $${initialBalance}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    ${balanceDeltaSymbol}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    $${Number(Math.abs(balanceDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newBalance < 0 ? 'class="negative"' : ''}>
+                                    $${newBalance}
+                                </span>
+                            `;
+
+                            const mathColumnOperationElement = `
+                                <span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${initialColumnAmount}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    ${columnDeltaSymbol}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    $${Number(Math.abs(columnDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${newColumnAmount}
+                                </span>
+                            `;
+
+                            const realTime = new Date(timestamp).toLocaleString();
+
+                            const typeMapping = {
+                                "Income": "income",
+                                "Expense": "spending",
+                                "investment": "deposit",
+                            };
+
+                            htmlContent += `
+                            <div class="record-item ${typeMapping[type] || 'static'}" data-selectable="true">
+                                <div class="record-item-content">
+                                    <div class="record-header">
+                                        <span class="record-student">${individual}</span>
+                                        <span class="record-type ${typeMapping[type] || 'static'}">${type}</span>
+                                    </div>
+                                    <div class="record-details">
+                                        <div class="record-detail-item"><span class="record-detail-label">Tr. ID:</span> <span
+                                            class="record-detail-value">#${id}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Date:</span> <span
+                                            class="record-detail-value">${realTime}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Column Modified:</span> <span
+                                            class="record-detail-value">${modifiedColumn}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Item:</span> <span
+                                            class="record-detail-value">${serviceProvided}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Unit Price:</span> <span
+                                            class="record-detail-value">$${unitPrice}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Quantity:</span> <span
+                                            class="record-detail-value">${quantity}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Tendered Money:</span> <span
+                                            class="record-detail-value">$${tenderedMoney}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Column Delta:</span> <span
+                                            class="record-detail-value ${columnDeltaClass}">${mathColumnOperationElement}</span>
+                                        </div>
+                                        <div class="record-detail-item"><span class="record-detail-label">Balance Delta:</span> <span
+                                            class="record-detail-value ${balanceDeltaClass}">${mathBalanceOperationElement}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `
+                        });
+
+                        logContainer.innerHTML = htmlContent;
+
+                        // Fill in general transaction statistics
+                        const totalCount = response.length;
+                        const totalAmount = response.reduce((sum, tx) => sum + Math.abs(tx.balanceDelta), 0);
+
+                        const incomeCount = response.filter(tx => tx.type === 'Income').length;
+                        const spendingCount = response.filter(tx => tx.type === 'Expense').length;
+
+                        const netAmount = response.reduce((sum, tx) => sum + tx.balanceDelta, 0);
+
+                        document.getElementById('totalCount').textContent = totalCount;
+                        document.getElementById('incomeCount').textContent = incomeCount;
+                        document.getElementById('spendingCount').textContent = spendingCount;
+                        document.getElementById('netAmount').textContent = `$${netAmount.toFixed(2)}`;
+                    } else {
+                        console.error("Invalid response format from server.");
+                    }
+                }, (error) => {
+                    console.error("Error fetching transaction data:", error);
+                });
+            } catch (err) {
+                console.error("Error in loadTransactionData:", err);
+            }
+        }
+
+        function updateUndoButtonState() {
+            const undoBtn = document.getElementById('undoSelectedBtn');
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            undoBtn.disabled = selectedItems.length === 0;
+        }
+
+        function undoSelectedTransactions() {
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            if (selectedItems.length === 0) return;
+
+            const transactionIds = Array.from(selectedItems).map(item => item.querySelector('.log-item-id').textContent.replace('TXN#', ''));
+
+            console.log("Undoing Transactions:", transactionIds);
+
+            callServer('undoTransactions', JSON.stringify({ transactionIds }), (response) => {
+                if (response) {
+                    console.log("Successfully undone transactions:", transactionIds);
+                    // Refresh the log after undoing
+                    loadTransactionData();
+                } else {
+                    console.error("Failed to undo transactions:", response.error);
+                }
+            }, (error) => {
+                console.error("Error undoing transactions:", error);
+            });
+        }
     </script>
 </body>
 
