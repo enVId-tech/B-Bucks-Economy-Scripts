@@ -288,6 +288,38 @@
         margin-bottom: 6px;
     }
 
+    .action-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 8px;
+        background: #fff;
+        border-radius: 4px;
+        border: 1px solid #e1e4e8;
+    }
+
+    .action-bar-section {
+        flex: 1;
+    }
+
+    .action-bar-label {
+        font-size: 9px;
+        color: #586069;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    .action-bar-input {
+        width: 100%;
+        padding: 5px 6px;
+        border: 1px solid #e1e4e8;
+        border-radius: 3px;
+        font-size: 11px;
+    }
+
     .log-action-bar {
         display: flex;
         gap: 8px;
@@ -323,41 +355,67 @@
         cursor: not-allowed;
     }
 
+    #log-container {
+        flex: 1;
+        overflow-y: auto;
+    }
+
     .log-item {
+        padding: 8px;
+        margin-bottom: 6px;
+        border: 1px solid #e1e4e8;
+        border-radius: 4px;
         background: #fff;
-        padding: 6px;
-        margin-bottom: 4px;
-        border-left: 2px solid #28a745;
-        font-size: 10px;
-        border-radius: 3px;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         display: flex;
-        gap: 6px;
-        align-items: center;
+        gap: 8px;
+        align-items: flex-start;
         cursor: pointer;
         transition: all 0.15s;
     }
 
     .log-item:hover {
         background: #f6f8fa;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-color: #d1d5da;
     }
 
     .log-item.selected {
         background: #2d3748;
         color: white;
+        border-color: #1a202c;
     }
 
-    .log-item.selected .log-student,
-    .log-item.selected .log-details {
+    .log-item.selected .log-item-content,
+    .log-item.selected .log-item-name,
+    .log-item.selected .log-item-id,
+    .log-item.selected .log-item-date,
+    .log-item.selected .log-item-math {
         color: white;
     }
 
-    .log-item.selected .log-amount.income {
+    .negative {
+        color: #d73a49;
+    }
+
+    .positive {
+        color: #28a745;
+    }
+
+    .static {
+        color: #24292e;
+    }
+
+    .log-item.selected {
+        background: #4061bd;
+        color: white;
+        border-color: #1a202c;
+    }
+
+    .log-item.selected .positive {
         color: #68d391;
     }
 
-    .log-item.selected .log-amount.spending {
+    .log-item.selected .negative {
         color: #fc8181;
     }
 
@@ -365,49 +423,78 @@
         flex: 1;
     }
 
-    .log-item-checkbox {
-        display: none;
+    .log-item-header {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 4px;
     }
 
-    .log-item.income {
-        border-left-color: #28a745;
-    }
-
-    .log-item.spending {
-        border-left-color: #d73a49;
-    }
-
-    .log-item.override {
-        border-left-color: #f39c12;
-        background: #fff3d5;
-    }
-
-    .log-student {
+    .log-item-name {
         font-weight: 700;
+        font-size: 11px;
         color: #24292e;
-        font-size: 11px;
     }
 
-    .log-details {
+    .log-item-id {
+        font-size: 10px;
         color: #6a737d;
-        font-size: 9px;
-        margin-top: 2px;
-    }
-
-    .log-amount {
-        font-weight: 700;
-        font-size: 11px;
-        text-align: right;
-        margin-top: 2px;
         font-family: monospace;
     }
 
-    .log-amount.income {
-        color: #28a745;
+    .log-item-date {
+        font-size: 10px;
+        color: #6a737d;
+        margin-left: auto;
     }
 
-    .log-amount.spending {
+    .log-item-service {
+        font-weight: 700;
+        font-size: 11px;
+        font-family: monospace;
+        color: #24292e;
+        line-height: 1.4;
+    }
+
+    .log-item-math {
+        font-weight: 700;
+        font-size: 11px;
+        font-family: monospace;
+        color: #24292e;
+        line-height: 1.4;
+    }
+
+    .log-item-math-label {
+        font-size: 8px;
+        color: #6a737d;
+        padding: 0;
+        margin: 0;
+    }
+
+    .log-item-service-label {
+        font-size: 8px;
+        color: #6a737d;
+        padding: 0;
+        margin: 0;
+    }
+
+    .log-item-service-value {
+        font-size: 11px;
+        color: #586069;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .log-item-math.negative {
         color: #d73a49;
+    }
+
+    .log-item-math.positive {
+        color: #68d391;
+    }
+
+    .log-item-checkbox {
+        display: none;
     }
 
     .override-badge {

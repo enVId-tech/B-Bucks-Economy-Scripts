@@ -174,8 +174,8 @@
         })
 
         /**
- * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
- */
+         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+         */
         function loadTransactionData() {
             try {
                 const logContainer = document.getElementById('log-container');
@@ -212,7 +212,7 @@
                             const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
                             const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
                             const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
-                            
+
                             const mathBalanceOperationElement = `
                                 <span ${initialBalance < 0 ? 'class="negative"' : ''}>
                                     $${initialBalance}

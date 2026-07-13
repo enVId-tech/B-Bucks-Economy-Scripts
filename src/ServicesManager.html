@@ -127,42 +127,47 @@
         <!-- RIGHT PANEL: Activity Log -->
         <div class="log-panel">
             <div class="log-header">Activity Log</div>
+
+            <!-- Search & Filter Controls -->
+            <div class="action-bar">
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Search
+                        Name</label>
+                    <input type="text" id="logSearchName" placeholder="Search by name..." class="action-bar-input">
+                </div>
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Transaction
+                        Date</label>
+                    <input type="date" id="logFilterDate" class="action-bar-input">
+                </div>
+            </div>
+
+            <!-- Undo Action Bar -->
             <div class="log-action-bar">
-                <button class="btn-undo-selected" id="undoSelectedBtn" disabled>↶ Undo Selected</button>
+                <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶
+                    Undo Selected</button>
             </div>
-            <div id="logContainer">
-                <!-- Example Income Entry -->
-                <div class="log-item income" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-student">Alex Chen</div>
-                        <div class="log-details">Q2 • Homework Submission (+$3.50)</div>
-                        <div class="log-amount income">+$3.50</div>
-                    </div>
-                </div>
-                <!-- Example Spending Entry -->
-                <div class="log-item spending" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-student">Jordan Taylor</div>
-                        <div class="log-details">Q3 • Movie Pass Redemption (-$15.00)</div>
-                        <div class="log-amount spending">-$15.00</div>
-                    </div>
-                </div>
-                <!-- Example Override Entry -->
-                <div class="log-item override" data-selectable="true">
-                    <div class="log-item-content">
-                        <div class="log-student">Casey Williams <span class="override-badge">OVERRIDE</span></div>
-                        <div class="log-details">Q1 • Emergency Fund (-$50.00)</div>
-                        <div class="log-amount spending">-$50.00</div>
-                    </div>
-                </div>
-            </div>
+
+            <div id="log-container"></div>
         </div>
     </div>
+
     <script>
         // Execute as soon as the DOM frame paints to configure UI components
         document.addEventListener('DOMContentLoaded', async () => {
             await autoConfigureCurrentQuarter();
             await populateLists();
+            loadTransactionData();
+        });
+
+        // TODO: finish rest of transactions for services
+        document.addEventListener('click', () => {
+            if (event.target === document.body || event.target === document.documentElement) {
+                document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                updateUndoButtonState();
+            }
         });
 
         /** Updates the income and spending preview boxes based on current selections and quantities. */
@@ -241,7 +246,7 @@
                     document.getElementById("submitSpendingBtn").disabled = true;
                     document.getElementById("submitIncomeBtn").classList.add("disabled");
                     document.getElementById("submitSpendingBtn").classList.add("disabled");
-                    
+
                     // Forward payload securely to your backend execution router
                     callServer('executeServiceAction', JSON.stringify(payload), (response) => {
                         const balanceElement = document.getElementById('balanceAmount');
@@ -402,6 +407,113 @@
         }
 
         /**
+         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+         */
+        function loadTransactionData() {
+            try {
+                const logContainer = document.getElementById('log-container');
+                logContainer.innerHTML = ''; // Clear existing entries
+
+                callServer('fetchTransactionsDataCached', null, (res) => {
+                    const response = JSON.parse(res);
+
+                    console.log("Last Response:", response[response.length - 1]);
+
+                    if (response && Array.isArray(response)) {
+                        let currentHtmlContent = logContainer.innerHTML;
+                        let htmlContent = '';
+                        response.reverse().forEach(transaction => {
+                            // Type is either "Income", "Expense", or "Investment"
+                            const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+
+                            let allLogItems = document.querySelectorAll('.log-item');
+
+                            // Remove any existing log item with the same transaction ID to prevent duplicates
+                            if (allLogItems.length > 0) {
+                                allLogItems.forEach(item => {
+                                    const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
+                                    if (itemId === id.toString()) {
+                                        item.remove();
+                                    }
+                                });
+                            }
+
+                            const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
+                            const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
+                            const balanceDeltaSymbol = balanceDelta < 0 ? '-' : '+';
+
+                            const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
+                            const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
+                            const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
+
+                            const mathBalanceOperationElement = `
+                                <span ${initialBalance < 0 ? 'class="negative"' : ''}>
+                                    $${initialBalance}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    ${balanceDeltaSymbol}
+                                </span> 
+                                <span class="${balanceDeltaClass}">
+                                    $${Number(Math.abs(balanceDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newBalance < 0 ? 'class="negative"' : ''}>
+                                    $${newBalance}
+                                </span>
+                            `;
+
+                            const mathColumnOperationElement = `
+                                <span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${initialColumnAmount}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    ${columnDeltaSymbol}
+                                </span> 
+                                <span class="${columnDeltaClass}">
+                                    $${Number(Math.abs(columnDelta).toFixed(2))}
+                                </span> = 
+                                <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>
+                                    $${newColumnAmount}
+                                </span>
+                            `;
+
+                            htmlContent += `
+                                    <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
+                                        <div class="log-item-content">
+                                            <div class="log-item-header">
+                                                <span class="log-item-name">${individual}</span>
+                                                <span class="log-item-id">TXN#${id}</span>
+                                                <span class="log-item-date">${new Date(timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                            <div class="log-item-service">
+                                                <p class="log-item-service-label">Service</p>
+                                                <p class="log-item-service-value">${serviceProvided}</p>
+                                            </div>
+                                            <div class="log-item-math">
+                                                <p class="log-item-math-label">Balance</p>
+                                                ${mathBalanceOperationElement}
+                                            </div>
+                                            <div class="log-item-math">
+                                                <p class="log-item-math-label">Col ${modifiedColumn}</p>
+                                                ${mathColumnOperationElement}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `
+                        });
+
+                        logContainer.innerHTML = htmlContent;
+                    } else {
+                        console.error("Invalid response format from server.");
+                    }
+                }, (error) => {
+                    console.error("Error fetching transaction data:", error);
+                });
+            } catch (err) {
+                console.error("Error in loadTransactionData:", err);
+            }
+        }
+
+        /**
           * Forces a network clear-through to refresh backend server arrays.
           */
         async function updateExpenses() {
@@ -411,6 +523,8 @@
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Expense');
+            // Refresh transaction data
+            loadTransactionData();
         }
 
         async function updateIncomes() {
@@ -420,6 +534,35 @@
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Income');
+            // Refresh transaction data
+            loadTransactionData();
+        }
+
+        function updateUndoButtonState() {
+            const undoBtn = document.getElementById('undoSelectedBtn');
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            undoBtn.disabled = selectedItems.length === 0;
+        }
+
+        function undoSelectedTransactions() {
+            const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
+            if (selectedItems.length === 0) return;
+
+            const transactionIds = Array.from(selectedItems).map(item => item.querySelector('.log-item-id').textContent.replace('TXN#', ''));
+
+            console.log("Undoing Transactions:", transactionIds);
+
+            callServer('undoTransactions', JSON.stringify({ transactionIds }), (response) => {
+                if (response) {
+                    console.log("Successfully undone transactions:", transactionIds);
+                    // Refresh the log after undoing
+                    loadTransactionData();
+                } else {
+                    console.error("Failed to undo transactions:", response.error);
+                }
+            }, (error) => {
+                console.error("Error undoing transactions:", error);
+            });
         }
     </script>
 </body>
