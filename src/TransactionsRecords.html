@@ -165,7 +165,7 @@
                         let htmlContent = '';
                         response.reverse().forEach(transaction => {
                             // Type is either "Income", "Expense", or "Investment"
-                            const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+                            const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
                             let allLogItems = document.querySelectorAll('.log-item');
 

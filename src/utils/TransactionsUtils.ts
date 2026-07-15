@@ -11,6 +11,7 @@ type TransactionType = "Income" | "Expense" | "Investment" | "Unknown";
 interface TransactionRecord {
   id?: number
   individual?: string;
+  period?: number;
   type?: TransactionType;
   serviceProvided?: string;
   unitPrice: number;
@@ -214,17 +215,18 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
       return {
         id: row[0] as number | 0,
         individual: row[1] as string | "",
-        type: row[2] as TransactionType | "Unknown",
-        serviceProvided: row[3] as string | "",
-        unitPrice: row[4] as number | 0,
-        quantity: row[5] as number | 0,
-        modifiedColumn: row[6] as number | 0,
-        tenderedMoney: row[7] as number | 0,
-        initialColumnAmount: row[8] as number | 0,
-        newColumnAmount: row[9] as number | 0,
-        initialBalance: row[10] as number | 0,
-        newBalance: row[11] as number | 0,
-        timestamp: row[12] as string | 0
+        period: row[2] as number | 0,
+        type: row[3] as TransactionType | "Unknown",
+        serviceProvided: row[4] as string | "",
+        unitPrice: row[5] as number | 0,
+        quantity: row[6] as number | 0,
+        modifiedColumn: row[7] as number | 0,
+        tenderedMoney: row[8] as number | 0,
+        initialColumnAmount: row[9] as number | 0,
+        newColumnAmount: row[10] as number | 0,
+        initialBalance: row[11] as number | 0,
+        newBalance: row[12] as number | 0,
+        timestamp: row[13] as string | 0
       } as TransactionRecord;
     })
 

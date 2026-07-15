@@ -191,7 +191,21 @@
                         let htmlContent = '';
                         response.reverse().forEach(transaction => {
                             // Type is either "Income", "Expense", or "Investment"
-                            const { id, individual, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+                            const { 
+                                id, 
+                                individual, 
+                                period, 
+                                type, 
+                                serviceProvided, 
+                                unitPrice, 
+                                quantity, 
+                                modifiedColumn, 
+                                tenderedMoney, 
+                                initialColumnAmount, 
+                                newColumnAmount, 
+                                initialBalance, 
+                                newBalance, 
+                                timestamp } = transaction;
 
                             let allLogItems = document.querySelectorAll('.log-item');
 
@@ -249,7 +263,8 @@
                                             <div class="log-item-header">
                                                 <span class="log-item-name">${individual}</span>
                                                 <span class="log-item-id">TXN#${id}</span>
-                                                <span class="log-item-date">${new Date(timestamp).toLocaleDateString()}</span>
+                                                <span class="log-item-period">Period ${period}</span>
+                                                <p class="log-item-timestamp">${new Date(timestamp).toLocaleString()}</p>
                                             </div>
                                             <div class="log-item-service">
                                                 <p class="log-item-service-label">Service</p>
@@ -265,7 +280,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    `
+                                `
                         });
 
                         logContainer.innerHTML = htmlContent;

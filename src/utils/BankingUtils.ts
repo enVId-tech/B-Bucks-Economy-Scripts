@@ -50,7 +50,7 @@ function executeBalanceAction(payloadStr: string): string | void {
  * @param isManualTransaction Whether the transaction is manual or not.
  * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
- * @returns {string |boolean} Returns true if the operation was successful, false otherwise.
+ * @returns {string | boolean} Returns true if the operation was successful, false otherwise.
  */
 function applyMathToSelection(operation: Operation | string, unitPrice: number, quantity: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
   try {
@@ -124,7 +124,9 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       }
 
       const ranges = activeRangeList.getRanges();
+      const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
       const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+      const periodName = spreadsheetName.replace(/[^0-9]/g, ''); // Extract only the numeric part of the spreadsheet name for period identification
 
       // Use the Sheets API to apply the operation to all cells in the active range list
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
@@ -178,6 +180,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
               transactionRecords.push({
                 individual: individualName,
+                period: parseInt(periodName) || undefined,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                 serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`,
                 unitPrice: unitPrice,
@@ -294,6 +297,9 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           const startRowIndex = subRange.getRow();
           const startColIndex = subRange.getColumn();
 
+          const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
+          const periodName = spreadsheetName.replace(/[^0-9]/g, ''); // Extract only the numeric part of the spreadsheet name for period identification
+
           const updatedValues = values.map((row, rowIndex) => {
             const absoluteRowIndex = startRowIndex + rowIndex;
 
@@ -338,6 +344,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                 // If the operation is applied on column 3
                 transactionRecords.push({
                   individual: individualName,
+                  period: parseInt(periodName) || undefined,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                   serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
                   unitPrice: unitPrice,
