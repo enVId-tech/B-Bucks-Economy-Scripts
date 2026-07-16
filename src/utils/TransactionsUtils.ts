@@ -201,14 +201,14 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
         throw new Error("Advanced Sheets API service not enabled in script settings")
       }
       // Use the Sheets API to efficiently fetch all transaction records in one request, with error handling to fall back to the slower method if the API call fails
-      sheetData = Sheets.Spreadsheets.Values.get(spreadsheet.getId(), `${DEFAULT_TRANSACTIONS_SHEET}!A${TRANSACTIONS_ROW_START}:M`);
+      sheetData = Sheets.Spreadsheets.Values.get(spreadsheet.getId(), `${DEFAULT_TRANSACTIONS_SHEET}!A${TRANSACTIONS_ROW_START}:N`);
 
       if (!sheetData.values || sheetData.values.length <= 0) return false;
     } catch (err: any) {
       log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`, true);
 
       // Fall back to the slower method of fetching all transaction records using the native SpreadsheetApp service
-      sheetData = sheet.getRange(TRANSACTIONS_ROW_START, 1, sheet.getLastRow() - TRANSACTIONS_ROW_START + 1, 13).getValues(); // A1:M
+      sheetData = sheet.getRange(TRANSACTIONS_ROW_START, 1, sheet.getLastRow() - TRANSACTIONS_ROW_START + 1, 14).getValues(); // A1:M
     }
 
     const transactionRecords: TransactionRecord[] = sheetData.values.map((row: any[]) => {

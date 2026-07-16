@@ -481,9 +481,13 @@
                                         <div class="log-item-content">
                                             <div class="log-item-header">
                                                 <span class="log-item-name">${individual}</span>
-                                                <span class="log-item-id">TXN#${id}</span>
                                                 <span class="log-item-period">Period ${period}</span>
-                                                <p class="log-item-timestamp">${new Date(timestamp).toLocaleString()}</p>
+                                            </div>
+                                            <div class="log-item-type">
+                                                <p class="log-item-type-label log-item-timestamp">${new Date(timestamp).toLocaleString()}</p>
+                                            </div>
+                                            <div class="log-item-type">
+                                                <p class="log-item-type-label log-item-id">TXN#${id}</p>
                                             </div>
                                             <div class="log-item-service">
                                                 <p class="log-item-service-label">Service</p>
