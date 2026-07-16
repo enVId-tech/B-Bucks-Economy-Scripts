@@ -432,7 +432,6 @@
                         let currentHtmlContent = logContainer.innerHTML;
                         let htmlContent = '';
                         response.reverse().forEach(transaction => {
-                            console.log("Processing transaction:", transaction);
                             // Type is either "Income", "Expense", or "Investment"
                             const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
