@@ -173,32 +173,65 @@
     .records-container {
         flex: 1;
         overflow-y: auto;
-        padding: 10px;
+        padding: 12px;
     }
 
     .record-item {
-        background: #fff;
-        border: 1px solid #e1e4e8;
-        border-radius: 4px;
-        padding: 8px;
-        margin-bottom: 6px;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        position: relative;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        border: 1px solid #dbe4ee;
+        border-radius: 12px;
+        padding: 12px 12px 12px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
         display: flex;
-        gap: 6px;
-        align-items: flex-start;
+        gap: 10px;
+        align-items: stretch;
         cursor: pointer;
-        transition: all 0.15s;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        overflow: hidden;
+    }
+
+    .record-item::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 5px;
+        background: #b8c2cf;
+    }
+
+    .record-item.income::before {
+        background: linear-gradient(180deg, #39c46a 0%, #1f8f43 100%);
+    }
+
+    .record-item.spending::before {
+        background: linear-gradient(180deg, #ff7b7b 0%, #cf3d4c 100%);
+    }
+
+    .record-item.deposit::before {
+        background: linear-gradient(180deg, #8b6ff7 0%, #5a36c7 100%);
+    }
+
+    .record-item.withdraw::before {
+        background: linear-gradient(180deg, #4ea1ff 0%, #0366d6 100%);
     }
 
     .record-item:hover {
-        background: #f6f8fa;
-        border-color: #d1d5da;
+        background: linear-gradient(180deg, #ffffff 0%, #eef5ff 100%);
+        border-color: #b9c7d8;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+        transform: translateY(-1px);
     }
 
     .record-item.selected {
-        background: #2d3748;
+        background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
         color: white;
-        border-color: #1a202c;
+        border-color: #0f172a;
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.24);
+    }
+
+    .record-item.selected::before {
+        background: linear-gradient(180deg, #7dd3fc 0%, #2563eb 100%);
     }
 
     .record-item.selected .record-student,
@@ -214,6 +247,32 @@
         color: white;
     }
 
+    .record-item.selected .record-summary {
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .record-item.selected .record-meta-chip {
+        color: #f8fbff;
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .record-item.selected .record-highlight-row {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .record-item.selected .record-highlight-label,
+    .record-item.selected .record-highlight-value,
+    .record-item.selected .record-strong {
+        color: white;
+    }
+
+    .record-item.selected .record-formula-token.static,
+    .record-item.selected .record-formula-symbol.static {
+        color: white;
+    }
+
     .record-item.selected .record-amount.positive {
         color: #68d391;
     }
@@ -224,6 +283,122 @@
 
     .record-item-content {
         flex: 1;
+        min-width: 0;
+    }
+
+    .record-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .record-summary-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+        align-items: flex-start;
+    }
+
+    .record-top-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: flex-end;
+    }
+
+    .record-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #355070;
+        background: #e8f1ff;
+        border: 1px solid #cddffb;
+        white-space: nowrap;
+    }
+
+    .record-highlight-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(241, 248, 255, 0.9);
+        border: 1px solid rgba(3, 102, 214, 0.16);
+    }
+
+    .record-highlight-label {
+        font-size: 9px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        color: #4a5568;
+        margin-right: 6px;
+    }
+
+    .record-highlight-value {
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .record-strong {
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .record-strong.positive {
+        color: #28a745;
+    }
+
+    .record-strong.negative {
+        color: #d73a49;
+    }
+
+    .record-formula {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        line-height: 1.35;
+        font-weight: 700;
+    }
+
+    .record-formula-token {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .record-formula-token.positive {
+        color: #28a745;
+    }
+
+    .record-formula-token.negative {
+        color: #d73a49;
+    }
+
+    .record-formula-token.static {
+        color: #24292e;
+    }
+
+    .record-formula-symbol {
+        font-weight: 900;
+    }
+
+    .record-formula-symbol.positive {
+        color: #28a745;
+    }
+
+    .record-formula-symbol.negative {
+        color: #d73a49;
     }
 
     .record-item-checkbox {
@@ -266,87 +441,111 @@
     }
 
     .record-item.income {
-        border-left: 3px solid #28a745;
+        border-left: none;
     }
 
     .record-item.spending {
-        border-left: 3px solid #d73a49;
+        border-left: none;
     }
 
     .record-item.deposit {
-        border-left: 3px solid #6f42c1;
+        border-left: none;
     }
 
     .record-item.withdraw {
-        border-left: 3px solid #0366d6;
+        border-left: none;
     }
 
     .record-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 4px;
+        gap: 10px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(100, 116, 139, 0.16);
     }
 
     .record-student {
-        font-weight: 700;
-        font-size: 12px;
-        color: #24292e;
+        font-weight: 800;
+        font-size: 13px;
+        color: #0f172a;
+        letter-spacing: 0.1px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .record-type {
+        display: inline-flex;
+        width: fit-content;
+        align-self: flex-start;
         font-size: 9px;
-        font-weight: 600;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
-        padding: 2px 6px;
-        border-radius: 2px;
-        background: #f6f8fa;
-        color: #586069;
+        letter-spacing: 0.8px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.14);
+        color: #475569;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
     .record-type.income {
-        background: #f3ffe3;
-        color: #155724;
+        background: rgba(34, 197, 94, 0.14);
+        color: #166534;
+        border-color: rgba(34, 197, 94, 0.24);
     }
 
     .record-type.spending {
-        background: #fde8e8;
-        color: #721c24;
+        background: rgba(239, 68, 68, 0.14);
+        color: #991b1b;
+        border-color: rgba(239, 68, 68, 0.24);
     }
 
     .record-type.deposit {
-        background: #f6f3ff;
-        color: #24292e;
+        background: rgba(139, 92, 246, 0.14);
+        color: #5b21b6;
+        border-color: rgba(139, 92, 246, 0.24);
     }
 
     .record-type.withdraw {
-        background: #f1f8ff;
-        color: #24292e;
+        background: rgba(59, 130, 246, 0.14);
+        color: #1d4ed8;
+        border-color: rgba(59, 130, 246, 0.24);
     }
 
     .record-details {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 10px 14px;
         font-size: 10px;
-        margin: 4px 0;
-        color: #6a737d;
+        margin: 0;
+        color: #475569;
     }
 
     .record-detail-item {
         display: flex;
         justify-content: space-between;
+        gap: 10px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: rgba(248, 250, 252, 0.75);
+        border: 1px solid rgba(226, 232, 240, 0.9);
     }
 
     .record-detail-label {
-        font-weight: 600;
-        color: #586069;
+        font-weight: 700;
+        color: #64748b;
+        white-space: nowrap;
     }
 
     .record-detail-value {
-        color: #24292e;
-        font-family: monospace;
+        color: #0f172a;
+        font-family: ui-monospace, SFMono-Regular, SF Mono, Consolas, monospace;
+        text-align: right;
+        word-break: break-word;
     }
 
     .record-amount {
