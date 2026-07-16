@@ -51,6 +51,7 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
         log(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`, false);
         return JSON.parse(cachedString) as TransactionRecord[];
       }
+
       const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
       if (savedProperties) {
         cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
@@ -62,7 +63,7 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
     const freshTransactions = fetchTransactionsData();
     setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
     if (!Array.isArray(freshTransactions)) throw new Error("Failed to fetch transactions data from sheet.");
-    return freshTransactions;
+    return JSON.stringify(freshTransactions) as unknown as TransactionRecord[];
   } catch (error: any) {
     log(`Error in fetchTransactionsDataCached: ${error.message}`, true);
     return { error: `Error in fetchTransactionsDataCached: ${error.message}` };

@@ -255,7 +255,7 @@
                         }
 
                         console.log(`Transaction successful: ${payload.transactionReason}`);
-
+                        loadTransactionData(true); // Refresh the log after a successful transaction
                     }, (error) => {
                         console.error("Error executing balance action on server:", error);
                         alert(`Failed to execute transaction: ${error.message || error}`);
@@ -409,12 +409,21 @@
         /**
          * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
          */
-        function loadTransactionData() {
+        function loadTransactionData(refresh = false) {
             try {
                 const logContainer = document.getElementById('log-container');
                 logContainer.innerHTML = ''; // Clear existing entries
 
-                callServer('fetchTransactionsDataCached', null, (res) => {
+                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: refresh }), (res) => {
+                    try {
+                        if (!res) {
+                            console.error("No response received from server for transaction data.");
+                            return;
+                        }
+                    } catch (parseError) {
+                        console.error("Failed to parse server response for transaction data:", parseError);
+                        return;
+                    }
                     const response = JSON.parse(res);
 
                     console.log("Last Response:", response[response.length - 1]);
@@ -423,6 +432,7 @@
                         let currentHtmlContent = logContainer.innerHTML;
                         let htmlContent = '';
                         response.reverse().forEach(transaction => {
+                            console.log("Processing transaction:", transaction);
                             // Type is either "Income", "Expense", or "Investment"
                             const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
@@ -528,8 +538,6 @@
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Expense');
-            // Refresh transaction data
-            loadTransactionData();
         }
 
         async function updateIncomes() {
@@ -539,8 +547,6 @@
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Income');
-            // Refresh transaction data
-            loadTransactionData();
         }
 
         function updateUndoButtonState() {

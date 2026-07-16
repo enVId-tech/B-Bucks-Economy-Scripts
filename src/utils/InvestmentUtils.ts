@@ -52,9 +52,7 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
                 log(`Cache hit: Investments ledger data loaded from cache. String: ${cachedData}`, false);
                 return JSON.parse(cachedData) as PeriodData[];
             }
-        }
-
-        if (!forceRefresh) {
+            
             const savedProperties = props.getProperty(CACHE_KEY);
             if (savedProperties) {
                 log(`Cache hit: Investments ledger data loaded from script properties for cache key ${CACHE_KEY}. String: ${savedProperties}`, false);
