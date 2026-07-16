@@ -153,8 +153,13 @@
     </div>
 
     <script>
+        let allTransactions = [];
+
         // Execute as soon as the DOM frame paints to configure UI components
         document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
+            document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
+
             await autoConfigureCurrentQuarter();
             await populateLists();
             loadTransactionData();
@@ -203,6 +208,103 @@
             } catch (error) {
                 console.error("Error updating preview:", error);
             }
+        }
+
+        function normalizeFilterText(value) {
+            return String(value ?? '').toLowerCase().trim();
+        }
+
+        function getFilteredTransactions() {
+            const searchQuery = normalizeFilterText(document.getElementById('logSearchName').value);
+            const filterDate = document.getElementById('logFilterDate').value;
+
+            return allTransactions.filter(transaction => {
+                const matchesName = !searchQuery || normalizeFilterText(transaction.individual).includes(searchQuery);
+                const transactionDate = new Date(transaction.timestamp);
+                const transactionDateValue = Number.isNaN(transactionDate.getTime()) ? '' : transactionDate.toLocaleDateString('en-CA');
+                const matchesDate = !filterDate || transactionDateValue === filterDate;
+
+                return matchesName && matchesDate;
+            });
+        }
+
+        function renderTransactionLog(transactions) {
+            const logContainer = document.getElementById('log-container');
+
+            if (!transactions.length) {
+                logContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔎</div>
+                        <div>No transactions match the current filters.</div>
+                    </div>
+                `;
+                updateUndoButtonState();
+                return;
+            }
+
+            let htmlContent = '';
+
+            transactions.slice().reverse().forEach(transaction => {
+                const { id, individual, period, modifiedColumn, serviceProvided, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+
+                const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
+                const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
+                const balanceDeltaSymbol = balanceDelta < 0 ? '-' : '+';
+
+                const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
+                const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
+                const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
+
+                const mathBalanceOperationElement = `
+                    <span ${initialBalance < 0 ? 'class="negative"' : ''}>$${initialBalance}</span>
+                    <span class="${balanceDeltaClass}">${balanceDeltaSymbol}</span>
+                    <span class="${balanceDeltaClass}">$${Number(Math.abs(balanceDelta).toFixed(2))}</span> =
+                    <span ${newBalance < 0 ? 'class="negative"' : ''}>$${newBalance}</span>
+                `;
+
+                const mathColumnOperationElement = `
+                    <span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>$${initialColumnAmount}</span>
+                    <span class="${columnDeltaClass}">${columnDeltaSymbol}</span>
+                    <span class="${columnDeltaClass}">$${Number(Math.abs(columnDelta).toFixed(2))}</span> =
+                    <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>$${newColumnAmount}</span>
+                `;
+
+                htmlContent += `
+                    <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
+                        <div class="log-item-content">
+                            <div class="log-item-header">
+                                <span class="log-item-name">${individual}</span>
+                                <span class="log-item-period">Period ${period}</span>
+                            </div>
+                            <div class="log-item-type">
+                                <p class="log-item-type-label log-item-timestamp">${new Date(timestamp).toLocaleString()}</p>
+                            </div>
+                            <div class="log-item-type">
+                                <p class="log-item-type-label log-item-id">TXN#${id}</p>
+                            </div>
+                            <div class="log-item-service">
+                                <p class="log-item-service-label">Service</p>
+                                <p class="log-item-service-value">${serviceProvided}</p>
+                            </div>
+                            <div class="log-item-math">
+                                <p class="log-item-math-label">Balance</p>
+                                ${mathBalanceOperationElement}
+                            </div>
+                            <div class="log-item-math">
+                                <p class="log-item-math-label">Col ${modifiedColumn}</p>
+                                ${mathColumnOperationElement}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            logContainer.innerHTML = htmlContent;
+            updateUndoButtonState();
+        }
+
+        function applyTransactionFilters() {
+            renderTransactionLog(getFilteredTransactions());
         }
 
         async function addBalance(type = null) {
@@ -426,96 +528,9 @@
                     }
                     const response = JSON.parse(res);
 
-                    console.log("Last Response:", response[response.length - 1]);
-
                     if (response && Array.isArray(response)) {
-                        let currentHtmlContent = logContainer.innerHTML;
-                        let htmlContent = '';
-                        response.reverse().forEach(transaction => {
-                            // Type is either "Income", "Expense", or "Investment"
-                            const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
-
-                            let allLogItems = document.querySelectorAll('.log-item');
-
-                            // Remove any existing log item with the same transaction ID to prevent duplicates
-                            if (allLogItems.length > 0) {
-                                allLogItems.forEach(item => {
-                                    const itemId = item.querySelector('.log-item-id').textContent.replace('TXN#', '');
-                                    if (itemId === id.toString()) {
-                                        item.remove();
-                                    }
-                                });
-                            }
-
-                            const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
-                            const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
-                            const balanceDeltaSymbol = balanceDelta < 0 ? '-' : '+';
-
-                            const columnDelta = Number((newColumnAmount - initialColumnAmount).toFixed(2));
-                            const columnDeltaClass = columnDelta < 0 ? 'negative' : columnDelta > 0 ? 'positive' : 'static';
-                            const columnDeltaSymbol = columnDelta < 0 ? '-' : '+';
-
-                            const mathBalanceOperationElement = `
-                                <span ${initialBalance < 0 ? 'class="negative"' : ''}>
-                                    $${initialBalance}
-                                </span> 
-                                <span class="${balanceDeltaClass}">
-                                    ${balanceDeltaSymbol}
-                                </span> 
-                                <span class="${balanceDeltaClass}">
-                                    $${Number(Math.abs(balanceDelta).toFixed(2))}
-                                </span> = 
-                                <span ${newBalance < 0 ? 'class="negative"' : ''}>
-                                    $${newBalance}
-                                </span>
-                            `;
-
-                            const mathColumnOperationElement = `
-                                <span ${initialColumnAmount < 0 ? 'class="negative"' : ''}>
-                                    $${initialColumnAmount}
-                                </span> 
-                                <span class="${columnDeltaClass}">
-                                    ${columnDeltaSymbol}
-                                </span> 
-                                <span class="${columnDeltaClass}">
-                                    $${Number(Math.abs(columnDelta).toFixed(2))}
-                                </span> = 
-                                <span ${newColumnAmount < 0 ? 'class="negative"' : ''}>
-                                    $${newColumnAmount}
-                                </span>
-                            `;
-
-                            htmlContent += `
-                                    <div class="log-item" data-selectable="true" onclick="this.classList.toggle('selected'); updateUndoButtonState();">
-                                        <div class="log-item-content">
-                                            <div class="log-item-header">
-                                                <span class="log-item-name">${individual}</span>
-                                                <span class="log-item-period">Period ${period}</span>
-                                            </div>
-                                            <div class="log-item-type">
-                                                <p class="log-item-type-label log-item-timestamp">${new Date(timestamp).toLocaleString()}</p>
-                                            </div>
-                                            <div class="log-item-type">
-                                                <p class="log-item-type-label log-item-id">TXN#${id}</p>
-                                            </div>
-                                            <div class="log-item-service">
-                                                <p class="log-item-service-label">Service</p>
-                                                <p class="log-item-service-value">${serviceProvided}</p>
-                                            </div>
-                                            <div class="log-item-math">
-                                                <p class="log-item-math-label">Balance</p>
-                                                ${mathBalanceOperationElement}
-                                            </div>
-                                            <div class="log-item-math">
-                                                <p class="log-item-math-label">Col ${modifiedColumn}</p>
-                                                ${mathColumnOperationElement}
-                                            </div>
-                                        </div>
-                                    </div>
-                                `
-                        });
-
-                        logContainer.innerHTML = htmlContent;
+                        allTransactions = response;
+                        applyTransactionFilters();
                     } else {
                         console.error("Invalid response format from server.");
                     }
