@@ -123,7 +123,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         Object.keys(record)
           .some(key => record[key as keyof TransactionRecord] === undefined || record[key as keyof TransactionRecord] === null)
       ) {
-        log(`Validation failed: A required field is missing in record at index ${i}. Record: ${JSON.stringify(record)}`, true);
+        log(`Validation failed: A required field is missing in record at index ${i}. Record: ${JSON.stringify(record)}. Missing fields: ${Object.keys(record).filter(k => record[k as keyof TransactionRecord] === undefined || record[k as keyof TransactionRecord] === null).join(', ')}`, true);
         return false;
       }
 

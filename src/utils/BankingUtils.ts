@@ -126,8 +126,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       const ranges = activeRangeList.getRanges();
       const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
       const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-      const periodName = spreadsheetName.replace(/[^0-9]/g, ''); // Extract only the numeric part of the spreadsheet name for period identification
-
+      
       // Use the Sheets API to apply the operation to all cells in the active range list
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
@@ -135,6 +134,11 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
         // Get the current values of the range
         const rangeA1 = range.getA1Notation();
         const sheetName = range.getSheet().getName();
+        // Only get numeric characters out of sheetName
+        const periodName = parseInt(sheetName.replace(/\D/g, ""), 10);
+
+        log(`Sheet name: ${sheetName}, Range A1: ${rangeA1}, Period Name: ${periodName}`, false);
+
         const values = range.getValues();
 
         const startRowIndex = range.getRow();
@@ -180,7 +184,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
               transactionRecords.push({
                 individual: individualName,
-                period: parseInt(periodName) || undefined,
+                period: periodName || undefined,
                 type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                 serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`,
                 unitPrice: unitPrice,
@@ -298,7 +302,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           const startColIndex = subRange.getColumn();
 
           const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
-          const periodName = spreadsheetName.replace(/[^0-9]/g, ''); // Extract only the numeric part of the spreadsheet name for period identification
+          const periodName = parseInt(targetSheet.getName().replace(/\D/g, ""), 10);
 
           const updatedValues = values.map((row, rowIndex) => {
             const absoluteRowIndex = startRowIndex + rowIndex;
@@ -344,7 +348,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
                 // If the operation is applied on column 3
                 transactionRecords.push({
                   individual: individualName,
-                  period: parseInt(periodName) || undefined,
+                  period: periodName || undefined,
                   type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
                   serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
                   unitPrice: unitPrice,
