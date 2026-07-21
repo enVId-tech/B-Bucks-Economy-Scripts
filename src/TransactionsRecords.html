@@ -151,7 +151,8 @@
             });
 
             document.getElementById('filterPeriod').addEventListener('change', () => {
-                populateStudentFilterOptions(allTransactions);
+                const dateFilteredTransactions = getTransactionsFilteredByDateRange(allTransactions);
+                populateStudentFilterOptions(dateFilteredTransactions);
                 applyTransactionFilters();
             });
 
@@ -164,10 +165,12 @@
             });
 
             document.getElementById('filterFromDate').addEventListener('change', () => {
+                updateFiltersForDateRange();
                 applyTransactionFilters();
             });
 
             document.getElementById('filterToDate').addEventListener('change', () => {
+                updateFiltersForDateRange();
                 applyTransactionFilters();
             });
 
@@ -296,6 +299,29 @@
             } else {
                 typeSelect.value = '';
             }
+        }
+
+        function getTransactionsFilteredByDateRange(transactions) {
+            const fromDateValue = document.getElementById('filterFromDate').value;
+            const toDateValue = document.getElementById('filterToDate').value;
+
+            return transactions.filter(transaction => {
+                const transactionDate = transaction.timestamp ? new Date(transaction.timestamp) : null;
+                
+                if (!transactionDate) return true;
+                
+                if (fromDateValue && transactionDate < new Date(`${fromDateValue}T00:00:00`)) return false;
+                if (toDateValue && transactionDate > new Date(`${toDateValue}T23:59:59.999`)) return false;
+
+                return true;
+            });
+        }
+
+        function updateFiltersForDateRange() {
+            const dateFilteredTransactions = getTransactionsFilteredByDateRange(allTransactions);
+            populatePeriodFilterOptions(dateFilteredTransactions);
+            populateTypeFilterOptions(dateFilteredTransactions);
+            populateStudentFilterOptions(dateFilteredTransactions);
         }
 
         function matchesSearch(transaction, scope, query) {
@@ -462,6 +488,9 @@
             document.getElementById('filterFromDate').value = '';
             document.getElementById('filterToDate').value = '';
 
+            populatePeriodFilterOptions(allTransactions);
+            populateTypeFilterOptions(allTransactions);
+            populateStudentFilterOptions(allTransactions);
             applyTransactionFilters();
         }
 
