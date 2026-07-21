@@ -54,6 +54,10 @@ interface SettingsData {
     limits: Limits;
 }
 
+type SettingsSectionKey = keyof SettingsData;
+type SettingsPropertyMap = ImportantDates & StandardPercentages & MandatedPolicies & LedgersAndRecords & Limits;
+type SettingsPropertyKey = keyof SettingsPropertyMap;
+
 /**
  * Fetches settings data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the settings data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access settings data while also providing a mechanism to refresh the data when necessary.
  * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
@@ -167,7 +171,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
     }
 }
 
-function fetchProperty(propertyKey: string): string | { error: string } {
+function fetchProperty(propertyKey: SettingsPropertyKey): string | { error: string } {
     try {
         const settings = fetchSettingsDataCached();
 
@@ -196,6 +200,11 @@ function fetchProperty(propertyKey: string): string | { error: string } {
     }
 }
 
+/**
+ * Sets a property in the settings data.
+ * @param data The data to set, either as a string (JSON) or an object.
+ * @returns { boolean } Returns true if the property was successfully set; otherwise, returns false.
+ */
 function setSettingsProperty(data: any): boolean {
     const parseResult = typeof data === 'string' ? JSON.parse(data) : data;
     // Key is the column identifer for the setting (importantDates, standardPercentages, mandatedPolicies, ledgersAndRecords, limits)
@@ -273,9 +282,58 @@ function setSettingsProperty(data: any): boolean {
             }
         });
 
+        // apply the income tax rate to all users if the standardPercentages property was updated and contains an incomeTaxRate key
+        if (propertyKey === "standardPercentages" && "incomeTaxRate" in propertyValue) {
+            const applyResult = applyIncomeTaxRateToAll();
+            if (!applyResult) {
+                log(`Failed to apply income tax rate to all users after updating settings.`, true);
+                return false;
+            }
+        }
+
         return true;
     } catch (error: any) {
         log(`Error in setSettingsProperty: ${error.message}`, true);
+        return false;
+    }
+}
+
+/**
+ * Applies the income tax rate to every person in the sheet as a formula
+ */
+function applyIncomeTaxRateToAll(): boolean {
+    try {
+        const incomeTaxRateResult = fetchProperty("incomeTaxRate");
+        if (typeof incomeTaxRateResult === 'object' && 'error' in incomeTaxRateResult) {
+            log(`Failed to fetch income tax rate: ${incomeTaxRateResult.error}`, true);
+            return false;   
+        }
+
+        const incomeTaxRate = parseFloat(incomeTaxRateResult);
+
+        if (isNaN(incomeTaxRate)) {
+            log(`Invalid income tax rate fetched: ${incomeTaxRateResult}`, true);
+            return false;
+        }
+
+        // get all spreadsheets with 'Period' in the name
+        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const periodSheets = allSheets.filter(sheet => sheet.getName().includes('Period'));
+
+        periodSheets.forEach(sheet => {
+            const lastRow = sheet.getLastRow();
+
+            // formula applied to column D for all rows starting from the USER_STARTING_ROW constant
+            // example formula: =C7*(0.7) [0.7 as the tax rate from percentage to decimal, 7 as the row number of the current selected row], should adjust the row number dynamically based on the current row being processed
+            for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+                const formula = `=C${row}*(1-${incomeTaxRate})`;
+                sheet.getRange(row, NET_INCOME_COL).setFormula(formula);
+            }
+        });
+
+        return true;
+    } catch (error: any) {
+        log(`Error in applyIncomeTaxRateToAll: ${error.message}`, true);
         return false;
     }
 }
