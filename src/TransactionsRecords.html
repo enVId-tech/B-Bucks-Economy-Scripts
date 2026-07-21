@@ -386,7 +386,7 @@
             document.getElementById('totalCount').textContent = filteredTransactions.length;
             document.getElementById('incomeCount').textContent = filteredTransactions.filter(tx => tx.type === 'Income').length;
             document.getElementById('spendingCount').textContent = filteredTransactions.filter(tx => tx.type === 'Expense').length;
-            document.getElementById('netAmount').textContent = `$${filteredTransactions.reduce((sum, tx) => sum + tx.balanceDelta, 0).toFixed(2)}`;
+            document.getElementById('netAmount').textContent = `$${filteredTransactions.reduce((sum, tx) => sum + Number((tx.newBalance - tx.initialBalance).toFixed(2)), 0).toFixed(2)}`;
         }
 
         function clearTransactionFilters() {
