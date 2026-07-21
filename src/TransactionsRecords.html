@@ -66,10 +66,6 @@
                 <label>Period</label>
                 <select id="filterPeriod">
                     <option value="">All Periods</option>
-                    <option value="1">Period 1</option>
-                    <option value="2">Period 2</option>
-                    <option value="3">Period 3</option>
-                    <option value="4">Period 4</option>
                 </select>
             </div>
 
@@ -86,8 +82,7 @@
                     <option value="">All Types</option>
                     <option value="income">Income</option>
                     <option value="spending">Spending</option>
-                    <option value="deposit">Deposit</option>
-                    <option value="withdraw">Withdraw</option>
+                    <option value="deposit">Investment</option>
                 </select>
             </div>
 
@@ -156,6 +151,7 @@
             });
 
             document.getElementById('filterPeriod').addEventListener('change', () => {
+                populateStudentFilterOptions(allTransactions);
                 applyTransactionFilters();
             });
 
@@ -205,17 +201,24 @@
             const typeMapping = {
                 Income: 'income',
                 Expense: 'spending',
-                investment: 'deposit',
+                Investment: 'deposit',
             };
 
-            return typeMapping[type] || 'static';
+            return typeMapping[type] || 'unknown';
         }
 
         function populateStudentFilterOptions(transactions) {
             const studentSelect = document.getElementById('filterStudent');
             const currentValue = studentSelect.value;
+            const selectedPeriod = document.getElementById('filterPeriod').value;
+            
+            // Filter transactions by selected period if one is chosen
+            const filteredTransactions = selectedPeriod 
+                ? transactions.filter(t => String(t.period) === selectedPeriod)
+                : transactions;
+            
             const uniqueStudents = [...new Set(
-                transactions
+                filteredTransactions
                     .map(transaction => String(transaction.individual || '').trim())
                     .filter(Boolean)
             )].sort((a, b) => a.localeCompare(b));
@@ -231,6 +234,67 @@
 
             if (uniqueStudents.includes(currentValue)) {
                 studentSelect.value = currentValue;
+            } else {
+                studentSelect.value = '';
+            }
+        }
+
+        function populatePeriodFilterOptions(transactions) {
+            const periodSelect = document.getElementById('filterPeriod');
+            const currentValue = periodSelect.value;
+            
+            const uniquePeriods = [...new Set(
+                transactions
+                    .map(transaction => transaction.period)
+                    .filter(period => period !== null && period !== undefined)
+            )].sort((a, b) => a - b);
+
+            periodSelect.innerHTML = '<option value="">All Periods</option>';
+
+            uniquePeriods.forEach(period => {
+                const option = document.createElement('option');
+                option.value = period;
+                option.textContent = `Period ${period}`;
+                periodSelect.appendChild(option);
+            });
+
+            if (uniquePeriods.includes(Number(currentValue))) {
+                periodSelect.value = currentValue;
+            }
+        }
+
+        function populateTypeFilterOptions(transactions) {
+            const typeSelect = document.getElementById('filterType');
+            const currentValue = typeSelect.value;
+            
+            const typeMapping = {
+                Income: 'income',
+                Expense: 'spending',
+                Investment: 'deposit',
+            };
+            
+            const uniqueTypes = [...new Set(
+                transactions
+                    .map(transaction => transaction.type)
+                    .filter(type => type !== null && type !== undefined)
+            )];
+
+            typeSelect.innerHTML = '<option value="">All Types</option>';
+
+            uniqueTypes.forEach(type => {
+                const mappedType = typeMapping[type] || 'unknown';
+                const displayName = type === 'Income' ? 'Income' : type === 'Expense' ? 'Spending' : type === 'Investment' ? 'Investment' : type;
+                
+                const option = document.createElement('option');
+                option.value = mappedType;
+                option.textContent = displayName;
+                typeSelect.appendChild(option);
+            });
+
+            if (Array.from(typeSelect.options).some(opt => opt.value === currentValue)) {
+                typeSelect.value = currentValue;
+            } else {
+                typeSelect.value = '';
             }
         }
 
@@ -336,16 +400,16 @@
                 const typeMapping = {
                     Income: 'income',
                     Expense: 'spending',
-                    investment: 'deposit',
+                    Investment: 'deposit',
                 };
 
                 htmlContent += `
-                <div class="record-item ${typeMapping[type] || 'static'}" data-selectable="true">
+                <div class="record-item ${typeMapping[type] || 'unknown'}" data-selectable="true">
                     <div class="record-item-content">
                         <div class="record-summary">
                             <div class="record-summary-left">
                                 <span class="record-student">${individual}</span>
-                                <span class="record-type ${typeMapping[type] || 'static'}">${type}</span>
+                                <span class="record-type ${typeMapping[type] || 'unknown'}">${type}</span>
                             </div>
                             <div class="record-top-meta">
                                 <span class="record-meta-chip">Period ${period}</span>
@@ -414,6 +478,8 @@
 
                     if (response && Array.isArray(response)) {
                         allTransactions = response;
+                        populatePeriodFilterOptions(allTransactions);
+                        populateTypeFilterOptions(allTransactions);
                         populateStudentFilterOptions(allTransactions);
                         applyTransactionFilters();
 
