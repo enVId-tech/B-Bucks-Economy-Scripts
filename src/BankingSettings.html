@@ -61,7 +61,7 @@
                     onclick="callServer('updateTimestamps')">Manually Update All Timestamps</button>
                 <button class="btn btn-primary" id="recordDailyDataBtn" onclick="callServer('recordDailyData')">Record
                     Daily Data Snapshot</button>
-                <button class="btn btn-primary" id="clearCacheBtn" onclick="callServer('clearCache')">Clear Client
+                <button class="btn btn-primary" id="clearCacheBtn" onclick="callServer('clearGlobalCache')">Clear Client
                     Cache</button>
                 <button class="btn btn-primary" id="refreshAllInvestments"
                     onclick="callServer('refreshAllInvestments')">Refresh All Investments Data</button>
@@ -89,15 +89,15 @@
                     <button class="btn btn-danger" id="resetAccountHoldersBtn"
                         onclick="callServer('resetAccountHolders')">Account Holders</button>
                     <button class="btn btn-danger" id="resetEarningsBtn"
-                        onclick="callServer('resetEarnings')">Earnings</button>
+                        onclick="callServer('resetColumn', { column: 'EARNINGS' })">Earnings</button>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-danger" id="resetExpendituresBtn"
-                        onclick="callServer('resetExpenditures')">Expenditures</button>
+                        onclick="callServer('resetColumn', { column: 'EXPENDITURES' })">Expenditures</button>
                     <button class="btn btn-danger" id="resetReturnsBtn"
-                        onclick="callServer('resetReturns')">Returns</button>
+                        onclick="callServer('resetColumn', { column: 'INVESTMENT_RETURNS' })">Returns</button>
                 </div>
-                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetInitDep')">Init Dep &
+                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetColumn', { column: 'INITIAL_DEPOSIT' })">Init Dep &
                     Date Deposited (Investments)</button>
 
                 <div class="warning-box warning-box-hidden" id="resetWarning">

@@ -347,3 +347,27 @@ function undoTransactions(data?: string): boolean {
     return false;
   }
 }
+
+function resetAllTransactionRecords(): boolean {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
+
+    if (!sheet) {
+      log(`Transactions sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
+      return false;
+    }
+
+    const lastRowWithData = sheet.getLastRow();
+    
+    if (lastRowWithData >= TRANSACTIONS_ROW_START) {
+      sheet.deleteRows(TRANSACTIONS_ROW_START, lastRowWithData - TRANSACTIONS_ROW_START + 1);
+    }
+
+    log(`All transaction records have been reset.`, true);
+    return true;
+  } catch (error: any) {
+    log(`Error occurred in resetAllTransactionRecords: ${error.message}`, true);
+    return false;
+  }
+}

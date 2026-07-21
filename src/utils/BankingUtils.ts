@@ -126,7 +126,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       const ranges = activeRangeList.getRanges();
       const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
       const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-      
+
       // Use the Sheets API to apply the operation to all cells in the active range list
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
@@ -399,7 +399,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               });
             });
           });
-          
+
           // After successfully applying the operations, add the transaction records
           if (transactionRecords.length > 0) {
             addTransactionRecords(transactionRecords);
@@ -458,6 +458,178 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
 
   } catch (error: any) {
     log(`Error occurred in commentExpenditureOnSelection: ${error.message}`, true);
+    return false;
+  }
+}
+
+function resetAllMoney(): boolean {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow < USER_STARTING_ROW) {
+      log("No data rows found to reset.", true);
+      return false;
+    }
+
+    try {
+      // Use the Google Sheets API to batch update the monetary columns to 0 for all rows starting from USER_STARTING_ROW
+      const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+
+      // Create a request for each row to update the monetary columns to 0
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        requests.push({
+          range: `${sheet.getName()}!${row}:${row}`,
+          values: [[0, 0, 0, 0]] // Set EARNINGS_COL, EXPENDITURES_COL, INVESTMENT_RETURNS_COL to 0
+        });
+      }
+
+      // Send a batchUpdate request to the Sheets API to update all rows at once
+      if (requests.length > 0 && Sheets) {
+        Sheets.Spreadsheets.Values.batchUpdate({
+          valueInputOption: "USER_ENTERED",
+          data: requests
+        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+      } else {
+        log("No valid rows found to reset.", true);
+        return false;
+      }
+      return true;
+    } catch (error: any) {
+      log(`Error occurred in resetAllMoney: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
+
+      // Reset all monetary columns to 0 for all rows starting from USER_STARTING_ROW
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        sheet.getRange(row, EARNINGS_COL).setValue(0);
+        sheet.getRange(row, EXPENDITURES_COL).setValue(0);
+        sheet.getRange(row, INVESTMENT_RETURNS_COL).setValue(0);
+      }
+
+      return true;
+    }
+  } catch (error: any) {
+    log(`Error occurred in resetAllMoney: ${error.message}`, true);
+    return false;
+  }
+}
+
+function resetAccountHolders(): boolean {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow < USER_STARTING_ROW) {
+      log("No data rows found to reset.", true);
+      return false;
+    }
+
+    try {
+      // Use the Google Sheets API to batch update the account holder names to empty strings for all rows starting from USER_STARTING_ROW
+      const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+
+      // Create a request for each row to update the account holder names to empty strings
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        requests.push({
+          range: `${sheet.getName()}!${row}:${row}`,
+          values: [[""]] // Set account holder names to empty strings
+        });
+      }
+
+      // Send a batchUpdate request to the Sheets API to update all rows at once
+      if (requests.length > 0 && Sheets) {
+        Sheets.Spreadsheets.Values.batchUpdate({
+          valueInputOption: "USER_ENTERED",
+          data: requests
+        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+      } else {
+        log("No valid rows found to reset.", true);
+        return false;
+      }
+      return true;
+    } catch (error: any) {
+      log(`Error occurred in resetAccountHolders: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
+
+      // Reset all account holder names to empty strings for all rows starting from USER_STARTING_ROW
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        sheet.getRange(row, 1).setValue(""); // Assuming account holder names are in column 1
+      }
+
+      return true;
+    }
+  } catch (error: any) {
+    log(`Error occurred in resetAccountHolders: ${error.message}`, true);
+    return false;
+  }
+}
+
+function resetColumn(data: any): boolean {
+  try {
+    const { column } = data;
+
+    if (!column) {
+      log("No column specified for resetColumn.", true);
+      return false;
+    }
+
+    const columnMapping: { [key: string]: number } = {
+      "EARNINGS": EARNINGS_COL,
+      "EXPENDITURES": EXPENDITURES_COL,
+      "INVESTMENT_RETURNS": INVESTMENT_RETURNS_COL,
+      "INITIAL_DEPOSIT": INITIAL_DEPOSIT_COL
+    };
+
+    const targetColumn = columnMapping[column.toUpperCase()];
+
+    if (!targetColumn) {
+      log(`Invalid column specified for resetColumn: ${column}. Must be one of EARNINGS, EXPENDITURES, INVESTMENT_RETURNS, or INITIAL_DEPOSIT.`, true);
+      return false;
+    }
+
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < USER_STARTING_ROW) {
+      log("No data rows found to reset.", true);
+      return false;
+    }
+
+    try {
+      // Use the Google Sheets API to batch update the earnings column to 0 for all rows starting from USER_STARTING_ROW
+      const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+
+      // Create a request for each row to update the target column to 0
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        const rangeA1 = `${sheet.getName()}!${row}:${row}`;
+        const values = Array(sheet.getLastColumn()).fill(0); // Create an array filled with 0s for all columns
+        values[targetColumn - 1] = 0; // Set the target column to 0 (adjusting for 0-based index)
+        requests.push({
+          range: rangeA1,
+          values: [values]
+        });
+      }
+
+      // Send a batchUpdate request to the Sheets API to update all rows at once
+      if (requests.length > 0 && Sheets) {
+        Sheets.Spreadsheets.Values.batchUpdate({
+          valueInputOption: "USER_ENTERED",
+          data: requests
+        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+      } else {
+        log("No valid rows found to reset.", true);
+        return false;
+      }
+      return true;
+    } catch (error: any) {
+      log(`Error occurred in resetColumn: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
+
+      // Reset all earnings to 0 for all rows starting from USER_STARTING_ROW
+      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+        sheet.getRange(row, targetColumn).setValue(0);
+      }
+      
+      return true;
+    }
+  } catch (error: any) {
+    log(`Error occurred in resetColumn: ${error.message}`, true);
     return false;
   }
 }
