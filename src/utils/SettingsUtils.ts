@@ -316,19 +316,62 @@ function applyIncomeTaxRateToAll(): boolean {
             return false;
         }
 
-        // get all spreadsheets with 'Period' in the name
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const spreadsheetId = spreadsheet.getId();
+
+        const allSheets = spreadsheet.getSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes('Period'));
+
+        const valueUpdates: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+        const nativeFallbackUpdates: Array<{ sheet: GoogleAppsScript.Spreadsheet.Sheet; numRows: number }> = [];
 
         periodSheets.forEach(sheet => {
             const lastRow = sheet.getLastRow();
 
-            // formula applied to column D for all rows starting from the USER_STARTING_ROW constant
-            // example formula: =C7*(0.7) [0.7 as the tax rate from percentage to decimal, 7 as the row number of the current selected row], should adjust the row number dynamically based on the current row being processed
-            for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
-                const formula = `=C${row}*(1-${incomeTaxRate})`;
-                sheet.getRange(row, NET_INCOME_COL).setFormula(formula);
+            if (lastRow < USER_STARTING_ROW) {
+                return;
             }
+
+            const numRows = (lastRow - USER_STARTING_ROW) + 1;
+            const formulas = Array.from({ length: numRows }, (_, index) => {
+                const rowNumber = USER_STARTING_ROW + index;
+                return [`=C${rowNumber}*(1-${incomeTaxRate})`];
+            });
+
+            nativeFallbackUpdates.push({ sheet, numRows });
+            valueUpdates.push({
+                range: `${sheet.getName()}!D${USER_STARTING_ROW}:D${lastRow}`,
+                values: formulas,
+            });
+        });
+
+        if (valueUpdates.length === 0) {
+            return true;
+        }
+
+        if (typeof Sheets !== 'undefined' && Sheets.Spreadsheets && Sheets.Spreadsheets.Values) {
+            try {
+                Sheets.Spreadsheets.Values.batchUpdate(
+                    {
+                        valueInputOption: 'USER_ENTERED',
+                        data: valueUpdates,
+                    },
+                    spreadsheetId
+                );
+
+                return true;
+            } catch (apiError: any) {
+                log(`Sheets API batch update failed for applyIncomeTaxRateToAll: ${apiError.message}. Falling back to native writes.`, true);
+            }
+        }
+
+        nativeFallbackUpdates.forEach(({ sheet, numRows }) => {
+            const formulas = Array.from({ length: numRows }, (_, index) => {
+                const rowNumber = USER_STARTING_ROW + index;
+                return [`=C${rowNumber}*(1-${incomeTaxRate})`];
+            });
+
+            sheet.getRange(USER_STARTING_ROW, NET_INCOME_COL, numRows, 1).setFormulas(formulas);
         });
 
         return true;
