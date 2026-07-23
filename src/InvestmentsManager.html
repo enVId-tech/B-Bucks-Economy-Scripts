@@ -125,9 +125,9 @@
       <div class="calc-section">
         <div class="calc-title">📊 Projection Mode</div>
         <div class="tab-container">
-          <button class="tab-btn" id="tabCurrentCod" disabled>Current CoD</button>
+          <button class="tab-btn" id="tabCurrentCod">Current CoD</button>
           <button class="tab-btn active" id="tabCustomAmount">Custom Amount</button>
-          <button class="tab-btn" id="tabDepositInput" disabled>From Deposit</button>
+          <button class="tab-btn" id="tabDepositInput">From Deposit</button>
         </div>
 
         <!-- Custom Amount Input -->
@@ -200,11 +200,17 @@
   </div>
 
   <script>
+    const projectionState = {
+      activeMode: 'custom'
+    };
+
     document.addEventListener('DOMContentLoaded', async () => {
+      wireProjectionTabs();
       const investmentsData = await fetchInitialData();
       window.appStateCache['investmentsData'] = investmentsData;
       window.appStateCache['settingsData'] = await fetchSettingsData();
       populatePeriodSelect(investmentsData || []);
+      syncProjectionModeInputs();
     });
 
     /**
@@ -278,6 +284,255 @@
         '<option value="">-- Select a student --</option>',
         ...studentOptions
       ].join('');
+    }
+
+    /**
+     * Connects the calculator tabs and input fields to the projection renderer.
+     */
+    function wireProjectionTabs() {
+      const tabMap = [
+        { id: 'tabCustomAmount', mode: 'custom' },
+        { id: 'tabCurrentCod', mode: 'currentCod' },
+        { id: 'tabDepositInput', mode: 'depositInput' }
+      ];
+
+      tabMap.forEach(({ id, mode }) => {
+        const button = document.getElementById(id);
+        if (button) {
+          button.addEventListener('click', () => setProjectionMode(mode));
+        }
+      });
+
+      const customAmount = document.getElementById('customAmount');
+      const customWeek = document.getElementById('customWeek');
+      const depositAmount = document.getElementById('depositAmount');
+
+      if (customAmount) customAmount.addEventListener('input', handlePredictions);
+      if (customWeek) customWeek.addEventListener('input', handlePredictions);
+      if (depositAmount) depositAmount.addEventListener('input', syncProjectionModeInputs);
+
+      setProjectionMode('custom');
+    }
+
+    /**
+     * Switches the projection calculator between the supported modes.
+     * @param mode The projection mode to activate.
+     */
+    function setProjectionMode(mode) {
+      projectionState.activeMode = mode;
+
+      const modeConfig = {
+        custom: {
+          tabId: 'tabCustomAmount',
+          resultsId: 'projectionModeCustomAmount'
+        },
+        currentCod: {
+          tabId: 'tabCurrentCod',
+          resultsId: 'projectionModeCurrentCoD'
+        },
+        depositInput: {
+          tabId: 'tabDepositInput',
+          resultsId: 'projectionModeFromDeposit'
+        }
+      };
+
+      Object.values(modeConfig).forEach(({ tabId, resultsId }) => {
+        const tab = document.getElementById(tabId);
+        const results = document.getElementById(resultsId);
+
+        if (tab) tab.classList.remove('active');
+        if (results) results.classList.add('hidden-display');
+      });
+
+      const activeConfig = modeConfig[mode] || modeConfig.custom;
+      const activeTab = document.getElementById(activeConfig.tabId);
+      const activeResults = document.getElementById(activeConfig.resultsId);
+      const projectionsSection = document.getElementById('projectionsSection');
+      const depositInputInfo = document.getElementById('depositInputInfo');
+
+      if (activeTab) activeTab.classList.add('active');
+      if (activeResults) activeResults.classList.remove('hidden-display');
+      if (projectionsSection) projectionsSection.classList.remove('hidden-display');
+      if (depositInputInfo) {
+        if (mode === 'depositInput') {
+          depositInputInfo.classList.remove('hidden-display');
+        } else {
+          depositInputInfo.classList.add('hidden-display');
+        }
+      }
+
+      syncProjectionModeInputs();
+      void handlePredictions();
+    }
+
+    /**
+     * Keeps the calculator inputs and mode-specific previews aligned with the selected student.
+     */
+    function syncProjectionModeInputs() {
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+      const currentCodAmount = (selectedStudentData?.balance ?? 0) + (selectedStudentData?.netCurrentAmount ?? 0);
+      const depositAmountInput = document.getElementById('depositAmount');
+      const depositAmount = Number.isFinite(depositAmountInput?.valueAsNumber) ? depositAmountInput.valueAsNumber : 0;
+
+      const depositInputValue = document.getElementById('depositInputValue');
+      const depositInputDisplay = document.getElementById('depositInputDisplay');
+
+      if (depositInputValue) depositInputValue.textContent = `$${depositAmount.toFixed(2)}`;
+      if (depositInputDisplay) depositInputDisplay.textContent = depositAmount.toFixed(2);
+
+      void currentCodAmount;
+
+      if (projectionState.activeMode === 'currentCod' || projectionState.activeMode === 'depositInput') {
+        void handlePredictions();
+      }
+    }
+
+    /**
+     * Reads and clamps the requested projection week.
+     * @returns The normalized projection week.
+     */
+    function getProjectionWeekValue() {
+      const weekValue = parseInt(document.getElementById('customWeek')?.value || '1', 10);
+      if (Number.isNaN(weekValue)) return 1;
+      return Math.min(Math.max(weekValue, 0), 52);
+    }
+
+    /**
+     * Returns the active principal for the current calculator mode.
+     * @returns The amount to project.
+     */
+    function getProjectionPrincipal() {
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+      const currentCodAmount = (selectedStudentData?.balance ?? 0) + (selectedStudentData?.netCurrentAmount ?? 0);
+
+      if (projectionState.activeMode === 'currentCod') {
+        return currentCodAmount;
+      }
+
+      if (projectionState.activeMode === 'depositInput') {
+        const depositValue = document.getElementById('depositAmount')?.valueAsNumber;
+        return Number.isFinite(depositValue) ? depositValue : 0;
+      }
+
+      return parseFloat(document.getElementById('customAmount')?.value || '0');
+    }
+
+    /**
+     * Retrieves the weekly interest rate from the cached settings data.
+     * @returns A weekly interest rate or null when unavailable.
+     */
+    async function getWeeklyInterestRate() {
+      const cachedRate = window.appStateCache['settingsData']?.standardPercentages?.weeklyInterestRate;
+      if (typeof cachedRate === 'number') {
+        return cachedRate;
+      }
+
+      const settingsData = await fetchSettingsData();
+      const fetchedRate = settingsData?.standardPercentages?.weeklyInterestRate;
+      if (typeof fetchedRate === 'number') {
+        window.appStateCache['settingsData'] = settingsData;
+        return fetchedRate;
+      }
+
+      return null;
+    }
+
+    /**
+     * Computes a linear projection for the supplied amount.
+     * @param principal The initial principal.
+     * @param weeks The target week count.
+     * @param weeklyInterestRate The weekly interest rate.
+     * @returns The calculated projection payload.
+     */
+    function buildProjection(principal, weeks, weeklyInterestRate) {
+      const breakdown = [];
+      let finalValue = principal;
+
+      for (let week = 1; week <= weeks; week++) {
+        finalValue = principal + (principal * weeklyInterestRate * week);
+        breakdown.push({ week, value: finalValue });
+      }
+
+      return {
+        finalValue: weeks === 0 ? principal : finalValue,
+        breakdown,
+        weeklyInterestRate
+      };
+    }
+
+    /**
+     * Renders the active calculator output.
+     */
+    function renderProjection(mode, principal, weeks, projection) {
+      const rateDisplay = typeof projection.weeklyInterestRate === 'number'
+        ? `${(projection.weeklyInterestRate * 100).toFixed(2)}%`
+        : '';
+
+      const currentProjectionValue = document.getElementById('projectionCurrentValue');
+      const projectionWeeks = document.getElementById('projectionWeeks');
+      const customRate = document.getElementById('customRate');
+
+      if (currentProjectionValue) currentProjectionValue.textContent = `$${projection.finalValue.toFixed(2)}`;
+      if (projectionWeeks) projectionWeeks.textContent = String(weeks);
+      if (customRate) customRate.value = rateDisplay;
+
+      const modeMap = {
+        custom: {
+          displayId: 'customAmountDisplay',
+          finalId: 'customAmountFinalValue',
+          breakdownId: 'customAmountBreakdown'
+        },
+        currentCod: {
+          displayId: 'currentCodWeek',
+          finalId: 'currentCodValue',
+          breakdownId: 'currentCodBreakdown'
+        },
+        depositInput: {
+          displayId: 'depositInputDisplay',
+          finalId: 'depositInputFinalValue',
+          breakdownId: 'depositInputBreakdown'
+        }
+      };
+
+      const activeMode = modeMap[mode] || modeMap.custom;
+      const displayElement = document.getElementById(activeMode.displayId);
+      const finalElement = document.getElementById(activeMode.finalId);
+      const breakdownContainer = document.getElementById(activeMode.breakdownId);
+
+      if (displayElement) {
+        if (mode === 'currentCod') {
+          displayElement.textContent = String(weeks);
+        } else {
+          displayElement.textContent = principal.toFixed(2);
+        }
+      }
+      if (finalElement) finalElement.textContent = `$${projection.finalValue.toFixed(2)}`;
+
+      if (breakdownContainer) {
+        breakdownContainer.innerHTML = '';
+        if (weeks === 0) {
+          const emptyState = document.createElement('div');
+          emptyState.className = 'week-item';
+          emptyState.textContent = 'Enter a week value to preview the projection.';
+          breakdownContainer.appendChild(emptyState);
+          return;
+        }
+
+        projection.breakdown.forEach(entry => {
+          const breakdownItem = document.createElement('div');
+          breakdownItem.className = 'week-item';
+          breakdownItem.innerHTML = `
+            <div class="week-left">
+              <div class="week-label">Week ${entry.week}</div>
+              <div class="week-rate">${rateDisplay || 'Rate unavailable'}</div>
+            </div>
+            <div class="week-right">
+              <div class="week-value">$${entry.value.toFixed(2)}</div>
+            </div>
+          `;
+          breakdownContainer.appendChild(breakdownItem);
+        });
+      }
     }
 
     /**
@@ -369,6 +624,7 @@
       document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
       document.getElementById('codAmount').textContent = `$${studentData.netCurrentAmount ? studentData.netCurrentAmount.toFixed(2) : '0.00'}`;
       document.getElementById('currentEarnings').textContent = `$${studentData.balance && studentData.netCurrentAmount ? (studentData.balance + studentData.netCurrentAmount).toFixed(2) : '0.00'}`;
+      syncProjectionModeInputs();
 
       const dateStr = studentData.date ? new Date(studentData.date).toLocaleDateString() : null;
 
@@ -547,6 +803,12 @@
       const selectedStudent = document.getElementById('studentSelect').value;
       const selectedPeriod = document.getElementById('periodSelect').value;
 
+      // If the amount to deposit would cause the balance to go negative, and the override is not checked, prevent the deposit and alert the user. This ensures that the system maintains integrity and prevents users from depositing amounts that would result in a negative balance, which could lead to inconsistencies in the investment ledger.
+      if (!isOverrideChecked && (selectedStudentData.balance - totalAmount) < 0) {
+        alert("Deposit would result in a negative balance. Please check the amount or use Admin Override. The current balance is $" + selectedStudentData.balance.toFixed(2) + " and the total deposit amount is $" + totalAmount.toFixed(2) + ".");
+        return;
+      }
+
       // Call server function to handle the deposit logic, passing the amount and any necessary identifiers for the selected student and period. The server function will need to validate the deposit, update the student's balance and CoD accordingly, and return any relevant information or errors back to the client to update the UI.
       callServer('handleDeposit', JSON.stringify({ amount: depositAmount, student: selectedStudent, period: selectedPeriod, override: isOverrideChecked }), (response) => {
         console.log("Deposit response from server:", response);
@@ -620,18 +882,6 @@
     }
 
     /**
-     * Handles the prediction of investment returns.
-     */
-    function handlePredictions() {
-      const customAmount = parseFloat(document.getElementById('customAmount').value);
-      const customWeek = parseInt(document.getElementById('customWeek').value);
-      if (isNaN(customAmount) || customAmount <= 0 || isNaN(customWeek) || customWeek < 0) {
-        document.getElementById('customRate').value = "";
-        return;
-      }
-    }
-
-    /**
      * Handles the deposit of all available cash.
      */
     function handleDepositAllCash() {
@@ -642,6 +892,7 @@
       }
 
       document.getElementById('depositAmount').value = cashAmount.toFixed(2);
+      syncProjectionModeInputs();
     }
 
     /**
@@ -661,6 +912,59 @@
       }
 
       document.getElementById('depositAmount').value = (cashAmount + codAmount).toFixed(2);
+      syncProjectionModeInputs();
+    }
+
+    function currentCodCalculations() {
+      try {
+        setProjectionMode('currentCod');
+      } catch (error) {
+        console.error("Error during current CoD calculations:", error);
+      }
+    }
+
+    async function handlePredictions() {
+      try {
+        const weeks = getProjectionWeekValue();
+        const principal = getProjectionPrincipal();
+
+        if (!Number.isFinite(principal) || principal <= 0 || weeks < 0) {
+          const customRate = document.getElementById('customRate');
+          if (customRate) customRate.value = '';
+          return;
+        }
+
+        const weeklyInterestRate = await getWeeklyInterestRate();
+        if (weeklyInterestRate === null) {
+          console.warn("Weekly interest rate is not available for calculations.");
+          return;
+        }
+
+        const projection = buildProjection(principal, weeks, weeklyInterestRate);
+        renderProjection(projectionState.activeMode, principal, weeks, projection);
+      } catch (error) {
+        console.error("Error during investment projection calculations:", error);
+      }
+    }
+
+    function investmentProjectionCalculations(money, weeks) {
+      try {
+        const customAmount = typeof money === 'number' ? money : parseFloat(String(money));
+        const customWeeks = Number.isFinite(weeks) ? weeks : parseInt(String(weeks), 10);
+        if (!Number.isFinite(customAmount) || customAmount <= 0 || !Number.isFinite(customWeeks) || customWeeks < 0) {
+          return;
+        }
+
+        const weeklyInterestRate = window.appStateCache['settingsData']?.standardPercentages?.weeklyInterestRate;
+        if (typeof weeklyInterestRate === 'number') {
+          const projection = buildProjection(customAmount, customWeeks, weeklyInterestRate);
+          renderProjection('custom', customAmount, customWeeks, projection);
+        } else {
+          void handlePredictions();
+        }
+      } catch (error) {
+        console.error("Error during investment projection calculations:", error);
+      }
     }
   </script>
 </body>

@@ -163,17 +163,59 @@ function clearServerCacheValue(key: string): boolean {
 }
 
 function updateTimestamps(): void {
+    try {
 
+    } catch (error: any) {
+        log(`Error in updateTimestamps: ${error.message}`, true);
+    }
 }
 
 function recordDailyData(): void {
 
 }
 
-function saveHistoricalRecords(): void {
-    
+function saveHistoricalRecords(): boolean {
+    try {
+        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DEFAULT_HISTORICAL_RECORDS_SHEET);
+        if (!sheet) {
+            log(`Historical Records sheet "${DEFAULT_HISTORICAL_RECORDS_SHEET}" not found.`, true);
+            return false;
+        }
+
+        // Save sheet to new tab with timestamped name
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const newSheetName = `Records_${timestamp}`;
+
+        const newSheet = sheet.copyTo(SpreadsheetApp.getActiveSpreadsheet());
+
+        newSheet.setName(newSheetName);
+
+        return true;
+    } catch (error: any) {
+        log(`Error in saveHistoricalRecords: ${error.message}`, true);
+        return false;
+    }
 }
 
-function resetHistoricalRecords(): void {
+function resetHistoricalRecords(): boolean {
+    try {
+        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DEFAULT_HISTORICAL_RECORDS_SHEET);
+        if (!sheet) {
+            log(`Historical Records sheet "${DEFAULT_HISTORICAL_RECORDS_SHEET}" not found.`, true);
+            return false;
+        }
+        
+        // Clear all rows below the header row (assuming the header is in row 10)
+        const lastRow = sheet.getLastRow();
+        if (lastRow > HISTORICAL_RECORDS_ROW_START) {
+            sheet.getRange(HISTORICAL_RECORDS_ROW_START + 1, 1, lastRow - HISTORICAL_RECORDS_ROW_START, sheet.getLastColumn()).clearContent();
+        }
 
+        log(`Historical Records reset successfully.`, false);
+        
+        return true;
+    } catch (error: any) {
+        log(`Error in resetHistoricalRecords: ${error.message}`, true);
+        return false;
+    }
 }

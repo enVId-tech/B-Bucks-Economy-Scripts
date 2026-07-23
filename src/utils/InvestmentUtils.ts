@@ -443,6 +443,12 @@ function handleDeposit(data: string): boolean {
         const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
         let previousBalance = parseFloat(previousBalanceCell.getValue()) || 0;
 
+        // Add a check to ensure that the deposit does not cause the balance to go negative unless override is true
+        if (!override && (previousBalance - amount) < 0) {
+            log(`Deposit of ${amount} would result in a negative balance for student "${student}". Current balance: ${previousBalance}. Override not enabled.`, true);
+            return false;
+        }
+
         // fetch the net amount first, then add it to the returns if it exists
         const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
