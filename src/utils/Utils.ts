@@ -243,11 +243,11 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
             return false;
         }
         
-        console.error(`[${callerInfo.fileName} > ${callerInfo.functionName}] ${formattedMessage}`);
-        Logger.log(`[${callerInfo.fileName} > ${callerInfo.functionName}] ${formattedMessage}`);
+        console.error(`${formattedMessage}`);
+        Logger.log(`${formattedMessage}`);
 
         if (isVisibleToClient) {
-            SpreadsheetApp.getUi().alert(`[${callerInfo.functionName}] ${formattedMessage}`);
+            SpreadsheetApp.getUi().alert(`${formattedMessage}`);
         }
 
         return true;
