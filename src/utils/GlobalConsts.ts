@@ -17,6 +17,7 @@ const EARNINGS_COL = 3;
 const NET_INCOME_COL = 4;
 const EXPENDITURES_COL = 5;
 const INVESTMENT_RETURNS_COL = 6;
+
 // investments
 const INITIAL_DEPOSIT_COL = 7;
 const DATE_DEPOSIT_COL = 8;
@@ -59,6 +60,10 @@ const TRANSACTIONS_ROW_START = 3;
 // -- Fill Names Utils ---
 const STARTING_CELL = "A7";
 const SHEET_CELL_NAME = "A2";
+
+// -- Historical Records Sheet ---
+const DEFAULT_HISTORICAL_RECORDS_SHEET = "Economic Records";
+const HISTORICAL_RECORDS_ROW_START = 11;
 
 // ADVANCED SETTINGS - Don't modify these values unless you know what you're doing (or you're me)
 const WAIT_LOCK_TIME = 5000; // in ms
