@@ -77,6 +77,7 @@
                 </div>
 
                 <label class="label-normal"><strong>Reset All</strong></label>
+                <button class="btn btn-danger" id="resetAllBtn" onclick="callServer('resetAll')">Reset ALL Sheets</button>
                 <div class="btn-group">
                     <button class="btn btn-danger" id="resetAllMoneyBtn" onclick="callServer('resetAllMoney')">Reset
                         All Money</button>
@@ -284,6 +285,45 @@
             });
 
             container.innerHTML = htmlBuffer;
+        }
+
+        /**
+         * Opens a modal dialog to warn the user about a potentially destructive action.
+         */
+        function openDestructiveWarningModal() {
+            document.getElementById('modalOverlay').classList.add('show');
+
+            // Reset input fields and disable the confirm button initially
+            document.getElementById('confirmIndividual').value = '';
+            document.getElementById('confirmSheetName').value = '';
+            document.getElementById('confirmActionName').value = '';
+            document.getElementById('confirmActionBtn').disabled = true;
+
+            // Add event listeners to enable the confirm button only when all fields are filled
+            const inputs = [
+                document.getElementById('confirmIndividual'),
+                document.getElementById('confirmSheetName'),
+                document.getElementById('confirmActionName')
+            ];
+
+            inputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    const allFilled = inputs.every(inp => inp.value.trim() !== '');
+                    document.getElementById('confirmActionBtn').disabled = !allFilled;
+                });
+            });
+
+            // Handle cancel button click
+            document.getElementById('cancelConfirmBtn').onclick = () => {
+                document.getElementById('confirmationModal').style.display = 'none';
+            };
+
+            // Handle confirm button click
+            document.getElementById('confirmActionBtn').onclick = () => {
+                // Perform the destructive action here
+                console.log('Destructive action confirmed!');
+                document.getElementById('confirmationModal').style.display = 'none';
+            };
         }
 
         /**
