@@ -296,10 +296,20 @@
         { id: 'tabDepositInput', mode: 'depositInput' }
       ];
 
+      // Hide custom amount input and week input for modes other than 'custom'
       tabMap.forEach(({ id, mode }) => {
         const button = document.getElementById(id);
         if (button) {
-          button.addEventListener('click', () => setProjectionMode(mode));
+          button.addEventListener('click', () => {
+            setProjectionMode(mode)
+            if (mode === 'custom') {
+              if (customAmount) customAmount.parentElement.classList.remove('hidden-display');
+              if (customWeek) customWeek.parentElement.classList.remove('hidden-display');
+            } else {
+              if (customAmount) customAmount.parentElement.classList.add('hidden-display');
+              if (customWeek) customWeek.parentElement.classList.add('hidden-display');
+            }
+          });
         }
       });
 
@@ -392,9 +402,17 @@
      * @returns The normalized projection week.
      */
     function getProjectionWeekValue() {
-      const weekValue = parseInt(document.getElementById('customWeek')?.value || '1', 10);
-      if (Number.isNaN(weekValue)) return 1;
-      return Math.min(Math.max(weekValue, 0), 52);
+      const endOfInvestingDate = window.appStateCache['settingsData']?.importantDates?.endInvestingDate;
+
+      const currentDate = new Date();
+      let weeksUntilEndOfInvesting = 0;
+
+      if (endOfInvestingDate) {
+        const endDate = new Date(endOfInvestingDate);
+        const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+        weeksUntilEndOfInvesting = Math.max(0, Math.floor((endDate - currentDate) / msPerWeek));
+      }
+      return weeksUntilEndOfInvesting;
     }
 
     /**
@@ -412,6 +430,11 @@
       if (projectionState.activeMode === 'depositInput') {
         const depositValue = document.getElementById('depositAmount')?.valueAsNumber;
         return Number.isFinite(depositValue) ? depositValue : 0;
+      }
+
+      if (projectionState.activeMode === 'custom') {
+        const customValue = document.getElementById('customAmount')?.valueAsNumber;
+        return Number.isFinite(customValue) ? customValue : 0;
       }
 
       return parseFloat(document.getElementById('customAmount')?.value || '0');
@@ -531,6 +554,7 @@
             </div>
           `;
           breakdownContainer.appendChild(breakdownItem);
+          breakdownContainer.appendChild(document.createElement('br'));
         });
       }
     }
@@ -693,6 +717,13 @@
           }
         });
         return;
+      } else {
+        [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
+          if (btn) {
+            btn.classList.add('btn-disabled');
+            btn.disabled = true;
+          }
+        });
       }
 
       if (!selectedStudentData) {
@@ -887,7 +918,7 @@
     function handleDepositAllCash() {
       const cashAmountText = document.getElementById('cashAmount').textContent.split('$')[1];
       const cashAmount = parseFloat(cashAmountText);
-      if (isNaN(cashAmount) || cashAmount <= 0) {
+      if (isNaN(cashAmount) || cashAmount < 0) {
         return;
       }
 
@@ -942,26 +973,6 @@
 
         const projection = buildProjection(principal, weeks, weeklyInterestRate);
         renderProjection(projectionState.activeMode, principal, weeks, projection);
-      } catch (error) {
-        console.error("Error during investment projection calculations:", error);
-      }
-    }
-
-    function investmentProjectionCalculations(money, weeks) {
-      try {
-        const customAmount = typeof money === 'number' ? money : parseFloat(String(money));
-        const customWeeks = Number.isFinite(weeks) ? weeks : parseInt(String(weeks), 10);
-        if (!Number.isFinite(customAmount) || customAmount <= 0 || !Number.isFinite(customWeeks) || customWeeks < 0) {
-          return;
-        }
-
-        const weeklyInterestRate = window.appStateCache['settingsData']?.standardPercentages?.weeklyInterestRate;
-        if (typeof weeklyInterestRate === 'number') {
-          const projection = buildProjection(customAmount, customWeeks, weeklyInterestRate);
-          renderProjection('custom', customAmount, customWeeks, projection);
-        } else {
-          void handlePredictions();
-        }
       } catch (error) {
         console.error("Error during investment projection calculations:", error);
       }
