@@ -78,10 +78,10 @@
                 <div class="header-subtitle header-subtitle-margin">Consumable items to Column G</div>
 
                 <!-- Balance Display - Prominent -->
-                <div class="balance-display balance-display-margin">
+                <!-- <div class="balance-display balance-display-margin">
                     <div class="balance-label">Current Balance</div>
                     <div class="balance-amount" id="balanceAmount">$0.00</div>
-                </div>
+                </div> -->
 
                 <label class="label">Quarter</label>
                 <select id="quarterSelectSpending" onchange="updateExpenses()">
@@ -165,7 +165,6 @@
             loadTransactionData();
         });
 
-        // TODO: finish rest of transactions for services
         document.addEventListener('click', () => {
             if (event.target === document.body || event.target === document.documentElement) {
                 document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
@@ -174,6 +173,25 @@
                 updateUndoButtonState();
             }
         });
+
+        // Fetch from the server every 3 seconds for updating the withdrawal amount depending on the person
+        // TODO: Super inefficient, find a way to get this working better later
+        // setInterval(() => {
+        //     setAvailableBalance();
+        // }, 3000);
+
+        function setAvailableBalance() {
+            callServer('fetchCurrentBalance', null, (response) => {
+                console.log("Fetched current balance:", response);
+                const balanceElement = document.getElementById('balanceAmount');
+
+                if (balanceElement) {
+                    balanceElement.textContent = `$${response}`;
+                }
+            }, (error) => {
+                console.error("Error fetching current balance:", error);
+            });
+        }
 
         /** Updates the income and spending preview boxes based on current selections and quantities. */
         function updatePreview() {
