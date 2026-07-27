@@ -201,26 +201,26 @@ function fillSheetsWithData(data: string): boolean {
  * If the caller information cannot be determined, it returns 'unknown' for both function name and file name.
  */
 function getCallerInfo() {
-  const stack = new Error().stack?.split('\n') ?? [];
-  const callerLine = stack[2] ?? '';
+    const stack = new Error().stack?.split('\n') ?? [];
+    const callerLine = stack[2] ?? '';
 
-  const match =
-    callerLine.match(/at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/) ??
-    callerLine.match(/at\s+(.*?):(\d+):(\d+)/);
+    const match =
+        callerLine.match(/at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/) ??
+        callerLine.match(/at\s+(.*?):(\d+):(\d+)/);
 
-  if (!match) return { functionName: 'unknown', fileName: 'unknown' };
+    if (!match) return { functionName: 'unknown', fileName: 'unknown' };
 
-  if (match.length === 5) {
+    if (match.length === 5) {
+        return {
+            functionName: match[1] || 'unknown',
+            fileName: match[2].split('/').pop() ?? match[2],
+        };
+    }
+
     return {
-      functionName: match[1] || 'unknown',
-      fileName: match[2].split('/').pop() ?? match[2],
+        functionName: 'anonymous',
+        fileName: match[1].split('/').pop() ?? match[1],
     };
-  }
-
-  return {
-    functionName: 'anonymous',
-    fileName: match[1].split('/').pop() ?? match[1],
-  };
 }
 
 /**
@@ -242,7 +242,7 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
             Logger.log("No active spreadsheet found. Logging aborted (likely an error unless this is intended).");
             return false;
         }
-        
+
         console.error(`${formattedMessage}`);
         Logger.log(`${formattedMessage}`);
 
@@ -255,5 +255,28 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
         Logger.log(`Error formatting log message: ${err.message}`);
         SpreadsheetApp.getActiveSpreadsheet().toast(`Error formatting log message: ${err.message}`, "Logging Error", 5);
         return false;
+    }
+}
+
+/**
+ * Stamps the last modified timestamp and the user who made the modification on the specified sheet. If no sheet is provided, it defaults to the active sheet. This function is intended to be used for sheets that are part of the TIMESTAMP_LIST, which should be defined elsewhere in the project.
+ * @param targetSheet The Google Sheets sheet object where the last modified timestamp should be stamped. If not provided, the function will use the currently active sheet.
+ * @returns {void} This function does not return a value. It updates the specified sheet with the current timestamp and the email of the user who made the modification.
+ */
+function stampLastModified(targetSheet): void {
+    try {
+        const sheet = targetSheet || SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+        if (!sheet) {
+            log("No active sheet found to stamp last modified.", true);
+            return;
+        }
+
+        if (TIMESTAMP_LIST.includes(sheet.getName())) {
+            const email = Session.getActiveUser().getEmail();
+            sheet.getRange(TIMESTAMP_CELL).setValue(`Last Modified by: ${email || "Authorized User"} on ${new Date().toLocaleString()}`);
+        }
+    } catch (err: any) {
+        log(`Error in stampLastModified: ${err.message}`, true);
     }
 }

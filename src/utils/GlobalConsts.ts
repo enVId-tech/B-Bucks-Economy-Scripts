@@ -65,6 +65,24 @@ const SHEET_CELL_NAME = "A2";
 const DEFAULT_HISTORICAL_RECORDS_SHEET = "Economic Records";
 const HISTORICAL_RECORDS_ROW_START = 11;
 
+
+// -- Timestamp Sheets --
+const TIMESTAMP_LIST: string[] = [
+    "Period 1",
+    "Period 2",
+    "Period 3",
+    "Period 4",
+    "Period 5",
+    "Period 6",
+    "Period 7",
+    "Period 8",
+    "Period 9",
+    "Period 10",
+    "Template",
+    "Testing"
+]
+const TIMESTAMP_CELL = "A5";
+
 // ADVANCED SETTINGS - Don't modify these values unless you know what you're doing (or you're me)
 const WAIT_LOCK_TIME = 5000; // in ms
 const SERVER_SIDE_CACHE_AGE = 21600; // in seconds
