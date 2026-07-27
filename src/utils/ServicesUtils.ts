@@ -177,8 +177,10 @@ function executeServiceAction(payloadStr: string): string | void {
                 EARNINGS_COL
             ).toString();
         } else if (operation === "SUBTRACT" || operation === "DIVIDE") {
+            // For subtractive operations, we will add to the EXPENDITURES_COL instead of removing from the EARNINGS_COL, as this is a more accurate representation of the financial action being taken.
+            // Divide stays the same since we are still applying the same logic of adding to expenditures, just with a different operation.
             return applyMathToSelection(
-                operation,
+                operation == "SUBTRACT" ? "ADD" : "DIVIDE",
                 unitPrice,
                 quantity,
                 false,
