@@ -311,11 +311,23 @@ function recordDailyData(): void {
             templateRange.copyTo(targetRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
         }
 
-        // Sort complete data range by timestamp
-        const totalDataRows = (startRow + rowsNeeded) - historicalStartRow;
-        historySheet.getRange(historicalStartRow, 1, totalDataRows, outputRows[0].length)
-            .sort({ column: 1, ascending: true });
+        // Sort complete data range from row 11 downwards by Column A descending (most recent first)
+        const finalLastRow = historySheet.getLastRow();
+        const totalColumns = historySheet.getLastColumn();
 
+        if (finalLastRow >= historicalStartRow) {
+            const dataRangeToSort = historySheet.getRange(
+                historicalStartRow,
+                1,
+                finalLastRow - historicalStartRow + 1,
+                totalColumns
+            );
+
+            dataRangeToSort.sort({ column: 1, ascending: false });
+        }
+
+    } catch (error: any) {
+        log(`Error in recordDailyData: ${error.message}`, true);
     } finally {
         ss.deleteSheet(tempSheet);
     }
