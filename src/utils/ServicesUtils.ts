@@ -162,18 +162,63 @@ function executeServiceAction(payloadStr: string): string | void {
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
-        const commentOnExpenditures = payload.operation === "ADD" || payload.operation === "MULTIPLY" ? true : false;
+        // If the operation is additive, always add to EARNINGS_COL
+        // If the operation is subtractive, always add to EXPENDITURES_COL
+        if (operation === "ADD" || operation === "MULTIPLY") {
+            return applyMathToSelection(
+                operation,
+                unitPrice,
+                quantity,
+                false,
+                transactionReason,
+                undefined,
+                false,
+                undefined,
+                EARNINGS_COL
+            ).toString();
+        } else if (operation === "SUBTRACT" || operation === "DIVIDE") {
+            return applyMathToSelection(
+                operation,
+                unitPrice,
+                quantity,
+                false,
+                transactionReason,
+                undefined,
+                true,
+                undefined,
+                EXPENDITURES_COL
+            ).toString();
+        }
 
-        return applyMathToSelection(
-            operation, 
-            unitPrice,
-            quantity,
-            false,
-            transactionReason,
-            undefined,  
-            commentOnExpenditures).toString();
     } catch (error: any) {
         log(`Error in executeBalanceAction: ${error.message}`, true);
         return `Error occurred in executeBalanceAction: ${error.message}`;
+    }
+}
+
+/**
+ * Fetches the current balance from the active sheet based on the selected row and the predefined balance column. It retrieves the value from the balance column of the currently active row in the active sheet. If the sheet is not found or an error occurs during processing, it returns an error message.
+ * This is really inefficient actually, so if you can find a better way to do this, please do. I just wanted to get this working for now.
+ * @returns {number | { error: string }} The current balance value from the active sheet, or an error message if the sheet is not found or an error occurs. This function is intended to be used in scenarios where the current balance needs to be retrieved for further processing or display.
+ */
+function fetchCurrentBalance(): number | { error: string } {
+    try {
+        // Get the balance column from current sheet
+        const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+        if (!sheet) {
+            log("No active sheet found.", true);
+            return { error: "No active sheet found." };
+        }
+
+        // Fetch the current selected row and get the balance value from the balance column
+        const activeRow = sheet.getActiveCell().getRow();
+        const balanceValue = sheet.getRange(activeRow, BALANCE_COL).getValue();
+
+
+
+        return balanceValue;
+    } catch (error: any) {
+        log(`Error in fetchCurrentBalance: ${error.message}`, true);
+        return { error: `Error occurred in fetchCurrentBalance: ${error.message}` };
     }
 }

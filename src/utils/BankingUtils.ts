@@ -50,9 +50,21 @@ function executeBalanceAction(payloadStr: string): string | void {
  * @param isManualTransaction Whether the transaction is manual or not.
  * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
  * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
+ * @param fixedRow (Optional) If provided, the operation will only be applied to this specific row across all selected columns.
+ * @param fixedCol (Optional) If provided, the operation will only be applied to this specific column across all selected rows.
  * @returns {string | boolean} Returns true if the operation was successful, false otherwise.
  */
-function applyMathToSelection(operation: Operation | string, unitPrice: number, quantity: number, isManualTransaction: boolean, transactionReason?: string, range?: GoogleAppsScript.Spreadsheet.Range, commentOnExpenditures: boolean = false): string | boolean {
+function applyMathToSelection(
+  operation: Operation | string,
+  unitPrice: number,
+  quantity: number,
+  isManualTransaction: boolean,
+  transactionReason?: string,
+  range?: GoogleAppsScript.Spreadsheet.Range,
+  commentOnExpenditures: boolean = false,
+  fixedRow?: number,
+  fixedCol?: number
+): string | boolean {
   try {
     // must explicitly include undefined check because isManualTransaction is a boolean so it will always evaluate as its boolean value if you check if !isManualTranscation.
     if (
@@ -131,25 +143,44 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
       ranges.forEach(range => {
-        // Get the current values of the range
-        const rangeA1 = range.getA1Notation();
-        const sheetName = range.getSheet().getName();
+        const sheet = range.getSheet();
+        const sheetName = sheet.getName();
         // Only get numeric characters out of sheetName
         const periodName = parseInt(sheetName.replace(/\D/g, ""), 10);
 
-        log(`Sheet name: ${sheetName}, Range A1: ${rangeA1}, Period Name: ${periodName}`, false);
+        // Calculate target dimensions based on selection and overrides
+        let startRow = range.getRow();
+        let numRows = range.getNumRows();
+        let startCol = range.getColumn();
+        let numCols = range.getNumColumns();
 
-        const values = range.getValues();
+        // If fixedRow is provided, explicitly target that single row while keeping the selected columns
+        if (fixedRow !== undefined) {
+          startRow = fixedRow;
+          numRows = 1;
+        }
 
-        const startRowIndex = range.getRow();
-        const startColIndex = range.getColumn();
+        // If fixedCol is provided, explicitly target that single column while keeping the selected rows
+        if (fixedCol !== undefined) {
+          startCol = fixedCol;
+          numCols = 1;
+        }
+
+        // Get the target range on the sheet and its corresponding A1 notation
+        const targetRange = sheet.getRange(startRow, startCol, numRows, numCols);
+        const targetA1 = targetRange.getA1Notation();
+        const values = targetRange.getValues();
+
+        log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
 
         const updatedValues = values.map((row, rowIndex) => {
-          const absoluteRowIndex = startRowIndex + rowIndex;
+          const absoluteRowIndex = startRow + rowIndex;
 
-          return row.map(cell => {
+          return row.map((cell, colIndex) => {
+            const absoluteColIndex = startCol + colIndex;
+
             if (typeof cell === 'number' && !isNaN(cell)) {
-              const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
+              const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
               if (balance === undefined || balance === null || isNaN(balance)) {
                 log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
@@ -158,16 +189,17 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
               const result = operationFunc(cell);
 
-              const individualName = range.getSheet().getRange(absoluteRowIndex, 1).getValue();
+              const individualName = sheet.getRange(absoluteRowIndex, 1).getValue();
 
               if (!individualName) {
                 log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);
                 return cell; // Return the original value if individual name is missing
               }
 
-              const targetColumnIndex = startColIndex;
+              // FIX: Dynamically compute target column index for multi-column iterations
+              const targetColumnIndex = absoluteColIndex;
 
-              const targetColumnInitValue = range.getSheet().getRange(absoluteRowIndex, targetColumnIndex).getValue();
+              const targetColumnInitValue = sheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
 
               if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
                 log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
@@ -201,13 +233,14 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
               return result;
             }
 
-            log(`Non-numeric value "${cell}" found in range ${sheetName}!${rangeA1}. Skipping this cell.`, true);
+            log(`Non-numeric value "${cell}" found in range ${sheetName}!${targetA1}. Skipping this cell.`, true);
             return cell; // Return the original value if it's not a number
           });
         });
 
+        // FIX: Match request range to targetA1 so Sheets API doesn't receive mismatched matrix payload
         requests.push({
-          range: `${sheetName}!${rangeA1}`,
+          range: `${sheetName}!${targetA1}`,
           values: updatedValues
         });
       });
@@ -240,7 +273,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
       const newBalancesRecords: number[] = [];
 
       ranges.forEach(range => {
-        const values = range.getValues();
+        let values = range.getValues();
 
         const startRowIndex = range.getRow();
 
@@ -301,7 +334,6 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
           const startRowIndex = subRange.getRow();
           const startColIndex = subRange.getColumn();
 
-          const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
           const periodName = parseInt(targetSheet.getName().replace(/\D/g, ""), 10);
 
           const updatedValues = values.map((row, rowIndex) => {
@@ -309,7 +341,7 @@ function applyMathToSelection(operation: Operation | string, unitPrice: number, 
 
             return row.map(cell => {
               if (typeof cell === 'number' && !isNaN(cell)) {
-                const balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
+                let balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
 
                 const result = operationFunc(cell);
 
@@ -625,7 +657,7 @@ function resetColumn(data: any): boolean {
       for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
         sheet.getRange(row, targetColumn).setValue(0);
       }
-      
+
       return true;
     }
   } catch (error: any) {
