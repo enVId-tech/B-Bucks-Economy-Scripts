@@ -5,6 +5,12 @@
 // GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
 // This file contains utility functions for data caching and dialog management in the B-Bucks Economy Scripts project. It provides functions to retrieve cached data, launch modeless dialogs with initial data payloads, and centralizes the logic for opening various dialogs across the application.
 
+interface PeriodConfig {
+    name: string;
+    rowIndex: number;
+    formulas: (string | number | boolean)[];
+}
+
 /**
  * Retrieves cached data for a given key. It first checks the in-memory cache, then the script properties for permanent storage. If found in properties, it updates the cache for future quick access. If no data is found, it returns an error message as a JSON string.
  * @param cacheKey The key for the cached data to retrieve. This should correspond to a specific dataset like "cachedIndividuals", "cachedServices", etc.
@@ -170,8 +176,140 @@ function updateTimestamps(): void {
     }
 }
 
+/**
+ * Dynamic Historical Logger
+ * This function records the current state of the economy into a historical records sheet. It evaluates formulas from various period sheets, captures their calculated values, and appends them to the historical records sheet with a timestamp. The function handles dynamic periods, formula evaluation, and ensures that the historical records are kept up-to-date for analysis and reporting.
+ * The function is designed to be efficient by using batch operations for reading and writing data, and it includes error handling to ensure that any issues during the process are logged for review. It also manages the creation of a temporary calculation sheet to evaluate formulas without affecting the main sheets.
+ * Note: This function assumes that the historical records sheet and the period sheets are structured correctly, and that the formulas in the period sheets are valid and return numerical values. It is important to ensure that the sheet names and ranges used in this function match the actual structure of the Google Sheets document.
+ * @returns {void} This function does not return a value. It performs operations on the Google Sheets document to update the historical records.
+ */
 function recordDailyData(): void {
+    // Fetch settings data
+    const settings: SettingsData | { error: string } = fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
 
+    if (!settings || typeof settings === 'string' || 'error' in settings) {
+        log(`Failed to fetch settings data for daily economics recording: ${typeof settings === 'string' ? settings : (settings as { error: string }).error}`, true);
+        return;
+    }
+
+    const logDaily = settings && typeof settings !== 'string' && settings.ledgersAndRecords && settings.ledgersAndRecords.logBankingDaily;
+
+    // Guard against paused executions if global flag exists
+    if (logDaily === false) {
+        log(`Daily economics logging is currently paused. Skipping recordDailyEconomics execution.`, false);
+        return;
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
+        ? DEFAULT_HISTORICAL_RECORDS_SHEET
+        : "Economic Records";
+
+    const historySheet = ss.getSheetByName(sheetName);
+    if (!historySheet) {
+        log(`Sheet "${sheetName}" not found.`, true);
+        return;
+    }
+
+    const timestamp = new Date();
+
+    // Settings block setup (B3:Z10)
+    const settingsRange = historySheet.getRange("B3:Z10");
+    const settingsBlock = settingsRange.getValues();
+    const numCols = settingsBlock[0].length;
+
+    const validPeriods: PeriodConfig[] = [];
+
+    // Parse valid periods and formulas
+    settingsBlock.forEach((row, rowIndex) => {
+        const periodName = row[0]?.toString().trim();
+        if (!periodName || periodName === "" || periodName === "Sheet") return;
+
+        validPeriods.push({
+            name: periodName,
+            rowIndex: rowIndex,
+            formulas: row.slice(1)
+        });
+    });
+
+    if (validPeriods.length === 0) return;
+
+    const tempSheet = ss.insertSheet(`calc_ws_${Date.now()}`);
+
+    try {
+        const formulaMatrix: string[][] = [];
+
+        validPeriods.forEach((period) => {
+            const rowFormulas = period.formulas.map((cellValue) => {
+                const formulaTemplate = cellValue?.toString().trim();
+                if (!formulaTemplate) return "";
+
+                const rangeRegex = /([A-Z]+\d+(?::[A-Z]+\d+)?)/g;
+                return `='${period.name}'!${formulaTemplate.replace(rangeRegex, '$1')}`;
+            });
+            formulaMatrix.push(rowFormulas);
+        });
+
+        // Batch apply formulas
+        const calcRange = tempSheet.getRange(1, 1, formulaMatrix.length, numCols - 1);
+        calcRange.setFormulas(formulaMatrix);
+        SpreadsheetApp.flush();
+
+        // Retrieve calculated outputs
+        const calculatedValues = calcRange.getValues();
+
+        // Build historical row matrix
+        const outputRows: (string | number | Date | null)[][] = validPeriods.map((period, pIdx) => {
+            const rowValues = calculatedValues[pIdx] || [];
+            const formattedRow: (string | number | Date | null)[] = [timestamp, period.name];
+
+            for (let colIndex = 0; colIndex < numCols - 1; colIndex++) {
+                const val = rowValues[colIndex];
+
+                if (val === undefined || val === "" || (typeof val === 'string' && val.includes("#"))) {
+                    formattedRow.push(null);
+                } else if (typeof val === 'number') {
+                    formattedRow.push(Number(val.toFixed(2)));
+                } else {
+                    formattedRow.push(val);
+                }
+            }
+            return formattedRow;
+        });
+
+        const historicalStartRow = typeof HISTORICAL_RECORDS_ROW_START !== 'undefined'
+            ? HISTORICAL_RECORDS_ROW_START
+            : 11;
+
+        const lastRow = historySheet.getLastRow();
+        const startRow = lastRow < historicalStartRow ? historicalStartRow : lastRow + 1;
+
+        // Auto-expand sheet rows if needed
+        const rowsNeeded = outputRows.length;
+        const currentMax = historySheet.getMaxRows();
+        if ((startRow + rowsNeeded - 1) > currentMax) {
+            historySheet.insertRowsAfter(currentMax, (startRow + rowsNeeded - 1) - currentMax);
+        }
+
+        // Batch write data
+        const targetRange = historySheet.getRange(startRow, 1, outputRows.length, outputRows[0].length);
+        targetRange.setValues(outputRows);
+
+        // Batch apply formatting
+        if (startRow > historicalStartRow) {
+            const templateRange = historySheet.getRange(historicalStartRow, 1, 1, outputRows[0].length);
+            templateRange.copyTo(targetRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+        }
+
+        // Sort complete data range by timestamp
+        const totalDataRows = (startRow + rowsNeeded) - historicalStartRow;
+        historySheet.getRange(historicalStartRow, 1, totalDataRows, outputRows[0].length)
+            .sort({ column: 1, ascending: true });
+
+    } finally {
+        ss.deleteSheet(tempSheet);
+    }
 }
 
 function saveHistoricalRecords(): boolean {
@@ -204,7 +342,7 @@ function resetHistoricalRecords(): boolean {
             log(`Historical Records sheet "${DEFAULT_HISTORICAL_RECORDS_SHEET}" not found.`, true);
             return false;
         }
-        
+
         // Clear all rows below the header row (assuming the header is in row 10)
         const lastRow = sheet.getLastRow();
         if (lastRow > HISTORICAL_RECORDS_ROW_START) {
@@ -212,7 +350,7 @@ function resetHistoricalRecords(): boolean {
         }
 
         log(`Historical Records reset successfully.`, false);
-        
+
         return true;
     } catch (error: any) {
         log(`Error in resetHistoricalRecords: ${error.message}`, true);

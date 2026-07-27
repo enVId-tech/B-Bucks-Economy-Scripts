@@ -174,25 +174,6 @@
             }
         });
 
-        // Fetch from the server every 3 seconds for updating the withdrawal amount depending on the person
-        // TODO: Super inefficient, find a way to get this working better later
-        // setInterval(() => {
-        //     setAvailableBalance();
-        // }, 3000);
-
-        function setAvailableBalance() {
-            callServer('fetchCurrentBalance', null, (response) => {
-                console.log("Fetched current balance:", response);
-                const balanceElement = document.getElementById('balanceAmount');
-
-                if (balanceElement) {
-                    balanceElement.textContent = `$${response}`;
-                }
-            }, (error) => {
-                console.error("Error fetching current balance:", error);
-            });
-        }
-
         /** Updates the income and spending preview boxes based on current selections and quantities. */
         function updatePreview() {
             try {
