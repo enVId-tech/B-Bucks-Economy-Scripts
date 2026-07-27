@@ -242,16 +242,25 @@ function recordDailyData(): void {
 
         validPeriods.forEach((period) => {
             const rowFormulas = period.formulas.map((cellValue) => {
-                const formulaTemplate = cellValue?.toString().trim();
+                let formulaTemplate = cellValue?.toString().trim();
                 if (!formulaTemplate) return "";
 
-                const rangeRegex = /([A-Z]+\d+(?::[A-Z]+\d+)?)/g;
-                return `='${period.name}'!${formulaTemplate.replace(rangeRegex, '$1')}`;
+                // Strip leading '=' if present in the raw settings cell
+                if (formulaTemplate.startsWith('=')) {
+                    formulaTemplate = formulaTemplate.substring(1);
+                }
+
+                // Scope ranges to the target period sheet
+                const rangeRegex = /([A-Za-z]+[0-9]+(?::[A-Za-z]+[0-9]+)?)/g;
+                const scopedFormula = formulaTemplate.replace(rangeRegex, `'${period.name}'!$1`);
+
+                // Prepend '=' so Google Sheets evaluates it properly
+                return `=${scopedFormula}`;
             });
             formulaMatrix.push(rowFormulas);
         });
 
-        // Batch apply formulas
+        // Batch apply formulas to temp sheet
         const calcRange = tempSheet.getRange(1, 1, formulaMatrix.length, numCols - 1);
         calcRange.setFormulas(formulaMatrix);
         SpreadsheetApp.flush();
