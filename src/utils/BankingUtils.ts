@@ -189,7 +189,7 @@ function applyMathToSelection(
 
               const result = operationFunc(cell);
 
-              const individualName = sheet.getRange(absoluteRowIndex, 1).getValue();
+              const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
 
               if (!individualName) {
                 log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);

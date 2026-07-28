@@ -12,6 +12,7 @@ const USER_STARTING_ROW: number = 7;
 // this isn't in an object btw bc i'm dumb and also bc i didnt think abt it when starting this project
 // if you are maintaining this in the future, just put it in a key-value pair object
 // also bc im lazy asf so yeah i didnt do it. what are you gonna do abt it
+const NAMES_COL: number = 1;
 const BALANCE_COL: number = 2;
 const EARNINGS_COL: number = 3;
 const NET_INCOME_COL: number = 4;
