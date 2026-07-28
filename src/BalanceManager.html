@@ -95,15 +95,6 @@
                     <b>*2</b> = double | <b>/4</b> = quarter
                 </div>
             </div>
-
-            <!-- CARD 6: History Control -->
-            <div class="card card-margin-top-auto">
-                <div class="card-title">📝 Log Display</div>
-                <label for="logLimit" class="section-label">Recent
-                    Entries</label>
-                <input type="number" id="logLimit" value="25" min="1" class="full-width">
-                <button class="btn btn-add full-width margin-top-6">Refresh Log</button>
-            </div>
         </div>
 
         <!-- Activity Log Panel -->
@@ -127,7 +118,16 @@
             <!-- Undo Action Bar -->
             <div class="log-action-bar">
                 <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶
-                    Undo Selected</button>
+                    Undo</button>
+
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Page</label>
+                    <input type="number" id="logPage" value="1" min="1" class="action-bar-input" onchange="applyTransactionFilters()">
+                </div>
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Displayed</label>
+                    <input type="number" id="logLimit" value="25" min="1" class="action-bar-input" onchange="applyTransactionFilters()">
+                </div>
             </div>
 
             <div id="log-container"></div>
@@ -213,6 +213,18 @@
             let htmlContent = '';
 
             transactions.slice().reverse().forEach(transaction => {
+                // Ensure transactions are within page and limit display range
+                if (document.getElementById('logPage') && document.getElementById('logLimit')) {
+                    const page = parseInt(document.getElementById('logPage').value) || 1;
+                    const limit = parseInt(document.getElementById('logLimit').value) || 25;
+                    const startIndex = (page - 1) * limit;
+                    const endIndex = startIndex + limit;
+
+                    if (transactions.indexOf(transaction) < startIndex || transactions.indexOf(transaction) >= endIndex) {
+                        return; // Skip rendering this transaction
+                    }
+                }
+
                 const {
                     id,
                     individual,
