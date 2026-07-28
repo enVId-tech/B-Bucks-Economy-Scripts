@@ -155,11 +155,73 @@ function executeServiceAction(payloadStr: string): string | void {
 
         // Parse the clean JSON string into a JSON object for the util function to process
         const payload = JSON.parse(payloadStr);
-        const { operation, unitPrice, quantity, transactionReason = undefined } = payload;
-        
+        const { operation, unitPrice, quantity, transactionReason = undefined, isNegativeOverride } = payload;
+
         if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
             log("Invalid payload. Please provide a valid operation and amount. Received - operation: " + operation + ", unitPrice: " + unitPrice + ", quantity: " + quantity, true);
             return "Invalid payload. Please provide a valid operation and amount.";
+        }
+
+        if (isNegativeOverride === true || operation === "ADD" || operation === "MULTIPLY") {
+            log("Operation is additive, multiplicative, or a negative override is enabled.", false);
+        } else {
+            log("Operation is subtractive and no negative override is enabled. Checking for minimum balance constraints.", false);
+            const personsNegative: string[] = [];
+
+            // Fetch all selected cells in the active sheet, if they have a balance below the minimum required to remove, return a message to the user that they cannot remove more than the minimum balance
+            const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+            if (!activeRangeList) {
+                log("No active range found. Please select cells to apply the operation to.", true);
+                return "No active range found. Please select cells to apply the operation to.";
+            }
+
+            const ranges = activeRangeList.getRanges();
+
+            ranges.forEach(range => {
+                const sheet = range.getSheet();
+                const sheetName = sheet.getName();
+                // Only get numeric characters out of sheetName
+                const periodName = parseInt(sheetName.replace(/\D/g, ""), 10);
+
+                // Calculate target dimensions based on selection and overrides
+                let startRow = range.getRow();
+                let numRows = range.getNumRows();
+                let startCol = range.getColumn();
+                let numCols = range.getNumColumns();
+
+                // Get the target range on the sheet and its corresponding A1 notation
+                const targetRange = sheet.getRange(startRow, startCol, numRows, numCols);
+                const targetA1 = targetRange.getA1Notation();
+                const values = targetRange.getValues();
+
+                log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
+
+                values.map((row, rowIndex) => {
+                    const absoluteRowIndex = startRow + rowIndex;
+
+                    return row.map((cell) => {
+                        if (typeof cell === 'number' && !isNaN(cell)) {
+                            const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
+
+                            if (balance === undefined || balance === null || isNaN(balance)) {
+                                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
+                                return cell; // Return the original value if balance is invalid
+                            }
+
+                            const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+
+                            // If the operation is subtractive and the balance minus the amount is less than the minimum required, add the individual to the list of persons with negative balances
+                            if (operation === "SUBTRACT" && balance - (unitPrice * quantity) < 0) {
+                                personsNegative.push(individualName);
+                            }
+                        }
+                    });
+                });
+            });
+
+            log(`Some selected cells have negative balances. Operation will not proceed unless 'Negative Override' is enabled. 
+                Cells for [${personsNegative.join(" - ")}] have negative balances.`, true);
+            return `Some selected cells have negative balances. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${personsNegative.join(" - ")}] have negative balances.`;
         }
 
         // If the operation is additive, always add to EARNINGS_COL
