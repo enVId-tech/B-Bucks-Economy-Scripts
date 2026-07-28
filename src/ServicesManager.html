@@ -77,12 +77,6 @@
                 <div class="header-title header-title-reset">💸 Add Expense</div>
                 <div class="header-subtitle header-subtitle-margin">Consumable items to Column G</div>
 
-                <!-- Balance Display - Prominent -->
-                <!-- <div class="balance-display balance-display-margin">
-                    <div class="balance-label">Current Balance</div>
-                    <div class="balance-amount" id="balanceAmount">$0.00</div>
-                </div> -->
-
                 <label class="label">Quarter</label>
                 <select id="quarterSelectSpending" onchange="updateExpenses()">
                     <option value="Q1">Quarter 1</option>
@@ -145,7 +139,18 @@
             <!-- Undo Action Bar -->
             <div class="log-action-bar">
                 <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>↶
-                    Undo Selected</button>
+                    Undo</button>
+
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Page</label>
+                    <input type="number" id="logPage" value="1" min="1" class="action-bar-input"
+                        onchange="applyTransactionFilters()">
+                </div>
+                <div class="action-bar-section">
+                    <label class="action-bar-label">Displayed</label>
+                    <input type="number" id="logLimit" value="25" min="1" class="action-bar-input"
+                        onchange="applyTransactionFilters()">
+                </div>
             </div>
 
             <div id="log-container"></div>
@@ -244,7 +249,30 @@
             let htmlContent = '';
 
             transactions.slice().reverse().forEach(transaction => {
-                const { id, individual, period, modifiedColumn, serviceProvided, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
+                // Ensure transactions are within page and limit display range
+                if (document.getElementById('logPage') && document.getElementById('logLimit')) {
+                    const page = parseInt(document.getElementById('logPage').value) || 1;
+                    const limit = parseInt(document.getElementById('logLimit').value) || 25;
+                    const startIndex = (page - 1) * limit;
+                    const endIndex = startIndex + limit;
+
+                    if (transactions.indexOf(transaction) < startIndex || transactions.indexOf(transaction) >= endIndex) {
+                        return; // Skip rendering this transaction
+                    }
+                }
+
+                const { 
+                    id, 
+                    individual, 
+                    period, 
+                    modifiedColumn, 
+                    serviceProvided, 
+                    initialColumnAmount, 
+                    newColumnAmount, 
+                    initialBalance, 
+                    newBalance, 
+                    timestamp 
+                } = transaction;
 
                 const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
                 const balanceDeltaClass = balanceDelta < 0 ? 'negative' : balanceDelta > 0 ? 'positive' : 'static';
