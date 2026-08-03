@@ -42,6 +42,11 @@
     <div class="main-content">
         <!-- LEFT PANEL: Controls -->
         <div class="controls">
+            <div class="sheet-switcher">
+                <select id="sheetSelect" onchange="callServer('switchActiveSheet', this.value)">
+                    <option value="">Loading sheets...</option>
+                </select>
+            </div>
 
             <!-- CARD 1: INCOME SECTION -->
             <div class="card">
@@ -167,6 +172,7 @@
 
             await autoConfigureCurrentQuarter();
             await populateLists();
+            loadServicesSheetOptions();
             loadTransactionData();
         });
 
@@ -490,6 +496,7 @@
             } else {
                 quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates);
             }
+            
             try {
                 const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', false);
 
@@ -615,6 +622,38 @@
                 }
             }, (error) => {
                 console.error("Error undoing transactions:", error);
+            });
+        }
+
+        /**
+         * Fetches the names of all sheets in the active spreadsheet that contain the word "services" in their name and populates the services sheet dropdown.
+         */
+        function loadServicesSheetOptions() {
+            callServer('fetchServicesSheetNames', null, (response) => {
+                const sheetSelect = document.getElementById('sheetSelect');
+                if (!sheetSelect) {
+                    console.error("Sheet select element not found in DOM.");
+                    return;
+                }
+
+                // Remove the loading option and populate with actual sheet names
+                sheetSelect.innerHTML = '';
+
+                if (response && Array.isArray(response) && response.length > 0) {
+                    response.forEach(sheetName => {
+                        const option = document.createElement('option');
+                        option.value = sheetName;
+                        option.textContent = sheetName;
+                        sheetSelect.appendChild(option);
+                    });
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No services sheets found';
+                    sheetSelect.appendChild(option);
+                }
+            }, (error) => {
+                console.error("Error fetching services sheet names:", error);
             });
         }
     </script>

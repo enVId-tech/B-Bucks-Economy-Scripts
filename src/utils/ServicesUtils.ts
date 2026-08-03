@@ -30,7 +30,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
             log(`Received data for fetchServicesDataCached: ${data}`, false);
         } else {
             log("No data received for fetchServicesDataCached, proceeding with default cache retrieval.", false);
-            data = JSON.stringify({ forceRefresh: false });
+            data = JSON.stringify({ forceRefresh: false, servicesSheet: DEFAULT_SERVICES_SHEET });
         }
 
         const parsedData = data ? JSON.parse(data) : null;
@@ -38,6 +38,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
+        const servicesSheet = parsedData?.servicesSheet || DEFAULT_SERVICES_SHEET;
 
         if (!forceRefresh) {
             const cachedString = getCachedData(SERVICES_CACHED_KEY);
@@ -54,7 +55,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
         }
 
         log("Cache miss: Re-extracting items from Services sheet rows...", false);
-        const freshServices = fetchServicesData();
+        const freshServices = fetchServicesData(servicesSheet);
 
         if (Array.isArray(freshServices)) {
             setCachedData(SERVICES_CACHED_KEY, freshServices);
@@ -69,11 +70,20 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
 /**
  * Fetches services data from the "Services" sheet in the active spreadsheet. It reads a predefined range of rows and columns to extract various details about services, including item names, categories, pricing for each quarter, and limits for each quarter. The function processes the raw grid data to construct structured objects for each service item, handling type conversions for numbers as needed. If the sheet is not found or an error occurs during processing, it returns an error message.
+ * @param sheetName The name of the sheet to fetch services data from. Defaults to the constant DEFAULT_SERVICES_SHEET, which is "Services". This allows for flexibility in case there are multiple services sheets or if the sheet name changes in the future.
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
-function fetchServicesData(): ItemData[] | { error: string } {
+function fetchServicesData(sheetName: string = DEFAULT_SERVICES_SHEET): ItemData[] | { error: string } {
     try {
-        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DEFAULT_SERVICES_SHEET);
+        // Fetch all sheets with the name "Services" to implement multi-service sheet support in the future
+        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+
+        if (allSheets.length === 0) {
+            log("No sheets found in the active spreadsheet.", true);
+            return { error: "No sheets found in the active spreadsheet." };
+        }
+
+        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
         if (!servicesSheet) {
             log("Services sheet not found.", true);
             return { error: "Services sheet not found." };
@@ -257,5 +267,38 @@ function executeServiceAction(payloadStr: string): string | void {
     } catch (error: any) {
         log(`Error in executeBalanceAction: ${error.message}`, true);
         return `Error occurred in executeBalanceAction: ${error.message}`;
+    }
+}
+
+/**
+ * Fetches the names of all sheets in the active spreadsheet that contain the word "services" in their name. This function is useful for dynamically populating a dropdown or selection list with available services sheets, allowing users to switch between different services data sets easily. If no such sheets are found or an error occurs during the process, it returns an error message.
+ * @returns {string[] | { error: string }} An array of sheet names that contain the word "services" in their name, or an error message if no such sheets are found or an error occurs. This allows for flexible management of multiple services sheets within the application, enabling users to select and view different sets of services data as needed.
+ */
+function fetchServicesSheetNames(): string[] | { error: string } {
+    try {
+        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+
+        if (allSheets.length === 0) {
+            log("No sheets found in the active spreadsheet.", true);
+            return { error: "No sheets found in the active spreadsheet." };
+        }
+
+        let servicesSheetNames = allSheets.filter(sheet => sheet.getName().toLowerCase().includes("services")).map(sheet => sheet.getName());
+
+        if (servicesSheetNames.length === 0) {
+            log("No services sheets found in the active spreadsheet.", true);
+            return { error: "No services sheets found in the active spreadsheet." };
+        }
+
+        // The first option in the dropdown should be the default services sheet, if it exists, followed by any other services sheets found
+
+        if (servicesSheetNames.includes(DEFAULT_SERVICES_SHEET)) {
+            servicesSheetNames = [DEFAULT_SERVICES_SHEET, ...servicesSheetNames.filter(name => name !== DEFAULT_SERVICES_SHEET)];
+        }
+
+        return servicesSheetNames;
+    } catch (error: any) {
+        log(`Error in fetchServicesSheetNames: ${error.message}`, true);
+        return { error: `Error occurred in fetchServicesSheetNames: ${error.message}` };
     }
 }
