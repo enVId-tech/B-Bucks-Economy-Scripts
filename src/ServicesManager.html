@@ -43,9 +43,14 @@
         <!-- LEFT PANEL: Controls -->
         <div class="controls">
             <div class="sheet-switcher">
-                <select id="sheetSelect" onchange="callServer('switchActiveSheet', this.value)">
+                <select id="sheetSelect" onchange="switchActiveSheet()">
                     <option value="">Loading sheets...</option>
                 </select>
+            </div>
+
+            <div class="loading-indicator" id="loadingIndicator">
+                <div class="loading-spinner"></div>
+                <span>Loading...</span>
             </div>
 
             <!-- CARD 1: INCOME SECTION -->
@@ -171,8 +176,8 @@
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
 
             await autoConfigureCurrentQuarter();
-            await populateLists();
             loadServicesSheetOptions();
+            await populateLists(null, false, null);
             loadTransactionData();
         });
 
@@ -476,7 +481,12 @@
         /**
          * Populates both the Income and Expense item lists based on the selected quarter.
          */
-        async function populateLists(targetType = null) {
+        async function populateLists(targetType = null, forceRefresh = false, servicesSheet = null) {
+
+            // Enable loading indicator for user feedback during async operations
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            loadingIndicator.style.display = 'flex'; // Show loading indicator
+
             const quarterSelectSpending = document.getElementById('quarterSelectSpending');
             const quarterSelectIncome = document.getElementById('quarterSelectIncome');
             const incomeSelect = document.getElementById('itemSelectIncome');
@@ -494,11 +504,11 @@
             } else if (targetType === 'Expense') {
                 quarter = quarterSelectSpending.value;
             } else {
-                quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false)).importantDates);
+                quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', forceRefresh, ["servicesSheet", servicesSheet])).importantDates);
             }
-            
+
             try {
-                const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', false);
+                const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', forceRefresh, ["servicesSheet", servicesSheet]);
 
                 console.log("Fetched services data for initial population:", response);
 
@@ -537,8 +547,10 @@
                     expenseSelect.innerHTML = expenseHtml;
                 }
 
+                loadingIndicator.style.display = 'none'; // Hide loading indicator
                 console.log(`Successfully populated income and expense lists with ${response.length} items from cache for quarter: ${quarter}`);
             } catch (error) {
+                loadingIndicator.style.display = 'none'; // Ensure loading indicator is hidden on error
                 console.error("Error populating item lists:", error);
             }
         }
@@ -655,6 +667,24 @@
             }, (error) => {
                 console.error("Error fetching services sheet names:", error);
             });
+        }
+
+        function switchActiveSheet() {
+            const sheetSelect = document.getElementById('sheetSelect');
+            if (!sheetSelect) {
+                console.error("Sheet select element not found in DOM.");
+                return;
+            }
+
+            const selectedSheet = sheetSelect.value;
+            if (!selectedSheet) {
+                console.warn("No sheet selected for switching.");
+                return;
+            }
+
+            console.log(`Switching active services sheet to: ${selectedSheet}`);
+            // Refresh the lists with the newly selected sheet
+            populateLists(null, true, selectedSheet);
         }
     </script>
 </body>
