@@ -481,7 +481,7 @@
         /**
          * Populates both the Income and Expense item lists based on the selected quarter.
          */
-        async function populateLists(targetType = null, forceRefresh = false, servicesSheet = null) {
+        async function populateLists(targetType = null, forceRefresh = false, servicesSheet) {
 
             // Enable loading indicator for user feedback during async operations
             const loadingIndicator = document.getElementById('loadingIndicator');
@@ -496,6 +496,8 @@
                 console.error("One or more required DOM elements for populating item lists are missing.");
                 return;
             }
+
+            let sheetToSend = servicesSheet === null || servicesSheet === undefined ? null : servicesSheet;
 
             let quarter = "Q1";
 
@@ -534,7 +536,9 @@
 
                     if (item.category === 'Income' && incomeSelect) {
                         incomeHtml += optionMarkup;
-                    } else if (item.category === 'Expense' && expenseSelect) {
+                    }
+                    
+                    if (item.category === 'Expense' && expenseSelect) {
                         expenseHtml += optionMarkup;
                     }
                 }

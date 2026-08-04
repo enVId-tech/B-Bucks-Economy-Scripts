@@ -30,7 +30,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
             log(`Received data for fetchServicesDataCached: ${data}`, false);
         } else {
             log("No data received for fetchServicesDataCached, proceeding with default cache retrieval.", false);
-            data = JSON.stringify({ forceRefresh: false, servicesSheet: DEFAULT_SERVICES_SHEET });
+            data = JSON.stringify({ forceRefresh: false, servicesSheet: fetchServicesSheetNames()[0] });
         }
 
         const parsedData = data ? JSON.parse(data) : null;
@@ -38,7 +38,10 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
-        const servicesSheet = parsedData?.servicesSheet || DEFAULT_SERVICES_SHEET;
+
+        log(`Services Sheet returns: ${JSON.stringify(parsedData)}`, false);
+
+        const servicesSheet = parsedData?.servicesSheet === null || parsedData?.servicesSheet === undefined ? fetchServicesSheetNames()[0] : parsedData?.servicesSheet;
 
         if (!forceRefresh) {
             const cachedString = getCachedData(SERVICES_CACHED_KEY);
@@ -73,7 +76,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
  * @param sheetName The name of the sheet to fetch services data from. Defaults to the constant DEFAULT_SERVICES_SHEET, which is "Services". This allows for flexibility in case there are multiple services sheets or if the sheet name changes in the future.
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
-function fetchServicesData(sheetName: string = DEFAULT_SERVICES_SHEET): ItemData[] | { error: string } {
+function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): ItemData[] | { error: string } {
     try {
         // Fetch all sheets with the name "Services" to implement multi-service sheet support in the future
         const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
