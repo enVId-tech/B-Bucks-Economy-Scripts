@@ -124,6 +124,13 @@
         <div class="log-action-bar">
             <button class="btn-undo-selected" id="undoSelectedBtn" onclick="undoSelectedTransactions()" disabled>Undo
                 Selected</button>
+
+            <button class="btn-refresh" onclick="loadTransactionData()">Refresh Transactions</button>
+        </div>
+
+        <div class="loading-indicator" id="loadingIndicator">
+            <div class="loading-spinner"></div>
+            <span>Loading transactions...</span>
         </div>
 
         <!-- Records Container -->
@@ -214,12 +221,12 @@
             const studentSelect = document.getElementById('filterStudent');
             const currentValue = studentSelect.value;
             const selectedPeriod = document.getElementById('filterPeriod').value;
-            
+
             // Filter transactions by selected period if one is chosen
-            const filteredTransactions = selectedPeriod 
+            const filteredTransactions = selectedPeriod
                 ? transactions.filter(t => String(t.period) === selectedPeriod)
                 : transactions;
-            
+
             const uniqueStudents = [...new Set(
                 filteredTransactions
                     .map(transaction => String(transaction.individual || '').trim())
@@ -245,7 +252,7 @@
         function populatePeriodFilterOptions(transactions) {
             const periodSelect = document.getElementById('filterPeriod');
             const currentValue = periodSelect.value;
-            
+
             const uniquePeriods = [...new Set(
                 transactions
                     .map(transaction => transaction.period)
@@ -269,13 +276,13 @@
         function populateTypeFilterOptions(transactions) {
             const typeSelect = document.getElementById('filterType');
             const currentValue = typeSelect.value;
-            
+
             const typeMapping = {
                 Income: 'income',
                 Expense: 'spending',
                 Investment: 'deposit',
             };
-            
+
             const uniqueTypes = [...new Set(
                 transactions
                     .map(transaction => transaction.type)
@@ -287,7 +294,7 @@
             uniqueTypes.forEach(type => {
                 const mappedType = typeMapping[type] || 'unknown';
                 const displayName = type === 'Income' ? 'Income' : type === 'Expense' ? 'Spending' : type === 'Investment' ? 'Investment' : type;
-                
+
                 const option = document.createElement('option');
                 option.value = mappedType;
                 option.textContent = displayName;
@@ -307,9 +314,9 @@
 
             return transactions.filter(transaction => {
                 const transactionDate = transaction.timestamp ? new Date(transaction.timestamp) : null;
-                
+
                 if (!transactionDate) return true;
-                
+
                 if (fromDateValue && transactionDate < new Date(`${fromDateValue}T00:00:00`)) return false;
                 if (toDateValue && transactionDate > new Date(`${toDateValue}T23:59:59.999`)) return false;
 
@@ -467,6 +474,7 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
+            document.getElementById('loadingIndicator').style.display = 'none'; // Hide loading indicator
         }
 
         function applyTransactionFilters() {
@@ -502,6 +510,8 @@
                 const logContainer = document.getElementById('recordsContainer');
                 logContainer.innerHTML = ''; // Clear existing entries
 
+                document.getElementById('loadingIndicator').style.display = 'flex'; // Show loading indicator
+
                 callServer('fetchTransactionsDataCached', null, (res) => {
                     const response = JSON.parse(res);
 
@@ -515,6 +525,13 @@
                         // Fill in general transaction statistics
                     } else {
                         console.error("Invalid response format from server.");
+                        document.getElementById('recordsContainer').innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">⚠️</div>
+                                <div>Failed to load transactions. Please try again later.</div>
+                            </div>
+                        `;
+                        document.getElementById('loadingIndicator').style.display = 'none'; // Hide loading indicator
                     }
                 }, (error) => {
                     console.error("Error fetching transaction data:", error);
