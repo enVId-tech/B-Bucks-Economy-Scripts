@@ -242,8 +242,8 @@ function executeServiceAction(payloadStr: string): string | void {
         if (operation === "ADD" || operation === "MULTIPLY") {
             return applyMathToSelection(
                 operation,
-                unitPrice,
-                quantity,
+                Number(unitPrice),
+                Number(quantity),
                 false,
                 transactionReason,
                 undefined,
@@ -256,8 +256,8 @@ function executeServiceAction(payloadStr: string): string | void {
             // Divide stays the same since we are still applying the same logic of adding to expenditures, just with a different operation.
             return applyMathToSelection(
                 operation == "SUBTRACT" ? "ADD" : "DIVIDE",
-                unitPrice,
-                quantity,
+                Number(unitPrice),
+                Number(quantity),
                 false,
                 transactionReason,
                 undefined,

@@ -126,6 +126,12 @@ function applyMathToSelection(
     const operationFunc = operations[normalMapping];
 
     const transactionRecords: TransactionRecord[] = [];
+    const NOT_ALLOWED_COLS: number[] = [
+      NAMES_COL,
+      BALANCE_COL,
+      NET_INCOME_COL,
+      DATE_DEPOSIT_COL
+    ]
 
     // First try the faster, API efficient method using the Sheets API, with error handling to fall back to the slower method
     try {
@@ -178,6 +184,11 @@ function applyMathToSelection(
 
           return row.map((cell, colIndex) => {
             const absoluteColIndex = startCol + colIndex;
+
+            if (NOT_ALLOWED_COLS.includes(absoluteColIndex) && fixedCol === undefined) {
+              log(`Operation not allowed on column ${absoluteColIndex} in range ${sheetName}!${targetA1}. Skipping this cell.`, true);
+              return cell; // Return the original value if the column is not allowed
+            }
 
             if (typeof cell === 'number' && !isNaN(cell)) {
               const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
@@ -340,6 +351,11 @@ function applyMathToSelection(
             const absoluteRowIndex = startRowIndex + rowIndex;
 
             return row.map(cell => {
+              if (NOT_ALLOWED_COLS.includes(startColIndex) && fixedCol === undefined) {
+                log(`Operation not allowed on column ${startColIndex} in range ${targetSheet.getName()}!${subRange.getA1Notation()}. Skipping this cell.`, true);
+                return cell; // Return the original value if the column is not allowed
+              }
+
               if (typeof cell === 'number' && !isNaN(cell)) {
                 let balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
 
