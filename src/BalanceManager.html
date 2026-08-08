@@ -70,6 +70,11 @@
                 </div>
             </div>
 
+            <div class="loading-indicator" id="applyingIndicatorIncome">
+                <div class="loading-spinner"></div>
+                <span>Applying balance changes...</span>
+            </div>
+
             <!-- CARD 3: Custom Reason -->
             <div class="card">
                 <div class="card-title">📝 Transaction Reason</div>
@@ -122,12 +127,19 @@
 
                 <div class="action-bar-section">
                     <label class="action-bar-label">Page</label>
-                    <input type="number" id="logPage" value="1" min="1" class="action-bar-input" onchange="applyTransactionFilters()">
+                    <input type="number" id="logPage" value="1" min="1" class="action-bar-input"
+                        onchange="applyTransactionFilters()">
                 </div>
                 <div class="action-bar-section">
                     <label class="action-bar-label">Displayed</label>
-                    <input type="number" id="logLimit" value="25" min="1" class="action-bar-input" onchange="applyTransactionFilters()">
+                    <input type="number" id="logLimit" value="25" min="1" class="action-bar-input"
+                        onchange="applyTransactionFilters()">
                 </div>
+            </div>
+
+            <div class="loading-indicator" id="loadingIndicatorTransactions">
+                <div class="loading-spinner"></div>
+                <span>Loading transactions...</span>
             </div>
 
             <div id="log-container"></div>
@@ -139,6 +151,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
+            document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
 
             // Handle click-to-select for all log items
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
@@ -207,6 +220,7 @@
                     </div>
                 `;
                 updateUndoButtonState();
+                document.getElementById("loadingIndicatorTransactions").style.display = 'none'; // Hide loading indicator
                 return;
             }
 
@@ -292,6 +306,8 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
+            document.getElementById("loadingIndicatorTransactions").style.display = 'none'; // Hide loading indicator
+            return;
         }
 
         function applyTransactionFilters() {
@@ -302,6 +318,8 @@
          * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
          */
         function loadTransactionData() {
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
+
             try {
                 const logContainer = document.getElementById('log-container');
                 logContainer.innerHTML = ''; // Clear existing entries
@@ -331,6 +349,7 @@
          */
         function applyValue(operation, amount) {
             try {
+                document.getElementById('applyingIndicatorIncome').style.display = 'flex';
                 const getButtons = document.querySelectorAll('.btn, .btn-math');
 
                 getButtons.forEach(btn => btn.classList.add('disabled'));
@@ -363,6 +382,8 @@
                 });
 
                 callServer('executeBalanceAction', payload, (response) => {
+                    document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
+                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
                     console.log("Server Response:", response);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
                     getButtons.forEach(btn => btn.disabled = false);
@@ -372,11 +393,15 @@
                     console.error("Server Error:", error);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
                     getButtons.forEach(btn => btn.disabled = false);
+                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
                 });
             } catch (err) {
                 console.error("Error in applyValue:", err);
                 getButtons.forEach(btn => btn.classList.remove('disabled'));
                 getButtons.forEach(btn => btn.disabled = false);
+                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
             }
         }
 
@@ -427,12 +452,20 @@
                 if (response) {
                     console.log("Successfully undone transactions:", transactionIds);
                     // Refresh the log after undoing
+                    document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
+                    document.getElementById("applyingIndicatorIncome").style.display = 'flex'; // Show applying indicator
                     loadTransactionData();
+                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
                 } else {
                     console.error("Failed to undo transactions:", response.error);
+                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
                 }
             }, (error) => {
                 console.error("Error undoing transactions:", error);
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
             });
         }
     </script>
