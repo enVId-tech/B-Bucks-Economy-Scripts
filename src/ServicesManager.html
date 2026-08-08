@@ -66,6 +66,11 @@
                     <option value="Q4">Quarter 4</option>
                 </select>
 
+                <div class="loading-indicator" id="loadingIndicatorIncome">
+                    <div class="loading-spinner"></div>
+                    <span>Loading...</span>
+                </div>
+
                 <label class="label">Item</label>
                 <select id="itemSelectIncome" onchange="updatePreview()">
                     <option value="">Select an item...</option>
@@ -80,6 +85,11 @@
 
                 <button class="btn-submit btn-income margin-top-4" id="submitIncomeBtn" onclick="submitIncome()">Add
                     Income</button>
+
+                <div class="loading-indicator" id="applyingIndicatorIncome">
+                    <div class="loading-spinner"></div>
+                    <span>Applying income...</span>
+                </div>
             </div>
 
             <!-- CARD 2: SPENDING SECTION -->
@@ -94,6 +104,11 @@
                     <option value="Q3">Quarter 3</option>
                     <option value="Q4">Quarter 4</option>
                 </select>
+
+                <div class="loading-indicator" id="loadingIndicatorSpending">
+                    <div class="loading-spinner"></div>
+                    <span>Loading...</span>
+                </div>
 
                 <label class="label">Item</label>
                 <select id="itemSelectSpending" onchange="updatePreview()">
@@ -121,6 +136,11 @@
                 <button class="btn-submit btn-spending margin-top-4" id="submitSpendingBtn"
                     onclick="submitSpending()">Add
                     Expense</button>
+
+                <div class="loading-indicator" id="applyingIndicatorSpending">
+                    <div class="loading-spinner"></div>
+                    <span>Applying expense...</span>
+                </div>
 
                 <div class="auto-refresh-indicator" id="refreshIndicator">● Auto-refreshing</div>
                 <div id="errorContainer"></div>
@@ -163,6 +183,11 @@
                 </div>
             </div>
 
+            <div class="loading-indicator" id="loadingIndicatorTransactions">
+                <div class="loading-spinner"></div>
+                <span>Loading transactions...</span>
+            </div>
+
             <div id="log-container"></div>
         </div>
     </div>
@@ -174,6 +199,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
+            document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
 
             await autoConfigureCurrentQuarter();
             loadServicesSheetOptions();
@@ -254,35 +280,33 @@
                     </div>
                 `;
                 updateUndoButtonState();
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
                 return;
             }
 
             let htmlContent = '';
 
+            // Load transactions from most recent to least
             transactions.slice().reverse().forEach(transaction => {
-                // Ensure transactions are within page and limit display range
-                if (document.getElementById('logPage') && document.getElementById('logLimit')) {
-                    const page = parseInt(document.getElementById('logPage').value) || 1;
-                    const limit = parseInt(document.getElementById('logLimit').value) || 25;
-                    const startIndex = (page - 1) * limit;
-                    const endIndex = startIndex + limit;
-
-                    if (transactions.indexOf(transaction) < startIndex || transactions.indexOf(transaction) >= endIndex) {
-                        return; // Skip rendering this transaction
-                    }
+                // Skip transactions that lie outside the current page and limit settings
+                const currentPage = +document.getElementById('logPage').value || 1;
+                const limit = +document.getElementById('logLimit').value || 25;
+                const transactionIndex = transactions.indexOf(transaction);
+                if (transactionIndex < (currentPage - 1) * limit || transactionIndex >= currentPage * limit) {
+                    return; // Skip rendering this transaction
                 }
-
-                const { 
-                    id, 
-                    individual, 
-                    period, 
-                    modifiedColumn, 
-                    serviceProvided, 
-                    initialColumnAmount, 
-                    newColumnAmount, 
-                    initialBalance, 
-                    newBalance, 
-                    timestamp 
+                
+                const {
+                    id,
+                    individual,
+                    period,
+                    modifiedColumn,
+                    serviceProvided,
+                    initialColumnAmount,
+                    newColumnAmount,
+                    initialBalance,
+                    newBalance,
+                    timestamp
                 } = transaction;
 
                 const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
@@ -339,6 +363,7 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
+            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
         }
 
         function applyTransactionFilters() {
@@ -357,6 +382,12 @@
                 const isIncome = type === "Income";
                 const selectId = isIncome ? 'itemSelectIncome' : 'itemSelectSpending';
                 const multiplierId = isIncome ? 'multiplierIncome' : 'multiplierSpending';
+
+                if (isIncome) {
+                    document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show applying indicator
+                } else {
+                    document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show applying indicator
+                }
 
                 const selectElement = document.getElementById(selectId);
                 const name = selectElement ? selectElement.value : '';
@@ -409,6 +440,12 @@
                     document.getElementById("submitSpendingBtn").disabled = false;
                     document.getElementById("submitIncomeBtn").classList.remove("disabled");
                     document.getElementById("submitSpendingBtn").classList.remove("disabled");
+
+                    if (isIncome) {
+                        document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                    } else {
+                        document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide applying indicator
+                    }
                 }
             } catch (error) {
                 console.error("Unexpected parsing error in addBalance closure logic:", error);
@@ -416,9 +453,22 @@
         }
 
         /** Submits the income form, validating inputs and then calling the server to process the transaction. */
-        function submitIncome() { addBalance('Income') }
+        function submitIncome() {
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
+            document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show applying indicator
+            addBalance('Income')
+            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+            document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+        }
+
         /** Submits the spending form, validating inputs and then calling the server to process the transaction. */
-        function submitSpending() { addBalance('Spending') }
+        function submitSpending() {
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
+            document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show applying indicator
+            addBalance('Spending')
+            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+            document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide applying indicator
+        }
 
         /**
          * Inspects the cached banking configuration dates and automatically updates
@@ -482,7 +532,6 @@
          * Populates both the Income and Expense item lists based on the selected quarter.
          */
         async function populateLists(targetType = null, forceRefresh = false, servicesSheet) {
-
             // Enable loading indicator for user feedback during async operations
             const loadingIndicator = document.getElementById('loadingIndicator');
             loadingIndicator.style.display = 'flex'; // Show loading indicator
@@ -537,7 +586,7 @@
                     if (item.category === 'Income' && incomeSelect) {
                         incomeHtml += optionMarkup;
                     }
-                    
+
                     if (item.category === 'Expense' && expenseSelect) {
                         expenseHtml += optionMarkup;
                     }
@@ -552,6 +601,8 @@
                 }
 
                 loadingIndicator.style.display = 'none'; // Hide loading indicator
+                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide loading indicator
+                document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide loading indicator
                 console.log(`Successfully populated income and expense lists with ${response.length} items from cache for quarter: ${quarter}`);
             } catch (error) {
                 loadingIndicator.style.display = 'none'; // Ensure loading indicator is hidden on error
@@ -563,6 +614,7 @@
          * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
          */
         function loadTransactionData(refresh = false) {
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
             try {
                 const logContainer = document.getElementById('log-container');
                 logContainer.innerHTML = ''; // Clear existing entries
@@ -577,6 +629,7 @@
                         console.error("Failed to parse server response for transaction data:", parseError);
                         return;
                     }
+
                     const response = JSON.parse(res);
 
                     if (response && Array.isArray(response)) {
@@ -590,6 +643,7 @@
                 });
             } catch (err) {
                 console.error("Error in loadTransactionData:", err);
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
             }
         }
 
@@ -597,21 +651,25 @@
           * Forces a network clear-through to refresh backend server arrays.
           */
         async function updateExpenses() {
+            document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show loading indicator
             // Instant render from RAM for snappy UI response
             await populateLists('Expense');
             // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Expense');
+            document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide loading indicator
         }
 
         async function updateIncomes() {
+            document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show loading indicator
             // Instant render from RAM for snappy UI response
             await populateLists('Income');
             // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Income');
+            document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide loading indicator
         }
 
         function updateUndoButtonState() {
