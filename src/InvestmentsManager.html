@@ -44,6 +44,11 @@
     <div class="left-panel">
       <div class="section-title">CoD Manager</div>
 
+      <div class="loading-indicator" id="loadingInvestmentsIndicator">
+        <div class="loading-spinner"></div>
+        <span>Loading student & investment data...</span>
+      </div>
+
       <!-- Card 1: Student Selection -->
       <div class="form-section">
         <div class="form-title">Select Student</div>
@@ -66,6 +71,10 @@
       <!-- Card 2: Account Overview -->
       <div class="form-section hidden-display" id="studentInfoSection">
         <div class="form-title">Account Overview</div>
+        <div class="loading-indicator" id="loadingOverviewIndicator">
+          <div class="loading-spinner"></div>
+          <span>Loading overview data...</span>
+        </div>
         <div class="info-box">
           <div class="info-label">Available Cash</div>
           <div class="info-value" id="cashAmount">$0.00</div>
@@ -79,6 +88,8 @@
           <div class="info-value" id="currentEarnings">$0.00</div>
           <div id="currentEarningsDetail" class="current-earnings-detail"></div>
         </div>
+        <button class="btn btn-refresh" id="refreshStudentDataBtn" onclick="fetchAndDisplayStudentData(false)" disabled>Refresh
+          Data</button>
         <div class="warning-box" id="warningBox"></div>
         <div class="error-box" id="errorBox"></div>
       </div>
@@ -205,12 +216,16 @@
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('loadingInvestmentsIndicator').style.display = 'flex'; // Show loading indicator
+
       wireProjectionTabs();
       const investmentsData = await fetchInitialData();
       window.appStateCache['investmentsData'] = investmentsData;
       window.appStateCache['settingsData'] = await fetchSettingsData();
       populatePeriodSelect(investmentsData || []);
       syncProjectionModeInputs();
+
+      document.getElementById('loadingInvestmentsIndicator').style.display = 'none'; // Hide loading indicator
     });
 
     /**
@@ -578,6 +593,7 @@
      */
     async function fetchAndDisplayStudentData(isInitialLoad = true) {
       try {
+        document.getElementById('loadingOverviewIndicator').style.display = 'flex'; // Show loading indicator for overview
         const periodSelected = document.getElementById('periodSelect').value;
         const studentSelected = document.getElementById('studentSelect').value;
 
@@ -618,8 +634,11 @@
         } else {
           console.warn("Selected student data not found in the freshly fetched investments data.");
         }
+
+        document.getElementById('loadingOverviewIndicator').style.display = 'none'; // Hide loading indicator for overview
       } catch (error) {
         console.error("Error fetching and displaying student data:", error);
+        document.getElementById('loadingOverviewIndicator').style.display = 'none'; // Hide loading indicator for overview
       }
     }
 
