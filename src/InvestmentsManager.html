@@ -603,24 +603,6 @@
           return;
         }
 
-        if (isInitialLoad) {
-          // Fetch the investments data again to ensure we have the latest data, and then find the specific student's data based on the current selections. This is necessary because the displayed student data depends on both the selected period and student, and we need to ensure that we are working with the most up-to-date information from the server.
-          // Because we don't refetch on this for responsiveness, we need to make sure to update the display with the correct data once the fresh data is fetched, which is why we call fetchInitialData again with forceRefresh set to true after displaying the initial data. This way, we can show something immediately based on the cached data, and then fetch the real data.
-          const investmentsData = await fetchInitialData(false);
-          let targetPeriod = investmentsData.find(p => p.periodName === periodSelected);
-          let targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);
-
-          if (targetStudent) {
-            // Update the UI immediately to reflect responsiveness, may not reflect the current values.
-            displayStudentData(targetStudent);
-
-            // Set cache
-            window.appStateCache['selectedStudentData'] = targetStudent;
-          } else {
-            console.warn("Selected student data not found in the fetched investments data.");
-          }
-        }
-
         // Actually update the data to reflect true values
         const freshData = await fetchInitialData(true);
         console.log("Fresh Investments Ledger Data after force refresh:", freshData);
