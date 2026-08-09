@@ -3,11 +3,27 @@
 <!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
 
 <!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
-<!-- This file contains the HTML styles for the Documentation and Attribution page -->
+<!-- Modernized HTML Styles for Documentation and Attribution -->
 
 <style>
+    :root {
+        --bg-main: #f8fafc;
+        --bg-card: #ffffff;
+        --border-color: #e2e8f0;
+        --border-hover: #cbd5e1;
+        --text-primary: #0f172a;
+        --text-secondary: #64748b;
+        --text-muted: #94a3b8;
+        --accent-blue: #0366d6;
+        --accent-blue-hover: #0256b8;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        --radius-md: 8px;
+        --radius-sm: 5px;
+    }
+
     * {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         box-sizing: border-box;
         user-select: none;
     }
@@ -19,45 +35,52 @@
         flex-direction: column;
         height: 100vh;
         width: 100vw;
-        background: #fafbfc;
+        background: var(--bg-main);
         overflow: hidden;
         font-size: 12px;
-        color: #24292e;
+        color: var(--text-primary);
     }
 
+    /* Fixed Top Navigation Header */
     .nav-header {
-        background: #fff;
-        border-bottom: 1px solid #e1e4e8;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
         display: flex;
-        gap: 0;
-        padding: 0;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
         overflow-x: auto;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        height: 48px;
+        flex-shrink: 0;
+        box-shadow: var(--shadow-sm);
+        z-index: 20;
     }
 
     .nav-link {
-        padding: 10px 14px;
-        border: none;
-        background: #fff;
-        color: #6a737d;
+        padding: 6px 12px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--text-secondary);
         cursor: pointer;
         font-size: 11px;
         font-weight: 500;
         text-decoration: none;
-        border-bottom: 2px solid transparent;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
         white-space: nowrap;
         flex-shrink: 0;
     }
 
     .nav-link:hover {
-        color: #24292e;
-        background: #f6f8fa;
+        color: var(--text-primary);
+        background: #f1f5f9;
     }
 
     .nav-link.active {
-        color: #0366d6;
-        border-bottom-color: #0366d6;
+        color: #ffffff;
+        background: var(--accent-blue);
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(3, 102, 214, 0.2);
     }
 
     /* Main Container */
@@ -69,92 +92,104 @@
 
     .docs-panel {
         width: 100%;
-        padding: 12px;
-        background: #fff;
+        padding: 12px 16px;
+        background: var(--bg-main);
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 10px;
     }
 
-    /* Header Styling */
+    /* Page Header */
     .docs-header {
-        padding: 8px;
+        padding: 8px 12px;
         margin-bottom: 4px;
-        border-bottom: 1px solid #e1e4e8;
+        background: var(--bg-card);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
     }
 
     .docs-header h1 {
-        font-size: 14px;
-        color: #0366d6;
-        font-weight: 700;
+        font-size: 13px;
+        color: var(--accent-blue);
+        font-weight: 800;
         margin: 0;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.5px;
     }
 
     /* Section Cards */
     .section-card {
-        padding: 8px;
-        background: #f6f8fa;
-        border: 1px solid #e1e4e8;
-        border-radius: 3px;
-        margin-bottom: 6px;
+        padding: 12px 14px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        margin-bottom: 4px;
+        box-shadow: var(--shadow-sm);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .section-card:hover {
+        border-color: var(--border-hover);
+        box-shadow: var(--shadow-md);
     }
 
     .section-card h2 {
-        font-size: 12px;
-        color: #24292e;
-        margin: 0 0 4px 0;
+        font-size: 11px;
+        color: var(--text-primary);
+        margin: 0 0 6px 0;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.4px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 4px;
     }
 
     .section-card h3 {
         font-size: 11px;
-        color: #24292e;
-        margin: 4px 0 2px 0;
-        font-weight: 600;
+        color: var(--text-primary);
+        margin: 6px 0 2px 0;
+        font-weight: 700;
     }
 
     .section-card h4 {
         font-size: 11px;
-        color: #0366d6;
-        margin: 4px 0 2px 0;
-        font-weight: 600;
+        color: var(--accent-blue);
+        margin: 6px 0 2px 0;
+        font-weight: 700;
     }
 
     .section-card p {
         font-size: 11px;
         line-height: 1.5;
-        color: #586069;
-        margin: 2px 0;
+        color: var(--text-secondary);
+        margin: 4px 0;
     }
 
     .section-card ul,
     .section-card ol {
         margin: 4px 0;
-        padding-left: 16px;
+        padding-left: 18px;
         font-size: 11px;
-        color: #586069;
+        color: var(--text-secondary);
     }
 
     .section-card li {
         line-height: 1.5;
-        margin-bottom: 3px;
+        margin-bottom: 4px;
     }
 
-    /* Attribution Section */
+    /* Attribution Card */
     .attribution-section {
-        background: #fafbfc;
-        border: 1px solid #e1e4e8;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
     }
 
     .attribution-item {
-        margin-bottom: 6px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid #e1e4e8;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .attribution-item:last-child {
@@ -165,39 +200,41 @@
 
     .attribution-date {
         font-size: 10px;
-        color: #6a737d;
-        margin-top: 1px;
+        color: var(--text-muted);
+        margin-top: 2px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
-    /* Changelog */
+    /* Changelog Items */
     .changelog-item {
-        padding: 6px;
+        padding: 8px 10px;
         margin-bottom: 6px;
-        background: #fff;
-        border: 1px solid #e1e4e8;
-        border-radius: 3px;
+        background: var(--bg-main);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
     }
 
     .changelog-item h4 {
-        margin: 0 0 3px 0;
+        margin: 0 0 2px 0;
         font-size: 11px;
     }
 
     .changelog-item p {
         margin: 0;
         font-size: 10px;
-        color: #6a737d;
+        color: var(--text-secondary);
     }
 
-    /* Links */
+    /* Link Handling */
     a {
-        color: #0366d6;
+        color: var(--accent-blue);
         text-decoration: none;
-        transition: color 0.15s;
+        font-weight: 500;
+        transition: color 0.15s ease;
     }
 
     a:hover {
-        color: #0256c7;
+        color: var(--accent-blue-hover);
         text-decoration: underline;
     }
 </style>
