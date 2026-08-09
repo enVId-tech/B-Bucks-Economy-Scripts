@@ -274,28 +274,39 @@
 
             if (!transactions.length) {
                 logContainer.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔎</div>
-                        <div>No transactions match the current filters.</div>
-                    </div>
-                `;
+            <div class="empty-state">
+                <div class="empty-state-icon">🔎</div>
+                <div>No transactions match the current filters.</div>
+            </div>
+        `;
                 updateUndoButtonState();
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
                 return;
             }
 
             let htmlContent = '';
 
-            // Load transactions from most recent to least
-            transactions.slice().reverse().forEach(transaction => {
-                // Skip transactions that lie outside the current page and limit settings
-                const currentPage = +document.getElementById('logPage').value || 1;
-                const limit = +document.getElementById('logLimit').value || 25;
-                const transactionIndex = transactions.indexOf(transaction);
-                if (transactionIndex < (currentPage - 1) * limit || transactionIndex >= currentPage * limit) {
-                    return; // Skip rendering this transaction
-                }
-                
+            // bug fix: order transactions CORRECTly and not by per page slice.
+
+            // Calculate pagination bounds
+            const currentPage = +document.getElementById('logPage').value || 1;
+            let limit = +document.getElementById('logLimit').value || 25;
+
+            // If log limit is empty or < 1, default to 25
+            if (limit < 1) {
+                document.getElementById('logLimit').value = 25;
+                limit = 25;
+            }
+
+            // Reverse all matching transactions first so entries are displayed in descending order (most recent first)
+            const reversedTransactions = transactions.slice().reverse();
+
+            // Slice out ONLY the items that belong on the active page
+            const startIndex = (currentPage - 1) * limit;
+            const paginatedTransactions = reversedTransactions.slice(startIndex, startIndex + limit);
+
+            // Render the page's slice
+            paginatedTransactions.forEach(transaction => {
                 const {
                     id,
                     individual,
@@ -363,11 +374,32 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
-            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+            document.getElementById('loadingIndicatorTransactions').style.display = 'none';
         }
 
         function applyTransactionFilters() {
-            renderTransactionLog(getFilteredTransactions());
+            const filteredTransactions = getFilteredTransactions();
+            const limitInput = document.getElementById('logLimit');
+            const pageInput = document.getElementById('logPage');
+
+            const limit = +limitInput.value || 25;
+
+            // Calculate max pages based on current filtered item count
+            const totalItems = filteredTransactions.length;
+            const maxPage = Math.max(1, Math.ceil(totalItems / limit));
+
+            // Cap the input value if the user types a page higher than maxPage
+            let currentPage = +pageInput.value || 1;
+
+            if (currentPage > maxPage) {
+                currentPage = maxPage;
+                pageInput.value = maxPage;
+            } else if (currentPage < 1) {
+                currentPage = 1;
+                pageInput.value = 1;
+            }
+
+            renderTransactionLog(filteredTransactions);
         }
 
         async function addBalance(type = null) {
