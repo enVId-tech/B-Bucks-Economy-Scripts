@@ -1,9 +1,13 @@
-// Coded by Erick Tran for Mr. Banderas, 2026
-// Copyright (c) 2026 Erick Tran. 
-// This file is licensed under the MIT License, check the LICENSE file for details.
-
-// GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
-// This file contains global constants used throughout the B-Bucks Economy Scripts project.
+/* Coded by Erick Tran for Mr. Banderas, 2026
+ * Copyright (c) 2026 Erick Tran. 
+ * This file is licensed under the MIT License, check the LICENSE file for details.
+ *
+ * GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+ * 
+ * !!!--- IMPORTANT NOTE: This file was originally written in TypeScript, go to the GitHub to see the original non-compiled code. ---!!!
+ * 
+ * This file contains global constants used throughout the B-Bucks Economy Scripts project.
+ */
 
 // ADVANCED SETTINGS - Don't modify these values unless you know what you're doing (or you're me)
 const WAIT_LOCK_TIME: number = 5000; // in ms

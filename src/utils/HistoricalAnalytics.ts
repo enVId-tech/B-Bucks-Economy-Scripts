@@ -1,9 +1,13 @@
-// Coded by Erick Tran for Mr. Banderas, 2026
-// Copyright (c) 2026 Erick Tran. 
-// This file is licensed under the MIT License, check the LICENSE file for details.
-
-// GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
-// This file contains utility functions for fetching and processing historical economic data from the "Economic Records" sheet in the B-Bucks Economy Scripts project. It provides a structured JSON payload for client-side chart parsing and analysis.
+/* Coded by Erick Tran for Mr. Banderas, 2026
+ * Copyright (c) 2026 Erick Tran. 
+ * This file is licensed under the MIT License, check the LICENSE file for details.
+ *
+ * GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+ * 
+ * !!!--- IMPORTANT NOTE: This file was originally written in TypeScript, go to the GitHub to see the original non-compiled code. ---!!!
+ * 
+ * This file contains utility functions for fetching and processing historical economic data from the "Economic Records" sheet in the B-Bucks Economy Scripts project. It provides a structured JSON payload for client-side chart parsing and analysis.
+ */
 
 interface MetricHeader {
   key: string;
