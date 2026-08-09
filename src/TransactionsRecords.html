@@ -46,12 +46,12 @@
         <div class="controls">
             <div class="control-group control-group-search">
                 <label>Search</label>
-                <input type="text" id="filterSearch" placeholder="Search records">
+                <input type="text" id="filterSearch" placeholder="Search records" oninput="applyTransactionFilters()">
             </div>
 
             <div class="control-group control-group-scope">
                 <label>Scope</label>
-                <select id="filterScope">
+                <select id="filterScope" onchange="applyTransactionFilters()">
                     <option value="all">All Fields</option>
                     <option value="student">Student</option>
                     <option value="item">Item</option>
@@ -64,21 +64,21 @@
 
             <div class="control-group">
                 <label>Period</label>
-                <select id="filterPeriod">
+                <select id="filterPeriod" onchange="applyTransactionFilters()">
                     <option value="">All Periods</option>
                 </select>
             </div>
 
             <div class="control-group control-group-flex">
                 <label>Student</label>
-                <select id="filterStudent">
+                <select id="filterStudent" onchange="applyTransactionFilters()">
                     <option value="">All Students</option>
                 </select>
             </div>
 
             <div class="control-group">
                 <label>Type</label>
-                <select id="filterType">
+                <select id="filterType" onchange="applyTransactionFilters()">
                     <option value="">All Types</option>
                     <option value="income">Income</option>
                     <option value="spending">Spending</option>
@@ -88,16 +88,26 @@
 
             <div class="control-group">
                 <label>From Date</label>
-                <input type="date" id="filterFromDate">
+                <input type="date" id="filterFromDate" onchange="applyTransactionFilters()">
             </div>
 
             <div class="control-group">
                 <label>To Date</label>
-                <input type="date" id="filterToDate">
+                <input type="date" id="filterToDate" onchange="applyTransactionFilters()">
             </div>
 
-            <button class="btn-filter" id="applyFilterBtn">Filter</button>
-            <button class="btn-clear" id="clearFilterBtn">Clear</button>
+            <div class="action-bar-section">
+                <label class="action-bar-label">Page</label>
+                <input type="number" id="logPage" value="1" min="1" class="action-bar-input"
+                    onchange="applyTransactionFilters()">
+            </div>
+            <div class="action-bar-section">
+                <label class="action-bar-label">Displayed</label>
+                <input type="number" id="logLimit" value="25" min="1" class="action-bar-input"
+                    onchange="applyTransactionFilters()">
+            </div>
+
+            <button class="btn-clear" id="clearFilterBtn" onclick="clearTransactionFilters()">Reset Filters</button>
         </div>
 
         <!-- Statistics Bar -->
@@ -145,29 +155,10 @@
             undoBtn.disabled = selectedItems.length === 0;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('applyFilterBtn').addEventListener('click', applyTransactionFilters);
-            document.getElementById('clearFilterBtn').addEventListener('click', clearTransactionFilters);
-
-            document.getElementById('filterSearch').addEventListener('input', () => {
-                applyTransactionFilters();
-            });
-
-            document.getElementById('filterScope').addEventListener('change', () => {
-                applyTransactionFilters();
-            });
-
+        document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('filterPeriod').addEventListener('change', () => {
                 const dateFilteredTransactions = getTransactionsFilteredByDateRange(allTransactions);
                 populateStudentFilterOptions(dateFilteredTransactions);
-                applyTransactionFilters();
-            });
-
-            document.getElementById('filterStudent').addEventListener('change', () => {
-                applyTransactionFilters();
-            });
-
-            document.getElementById('filterType').addEventListener('change', () => {
                 applyTransactionFilters();
             });
 
@@ -402,7 +393,18 @@
 
             let htmlContent = '';
 
-            transactions.slice().reverse().forEach(transaction => {
+            // Calculate pagination bounds
+            const currentPage = +document.getElementById('logPage').value || 1;
+            const limit = +document.getElementById('logLimit').value || 25;
+
+            // Reverse all matching transactions globally first so latest is at index 0
+            const reversedTransactions = transactions.slice().reverse();
+
+            // Slice out ONLY the items that belong on the active page
+            const startIndex = (currentPage - 1) * limit;
+            const paginatedTransactions = reversedTransactions.slice(startIndex, startIndex + limit);
+
+            paginatedTransactions.forEach(transaction => {
                 const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
 
                 const balanceDelta = Number((newBalance - initialBalance).toFixed(2));
@@ -479,6 +481,27 @@
 
         function applyTransactionFilters() {
             const filteredTransactions = getFilteredTransactions();
+
+            const limitInput = document.getElementById('logLimit');
+            const pageInput = document.getElementById('logPage');
+            const limit = +limitInput.value || 25;
+
+            // Calculate maximum available pages dynamically
+            const totalItems = filteredTransactions.length;
+            const maxPage = Math.max(1, Math.ceil(totalItems / limit));
+
+            // Cap the input value if the user enters a value greater than maxPage or less than 1
+            let currentPage = +pageInput.value || 1;
+            if (currentPage > maxPage) {
+                currentPage = maxPage;
+                pageInput.value = maxPage;
+            } else if (currentPage < 1) {
+                currentPage = 1;
+                pageInput.value = 1;
+            }
+
+            pageInput.setAttribute('max', maxPage);
+
             renderTransactionRecords(filteredTransactions);
 
             document.getElementById('totalCount').textContent = filteredTransactions.length;
@@ -495,10 +518,13 @@
             document.getElementById('filterType').value = '';
             document.getElementById('filterFromDate').value = '';
             document.getElementById('filterToDate').value = '';
+            document.getElementById('logPage').value = '1';
+            document.getElementById('logLimit').value = '25';
 
             populatePeriodFilterOptions(allTransactions);
             populateTypeFilterOptions(allTransactions);
             populateStudentFilterOptions(allTransactions);
+
             applyTransactionFilters();
         }
 

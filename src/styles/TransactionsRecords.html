@@ -415,7 +415,8 @@
         border: 1px solid #e1e4e8;
     }
 
-    .btn-undo-selected, .btn-refresh {
+    .btn-undo-selected,
+    .btn-refresh {
         padding: 6px 10px;
         background: #d73a49;
         color: white;
@@ -612,7 +613,7 @@
         min-width: 150px;
     }
 
-        .loading {
+    .loading {
         opacity: 0.6;
     }
 
@@ -659,5 +660,37 @@
         100% {
             transform: rotate(360deg);
         }
+    }
+
+    .action-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 8px;
+        background: #fff;
+        border-radius: 4px;
+        border: 1px solid #e1e4e8;
+    }
+
+    .action-bar-section {
+        flex: 1;
+    }
+
+    .action-bar-label {
+        font-size: 9px;
+        color: #586069;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: block;
+        margin-bottom: 3px;
+    }
+
+    .action-bar-input {
+        width: 100%;
+        padding: 5px 6px;
+        border: 1px solid #e1e4e8;
+        border-radius: 3px;
+        font-size: 11px;
     }
 </style>
