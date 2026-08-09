@@ -18,8 +18,8 @@ function onOpen(): void {
     .addItem('Open Investment Banking', 'openInvestmentsManager')
     .addSeparator()
     .addItem('View Transactions Records', 'openTransactionsRecords')
-    .addItem('Banking Settings', 'openBankingSettings')
     .addItem('View Historical Analytics', 'openHistoricalAnalytics')
+    .addItem('Banking Settings', 'openBankingSettings')
     .addSeparator()
     .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
