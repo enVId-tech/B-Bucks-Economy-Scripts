@@ -7,79 +7,298 @@
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Documentation & Attribution</title>
+
+    <!-- Style import -->
     <?!= include('styles/DocsAttribution') ?>
 </head>
+
 <body>
+
+    <!-- Header Navigation -->
+    <div class="docs-header">
+        <h1>📖 B-Bucks System Documentation</h1>
+        <a href="https://github.com/enVId-tech/B-Bucks-Economy-Scripts" target="_blank">GitHub Repo</a>
+    </div>
+
     <div class="docs-container">
-        <!-- Documentation Section -->
-        <div class="docs-panel">
-            <div class="docs-header">
-                <h1>📖 Documentation & Attribution</h1>
-            </div>
 
-            <!-- Project Overview -->
-            <div class="section-card">
-                <h2>Project Overview</h2>
-                <p>The B-Bucks Economy Scripts is a comprehensive financial management system designed for educational environments. It provides tools for managing virtual currency, tracking investments, and maintaining detailed transaction records.</p>
-            </div>
+        <!-- VSC-style Sidebar File Explorer -->
+        <div class="sidebar-explorer">
+            <div class="explorer-title">Explorer</div>
 
-            <!-- Features Section -->
-            <div class="section-card">
-                <h2>Features</h2>
-                <ul>
-                    <li>Manual Balance Management - Adjust B-Bucks balances with override capabilities</li>
-                    <li>Income & Expense Tracking - Record and categorize financial transactions</li>
-                    <li>Investment Banking - Manage investment portfolios and track returns</li>
-                    <li>Transaction Records - Comprehensive audit trail of all activities</li>
-                    <li>Banking Settings - Configure system parameters and restrictions</li>
-                    <li>Multi-tier Caching - Optimized data retrieval with fallback strategies</li>
-                </ul>
-            </div>
+            <ul class="tree-group">
 
-            <!-- Technical Stack -->
-            <div class="section-card">
-                <h2>Technical Stack</h2>
-                <p><strong>Language:</strong> TypeScript / Google Apps Script</p>
-                <p><strong>Frontend:</strong> HTML5, CSS3</p>
-                <p><strong>Backend:</strong> Google Sheets API, Apps Script Runtime</p>
-                <p><strong>Data Storage:</strong> Google Sheets, Script Properties, Cache Service</p>
-            </div>
+                <!-- FOLDER 1: USER GUIDE -->
+                <li class="tree-item">
+                    <div class="tree-label" onclick="toggleNode('folder-user', 'toggle-folder-user')">
+                        <span class="tree-toggle expanded" id="toggle-folder-user">▶</span>
+                        📂 <span>User Guide &amp; Features</span>
+                    </div>
 
-            <!-- Attribution Section -->
-            <div class="section-card attribution-section">
-                <h2>Credits & Attribution</h2>
-                <div class="attribution-item">
-                    <h3>Developer</h3>
-                    <p>Erick Tran</p>
-                    <p class="attribution-date">© 2026 Erick Tran. All rights reserved.</p>
+                    <ul class="tree-children open" id="folder-user">
+
+                        <!-- FILE: Overview.md -->
+                        <li class="tree-item">
+                            <div class="tree-label active"
+                                onclick="toggleFile('doc-overview', 'file-overview', 'toggle-file-overview', this)">
+                                <span class="tree-toggle expanded" id="toggle-file-overview">▶</span>
+                                📄 <span>Overview.md</span>
+                            </div>
+                            <!-- In-File Header Nodes -->
+                            <ul class="tree-children open" id="file-overview">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-overview', 'hdr-project-scope', this)">
+                                        <span>Project Scope</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-overview', 'hdr-core-workflow', this)">
+                                        <span>Core Workflow</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Balance-Management.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-balance-mgmt', 'file-balance', 'toggle-file-balance', this)">
+                                <span class="tree-toggle" id="toggle-file-balance">▶</span>
+                                📄 <span>Balance-Management.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-balance">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-balance-mgmt', 'hdr-manual-adjustments', this)">
+                                        <span>Manual Adjustments</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-balance-mgmt', 'hdr-tax-logic', this)">
+                                        <span>Tax Calculations</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Investment-Banking.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-investment', 'file-investment', 'toggle-file-investment', this)">
+                                <span class="tree-toggle" id="toggle-file-investment">▶</span>
+                                📄 <span>Investment-Banking.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-investment">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-investment', 'hdr-yield-rates', this)">
+                                        <span>Yield Rates</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                    </ul>
+                </li>
+
+                <!-- FOLDER 2: DEVELOPER ARCHITECTURE -->
+                <li class="tree-item">
+                    <div class="tree-label" onclick="toggleNode('folder-dev', 'toggle-folder-dev')">
+                        <span class="tree-toggle expanded" id="toggle-folder-dev">▶</span>
+                        📂 <span>Developer Technical Docs</span>
+                    </div>
+
+                    <ul class="tree-children open" id="folder-dev">
+
+                        <!-- FILE: Caching-&amp;-Performance.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-caching', 'file-caching', 'toggle-file-caching', this)">
+                                <span class="tree-toggle" id="toggle-file-caching">▶</span>
+                                ⚙️ <span>Caching-&amp;-Performance.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-caching">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-caching', 'hdr-cache-service', this)">
+                                        <span>CacheService Strategy</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-caching', 'hdr-range-selection', this)">
+                                        <span>Direct Range Block Selection</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                    </ul>
+                </li>
+
+                <!-- ROOT FILE: Attribution.md -->
+                <li class="tree-item">
+                    <div class="tree-label"
+                        onclick="toggleFile('doc-attribution', 'file-attribution', 'toggle-file-attribution', this)">
+                        <span class="tree-toggle" id="toggle-file-attribution">▶</span>
+                        📜 <span>Attribution.md</span>
+                    </div>
+                    <ul class="tree-children" id="file-attribution">
+                        <li class="tree-item tree-header-item">
+                            <div class="tree-label" onclick="navigateToHeader('doc-attribution', 'hdr-credits', this)">
+                                <span>Credits &amp; License</span>
+                            </div>
+                        </li>
+                    </ul>
+                </li>
+
+            </ul>
+        </div>
+
+        <!-- Right Reading Panel Viewport -->
+        <div class="docs-panel" id="docs-panel">
+
+            <!-- 1. OVERVIEW FILE -->
+            <div id="doc-overview" class="doc-section active">
+                <div class="section-card">
+                    <h2>Overview</h2>
+                    <p>The B-Bucks Economy Scripts is a financial management ecosystem engineered for virtual economies
+                        in educational environments.</p>
+
+                    <h3 id="hdr-project-scope">Project Scope</h3>
+                    <p>Handles account overrides, investment ledgers, transaction routing, and cached sheet lookups.</p>
+
+                    <h3 id="hdr-core-workflow">Core Workflow</h3>
+                    <p>System actions originate from custom sidebar dialogs, driving gas functions via server calls.</p>
                 </div>
+            </div>
 
-                <div class="attribution-item">
-                    <h3>Teacher</h3>
-                    <p>Mr. Banderas</p>
-                </div>
+            <!-- 2. BALANCE MANAGEMENT FILE -->
+            <div id="doc-balance-mgmt" class="doc-section">
+                <div class="section-card">
+                    <h2>Balance Management</h2>
 
-                <div class="attribution-item">
-                    <h3>License</h3>
-                    <p>MIT License</p>
-                    <p class="license-link"><a href="https://github.com/enVId-tech/B-Bucks-Economy-Scripts/blob/main/LICENSE" target="_blank">View LICENSE</a></p>
-                </div>
+                    <h3 id="hdr-manual-adjustments">Manual Adjustments</h3>
+                    <p>Add or remove currency directly with optional audit notes across target ranges.</p>
 
-                <div class="attribution-item">
-                    <h3>Repository</h3>
-                    <p><a href="https://github.com/enVId-tech/B-Bucks-Economy-Scripts" target="_blank">GitHub: enVId-tech/B-Bucks-Economy-Scripts</a></p>
+                    <h3 id="hdr-tax-logic">Tax Calculations</h3>
+                    <p>Run automatic percentage reductions across target ranges while preserving exact floating point
+                        values.</p>
                 </div>
             </div>
-            <!-- Support Section -->
-            <div class="section-card">
-                <h2>Support & Issues</h2>
-                <p>For bug reports, feature requests, or general inquiries, please refer to the GitHub repository issues page.</p>
+
+            <!-- 3. INVESTMENT BANKING FILE -->
+            <div id="doc-investment" class="doc-section">
+                <div class="section-card">
+                    <h2>Investment Banking</h2>
+
+                    <h3 id="hdr-yield-rates">Yield Rates</h3>
+                    <p>Configures yield rates, recurring interest payouts, and user portfolios.</p>
+                </div>
             </div>
+
+            <!-- 4. CACHING FILE -->
+            <div id="doc-caching" class="doc-section">
+                <div class="section-card">
+                    <h2>Caching &amp; Performance</h2>
+
+                    <h3 id="hdr-cache-service">CacheService Strategy</h3>
+                    <p>Utilize CacheService to store processed matrix maps and eliminate redundant Sheet API read
+                        cycles.</p>
+                    <pre><code>const cache = CacheService.getScriptCache();
+const cachedData = cache.get("BALANCE_CACHE");</code></pre>
+
+                    <h3 id="hdr-range-selection">Direct Range Block Selection</h3>
+                    <p>Range operations target direct matrix arrays rather than hardcoded column indices across active
+                        sheets.</p>
+                </div>
+            </div>
+
+            <!-- 5. ATTRIBUTION FILE -->
+            <div id="doc-attribution" class="doc-section">
+                <div class="section-card">
+                    <h2 id="hdr-credits">Credits &amp; Attribution</h2>
+                    <p><strong>Developer:</strong> Erick Tran</p>
+                    <p><strong>Teacher:</strong> Mr. Banderas</p>
+                    <p><strong>License:</strong> MIT License</p>
+                </div>
+            </div>
+
         </div>
     </div>
+
+    <!-- Navigation & Expansion Controller -->
+    <script>
+        // Toggle folder expansion without affecting visible documents
+        function toggleNode(containerId, toggleId) {
+            const container = document.getElementById(containerId);
+            const toggle = document.getElementById(toggleId);
+            if (!container || !toggle) return;
+
+            container.classList.toggle('open');
+            toggle.classList.toggle('expanded');
+        }
+
+        // Open a file document and expand its internal header tree
+        function toggleFile(docId, childTreeId, toggleId, labelElement) {
+            // Expand file internal sub-headers in tree
+            if (childTreeId && toggleId) {
+                toggleNode(childTreeId, toggleId);
+            }
+
+            // Switch document view on the right panel
+            const sections = document.querySelectorAll('.doc-section');
+            sections.forEach(sec => sec.classList.remove('active'));
+
+            const targetDoc = document.getElementById(docId);
+            if (targetDoc) {
+                targetDoc.classList.add('active');
+            }
+
+            // Update highlighted node
+            const labels = document.querySelectorAll('.tree-label');
+            labels.forEach(lbl => lbl.classList.remove('active'));
+            if (labelElement) {
+                labelElement.classList.add('active');
+            }
+
+            // Scroll reader panel back to top
+            document.getElementById('docs-panel').scrollTop = 0;
+        }
+
+        // Navigate directly to an internal header within a file
+        function navigateToHeader(docId, headerId, labelElement) {
+            // Ensure parent file document is displayed first
+            const sections = document.querySelectorAll('.doc-section');
+            sections.forEach(sec => sec.classList.remove('active'));
+
+            const targetDoc = document.getElementById(docId);
+            if (targetDoc) {
+                targetDoc.classList.add('active');
+            }
+
+            // Update active label state in tree
+            const labels = document.querySelectorAll('.tree-label');
+            labels.forEach(lbl => lbl.classList.remove('active'));
+            if (labelElement) {
+                labelElement.classList.add('active');
+            }
+
+            // Scroll to target header section inside the right reading panel
+            const targetHeader = document.getElementById(headerId);
+            if (targetHeader) {
+                targetHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    </script>
 </body>
+
 </html>
