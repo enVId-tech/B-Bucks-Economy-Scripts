@@ -3,19 +3,31 @@
 <!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
 
 <!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
-<!-- This file contains the HTML styles for Historical Economic Analytics -->
+<!-- This file contains the HTML styles for the Historical Analytics page of the B-Bucks Economy Scripts project, providing a modernized light-theme interface for analyzing historical economic data. -->
 
 <style>
+    :root {
+        --bg-main: #f8fafc;
+        --bg-card: #ffffff;
+        --border-color: #e2e8f0;
+        --border-focus: #0366d6;
+        --text-primary: #0f172a;
+        --text-secondary: #64748b;
+        --text-label: #475569;
+        --accent-blue: #0366d6;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        --radius-md: 8px;
+        --radius-sm: 5px;
+    }
+
     * {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         box-sizing: border-box;
         user-select: none;
     }
 
-    input[type="text"],
-    input[type="number"],
-    input[type="date"],
-    select {
+    input, select, button {
         user-select: text;
     }
 
@@ -26,165 +38,190 @@
         flex-direction: column;
         height: 100vh;
         width: 100vw;
-        background: #fafbfc;
+        background: var(--bg-main);
+        color: var(--text-primary);
         overflow: hidden;
         font-size: 12px;
-        color: #24292e;
     }
 
+    /* Navigation Header Bar */
     .nav-header {
-        background: #fff;
-        border-bottom: 1px solid #e1e4e8;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
         display: flex;
-        gap: 0;
-        padding: 0;
+        gap: 4px;
+        padding: 6px 12px;
         overflow-x: auto;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        box-shadow: var(--shadow-sm);
+        z-index: 20;
     }
 
     .nav-link {
-        padding: 10px 14px;
-        border: none;
-        background: #fff;
-        color: #6a737d;
+        padding: 6px 12px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--text-secondary);
         cursor: pointer;
         font-size: 11px;
         font-weight: 500;
         text-decoration: none;
-        border-bottom: 2px solid transparent;
-        transition: all 0.15s;
+        transition: all 0.15s ease;
         white-space: nowrap;
         flex-shrink: 0;
     }
 
     .nav-link:hover {
-        color: #24292e;
-        background: #f6f8fa;
+        color: var(--text-primary);
+        background: #f1f5f9;
     }
 
     .nav-link.active {
-        color: #0366d6;
-        border-bottom-color: #0366d6;
+        color: #ffffff;
+        background: var(--accent-blue);
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(3, 102, 214, 0.2);
     }
 
+    /* Main Container */
     .main-content {
         display: flex;
         flex-direction: column;
         flex: 1;
         overflow: hidden;
         width: 100vw;
-        padding: 12px;
+        padding: 12px 16px;
         gap: 10px;
     }
 
-    .header {
-        background: #fff;
+    /* Header Container */
+    .header-bar {
+        background: var(--bg-card);
         padding: 10px 14px;
-        border-radius: 4px;
-        border: 1px solid #e1e4e8;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
     }
 
     .header-title {
         font-weight: 700;
-        font-size: 14px;
-        color: #24292e;
-        margin: 0 0 2px 0;
-        letter-spacing: 0.3px;
+        font-size: 15px;
+        color: var(--text-primary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     .header-subtitle {
-        font-size: 10px;
-        color: #6a737d;
-        margin: 0;
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin: 2px 0 0 0;
     }
 
-    .controls {
+    /* Controls Panel - Tight Single Row Configuration */
+    .controls-panel {
+        background: var(--bg-card);
+        padding: 10px 14px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
         display: flex;
-        flex-wrap: wrap;
+        flex-direction: row;
         align-items: flex-end;
-        gap: 8px;
-        background: #fff;
-        padding: 10px 12px;
-        border-radius: 4px;
-        border: 1px solid #e1e4e8;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        gap: 12px;
+        overflow-x: auto; /* Gracefully scrolls if screen width is constrained */
+        white-space: nowrap;
     }
 
     .control-group {
-        display: flex;
+        display: inline-flex;
         flex-direction: column;
-        gap: 3px;
-        flex: 2;
-        min-width: 180px;
-    }
-
-    .control-group-narrow {
-        flex: 1;
-        min-width: 120px;
+        gap: 4px;
+        flex: 0 0 auto; /* Keeps elements constrained strictly to content width */
     }
 
     .control-group label {
-        font-size: 9px;
-        font-weight: 600;
-        color: #586069;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-label);
         text-transform: uppercase;
         letter-spacing: 0.4px;
     }
 
-    input, select {
-        width: 100%;
-        padding: 5px 8px;
-        border: 1px solid #e1e4e8;
-        border-radius: 3px;
-        font-size: 11px;
-        background: #fff;
-        color: #24292e;
-        transition: border 0.1s;
+    /* Content-fit sizing for multi-select and select boxes */
+    select[multiple] {
+        height: 76px;
+        min-width: 170px;
+        width: auto;
+        padding: 2px;
     }
 
-    select[multiple] {
-        height: 72px;
-        padding: 4px;
+    select[multiple] option {
+        padding: 3px 6px;
+        border-radius: 3px;
+        margin-bottom: 1px;
+    }
+
+    select[multiple] option:checked {
+        background: var(--accent-blue) linear-gradient(0deg, var(--accent-blue) 0%, var(--accent-blue) 100%);
+        color: #ffffff;
+    }
+
+    /* Fit-to-text width for inputs & standard dropdowns */
+    input[type="date"], select:not([multiple]) {
+        width: auto;
+        min-width: 130px;
+        padding: 6px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        background: #ffffff;
+        color: var(--text-primary);
+        transition: all 0.15s ease;
     }
 
     input:focus, select:focus {
         outline: none;
-        border-color: #0366d6;
-        box-shadow: inset 0 0 0 1px #0366d6;
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.15);
     }
 
-    .btn-clear {
-        color: #24292e;
-        background: #eff3f6;
-        background-image: linear-gradient(-180deg, #fafbfc 0%, #eff3f6 90%);
-        border: 1px solid rgba(27, 31, 35, 0.2);
-        padding: 6px 12px;
-        border-radius: 3px;
+    /* Reset Button */
+    .btn-reset {
+        color: var(--text-primary);
+        background: #f8fafc;
+        background-image: linear-gradient(-180deg, #ffffff 0%, #f1f5f9 100%);
+        border: 1px solid var(--border-color);
+        padding: 6px 14px;
+        border-radius: var(--radius-sm);
         font-weight: 600;
         cursor: pointer;
-        font-size: 11px;
-        transition: all 0.15s;
-        height: 27px;
-        white-space: nowrap;
+        font-size: 12px;
+        transition: all 0.15s ease;
+        height: 31px;
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .btn-clear:hover {
-        background: #e6ebf1;
-        background-image: linear-gradient(-180deg, #f0f3f6 0%, #e6ebf1 90%);
-        border-color: rgba(27, 31, 35, 0.35);
+    .btn-reset:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
     }
 
-    .card {
-        background: #fff;
-        border-radius: 4px;
-        border: 1px solid #e1e4e8;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Main Chart Canvas Card */
+    .chart-card {
+        background: var(--bg-card);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-md);
         flex: 1;
         display: flex;
         flex-direction: column;
         position: relative;
-        padding: 12px;
+        padding: 14px;
         overflow: hidden;
     }
 
@@ -192,29 +229,33 @@
         position: relative;
         width: 100%;
         height: 100%;
-        min-height: 250px;
+        min-height: 280px;
     }
 
-    .loading-indicator {
-        display: none;
+    /* Loading Overlay */
+    .loading-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(2px);
+        display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        padding: 8px;
-        background: #f6f8fa;
-        border-radius: 3px;
-        border: 1px solid #e1e4e8;
-        font-size: 11px;
-        color: #586069;
+        gap: 10px;
+        z-index: 30;
+        border-radius: var(--radius-md);
+        color: var(--text-secondary);
+        font-size: 12px;
     }
 
     .loading-spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e1e4e8;
-        border-top: 2px solid #0366d6;
+        width: 24px;
+        height: 24px;
+        border: 2.5px solid var(--border-color);
+        border-top: 2.5px solid var(--accent-blue);
         border-radius: 50%;
-        animation: spin 0.8s linear infinite;
+        animation: spin 0.7s linear infinite;
     }
 
     @keyframes spin {

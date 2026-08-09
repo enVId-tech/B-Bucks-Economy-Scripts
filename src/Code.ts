@@ -47,7 +47,7 @@ function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of
 function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - Credits & Docs", 400, 600) }
 
 /** Opens a dialog for viewing historical analytics, allowing users to analyze past economic data and trends. The dialog fetches data from the "Historical Economic Recordbook" sheet and presents it in a structured format for client-side chart parsing. */
-function openHistoricalAnalytics(): void { launchModelessDialog('HistoricalAnalytics', "Bank of Banderas - Historical Analytics", 700, 600) }
+function openHistoricalAnalytics(): void { launchModelessDialog('HistoricalAnalytics', "Bank of Banderas - Historical Analytics", 700, 800) }
 
 /** A placeholder function for menu items that are not yet implemented. */
 function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!") }
