@@ -261,7 +261,7 @@
                                 <label for="${id}">${formatLabel(id)}</label>
                             </div>
                             `;
-                        } else {
+                        } else if (typeof value === 'number') {
                             const isRate = id.toLowerCase().includes('rate');
                             // Convert decimal (0.1) to user-friendly percentage (10) for the UI
                             const displayValue = (isRate && typeof value === 'number') ? (value * 100) : value;
@@ -270,6 +270,11 @@
                                 <label for="${id}">${formatLabel(id)}</label>
                                 <input type="number" id="${id}" value="${displayValue ?? ''}" 
                                 step="${isRate ? '0.01' : '1'}" min="0">
+                                `;
+                        } else if (typeof value === 'string') {
+                            cardContentHtml += `
+                                <label for="${id}">${formatLabel(id)}</label>
+                                <input type="text" id="${id}" value="${value ?? ''}">
                                 `;
                         }
                     });

@@ -46,16 +46,46 @@ interface Limits {
     expendituresMaximum: number;
 }
 
+interface AdvancedTechnicalSettings {
+    namesCol: number;
+    balanceCol: number;
+    earningsCol: number;
+    netIncomeCol: number;
+    expendituresCol: number;
+    investmentReturnsCol: number;
+    initialDepositCol: number;
+    timeDepositCol: number;
+    grossInvestmentGainCol: number;
+    netInvestmentGainCol: number;
+    netPercentageGainCol: number;
+    defaultServicesSheet: string;
+    servicesRowStart: number;
+    defaultSettingsSheet: string;
+    settingsRowStart: number;
+    defaultTransactionsSheet: string;
+    transactionsRowStart: number;
+    fillStartingCell: string;
+    fillSheetCellName: string;
+    defaultHistoricalRecordsSheet: string;
+    historicalRecordsRowStart: number;
+    metricDataStartCol: number;
+    periodColIndex: number;
+    headerRowIndex: number;
+    sheetNamePattern: string;
+    timestampCell: string;
+}
+
 interface SettingsData {
     importantDates: ImportantDates;
     standardPercentages: StandardPercentages;
     mandatedPolicies: MandatedPolicies;
     ledgersAndRecords: LedgersAndRecords;
     limits: Limits;
+    advancedTechnicalSettings: AdvancedTechnicalSettings;
 }
 
 type SettingsSectionKey = keyof SettingsData;
-type SettingsPropertyMap = ImportantDates & StandardPercentages & MandatedPolicies & LedgersAndRecords & Limits;
+type SettingsPropertyMap = ImportantDates & StandardPercentages & MandatedPolicies & LedgersAndRecords & Limits & AdvancedTechnicalSettings;
 type SettingsPropertyKey = keyof SettingsPropertyMap;
 
 /**
@@ -150,6 +180,12 @@ function fetchSettingsData(): SettingsData | { error: string } {
                     } else if (typeof val === 'number' && !isNaN(val)) {
                         // Handle absolute numeric handling
                         val = Number(val);
+                    } else if (typeof val === 'string' && !isNaN(Number(val))) {
+                        // If the value is a string that can be converted to a number, convert it
+                        val = Number(val);
+                    } else if (val === 'string') {
+                        // Handle string values that are explicitly set as 'string'
+                        val = String(val);
                     }
 
                     resultObject[cleanKey] = val;
@@ -164,6 +200,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
             mandatedPolicies: extractSettings(Object.keys(SETTINGS_COLUMNS)[2]) as MandatedPolicies,
             ledgersAndRecords: extractSettings(Object.keys(SETTINGS_COLUMNS)[3]) as LedgersAndRecords,
             limits: extractSettings(Object.keys(SETTINGS_COLUMNS)[4]) as Limits,
+            advancedTechnicalSettings: extractSettings(Object.keys(SETTINGS_COLUMNS)[5]) as AdvancedTechnicalSettings,
         };
     } catch (err: any) {
         log(`Error in fetchSettingsData: ${err.message}`, true);
@@ -207,7 +244,7 @@ function fetchProperty(propertyKey: SettingsPropertyKey): string | { error: stri
  */
 function setSettingsProperty(data: any): boolean {
     const parseResult = typeof data === 'string' ? JSON.parse(data) : data;
-    // Key is the column identifer for the setting (importantDates, standardPercentages, mandatedPolicies, ledgersAndRecords, limits)
+    // Key is the column identifer for the setting (importantDates, standardPercentages, mandatedPolicies, ledgersAndRecords, limits, advancedTechnicalSettings)
     // Property value is every setting within that column as an object (e.g. { incomeTaxRate: 0.1, weeklyInterestRate: 0.02 } for standardPercentages)
     const { propertyKey, propertyValue } = parseResult;
 
@@ -306,7 +343,7 @@ function applyIncomeTaxRateToAll(): boolean {
         const incomeTaxRateResult = fetchProperty("incomeTaxRate");
         if (typeof incomeTaxRateResult === 'object' && 'error' in incomeTaxRateResult) {
             log(`Failed to fetch income tax rate: ${incomeTaxRateResult.error}`, true);
-            return false;   
+            return false;
         }
 
         const incomeTaxRate = parseFloat(incomeTaxRateResult);
