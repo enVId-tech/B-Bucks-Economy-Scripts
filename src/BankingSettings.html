@@ -48,7 +48,12 @@
 
         <!-- Content -->
         <div class="content">
+
             <div id="dynamicSettingsContainer">
+                <div class="loading-indicator" id="loadingSettingsIndicator">
+                    <div class="loading-spinner"></div>
+                    <span>Loading sheet settings and actions...</span>
+                </div>
                 <!-- Dynamic content will be injected here based on server data -->
             </div>
 
@@ -77,7 +82,8 @@
                 </div>
 
                 <label class="label-normal"><strong>Reset All</strong></label>
-                <button class="btn btn-danger" id="resetAllBtn" onclick="callServer('resetAll')">Reset ALL Sheets</button>
+                <button class="btn btn-danger" id="resetAllBtn" onclick="callServer('resetAll')">Reset ALL
+                    Sheets</button>
                 <div class="btn-group">
                     <button class="btn btn-danger" id="resetAllMoneyBtn" onclick="callServer('resetAllMoney')">Reset
                         All Money</button>
@@ -98,7 +104,8 @@
                     <button class="btn btn-danger" id="resetReturnsBtn"
                         onclick="callServer('resetColumn', { column: 'INVESTMENT_RETURNS' })">Returns</button>
                 </div>
-                <button class="btn btn-danger" id="resetInitDepBtn" onclick="callServer('resetColumn', { column: 'INITIAL_DEPOSIT' })">Init Dep &
+                <button class="btn btn-danger" id="resetInitDepBtn"
+                    onclick="callServer('resetColumn', { column: 'INITIAL_DEPOSIT' })">Init Dep &
                     Date Deposited (Investments)</button>
 
                 <div class="warning-box warning-box-hidden" id="resetWarning">
