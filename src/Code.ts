@@ -44,7 +44,7 @@ function openBankingSettings(): void { launchModelessDialog('BankingSettings', "
 function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of Banderas - Fill Sheet", 350, 500) }
 
 /** Opens a dialog displaying documentation and attribution information for the B-Bucks Economy Scripts project, including details about the author, client, and GitHub repository. */
-function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - Credits & Docs", 400, 600) }
+function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - User & Technical Documentation, Attribution", 800, 600) }
 
 /** Opens a dialog for viewing historical analytics, allowing users to analyze past economic data and trends. The dialog fetches data from the "Historical Economic Recordbook" sheet and presents it in a structured format for client-side chart parsing. */
 function openHistoricalAnalytics(): void { launchModelessDialog('HistoricalAnalytics', "Bank of Banderas - Historical Analytics", 700, 800) }
