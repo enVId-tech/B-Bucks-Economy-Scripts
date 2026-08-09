@@ -19,6 +19,7 @@ function onOpen(): void {
     .addSeparator()
     .addItem('View Transactions Records', 'openTransactionsRecords')
     .addItem('Banking Settings', 'openBankingSettings')
+    .addItem('View Historical Analytics', 'openHistoricalAnalytics')
     .addSeparator()
     .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
@@ -44,6 +45,9 @@ function importStudentNames(): void { launchModelessDialog('FillSheet', "Bank of
 
 /** Opens a dialog displaying documentation and attribution information for the B-Bucks Economy Scripts project, including details about the author, client, and GitHub repository. */
 function openDocumentation(): void { launchModelessDialog('DocsAttribution', "Bank of Banderas - Credits & Docs", 400, 600) }
+
+/** Opens a dialog for viewing historical analytics, allowing users to analyze past economic data and trends. The dialog fetches data from the "Historical Economic Recordbook" sheet and presents it in a structured format for client-side chart parsing. */
+function openHistoricalAnalytics(): void { launchModelessDialog('HistoricalAnalytics', "Bank of Banderas - Historical Analytics", 700, 600) }
 
 /** A placeholder function for menu items that are not yet implemented. */
 function placeholderFunction(): void { SpreadsheetApp.getUi().alert("This function is not yet implemented. Check back later!") }
