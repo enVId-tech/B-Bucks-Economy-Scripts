@@ -65,7 +65,10 @@ const SHEET_CELL_NAME: string = "A2";
 // -- Historical Records Sheet ---
 const DEFAULT_HISTORICAL_RECORDS_SHEET: string = "Economic Records";
 const HISTORICAL_RECORDS_ROW_START: number = 11;
-
+const METRIC_DATA_START_COL: number = 3;
+const PERIOD_COL_INDEX: number = 2;
+const HEADER_ROW_INDEX: number = 2;
+const SHEET_NAME_PATTERN: string = "records";
 
 // -- Timestamp Sheets --
 const TIMESTAMP_LIST: string[] = [
