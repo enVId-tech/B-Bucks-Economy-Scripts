@@ -126,8 +126,8 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
                 const priceVal = rowValues[pricingCols[i] - minCol];
                 const limitVal = rowValues[limitCols[i] - minCol];
 
-                if (priceVal !== "") pricing[quarterKey] = Number(priceVal.toFixed(2));
-                if (limitVal !== "") limit[quarterKey] = Number(limitVal.toFixed(2));
+                if (priceVal !== "") pricing[quarterKey] = Number(priceVal);
+                if (limitVal !== "") limit[quarterKey] = Number(limitVal);
             }
 
             // Only include items that have a name, category, and at least one pricing
