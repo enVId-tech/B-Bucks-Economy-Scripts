@@ -274,11 +274,11 @@
 
             if (!transactions.length) {
                 logContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">🔎</div>
-                <div>No transactions match the current filters.</div>
-            </div>
-        `;
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔎</div>
+                        <div>No transactions match the current filters.</div>
+                    </div>
+                `;
                 updateUndoButtonState();
                 document.getElementById('loadingIndicatorTransactions').style.display = 'none';
                 return;
