@@ -3,7 +3,7 @@
 <!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
 
 <!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
-<!-- This file contains the HTML structure for Historical Economic Analytics, featuring interactive multi-metric and multi-period charting, range filtering, and custom axis scaling. -->
+<!-- This file contains the HTML structure for Historical Economic Analytics with dynamic backend header and sheet period integration. -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -39,7 +39,7 @@
         <!-- Header -->
         <div class="header">
             <h1 class="header-title">📉 Historical Economic Analytics</h1>
-            <p class="header-subtitle">Visualize multi-metric trends across periods, custom date spans, and monetary metrics</p>
+            <p class="header-subtitle">Visualize multi-metric trends dynamically across dynamic sheet records and columns</p>
         </div>
 
         <!-- Controls & Filters Panel -->
@@ -47,32 +47,14 @@
             <div class="control-group">
                 <label>Metric Columns (Multi-Select)</label>
                 <select id="metricSelect" multiple size="4" onchange="renderChart()">
-                    <option value="totalBalances" selected>Total Balances (Col C)</option>
-                    <option value="totalGross">Total Gross (Col D)</option>
-                    <option value="totalNet">Total Net (Col E)</option>
-                    <option value="totalDebt">Total Debt (Col F)</option>
-                    <option value="totalReturns">Total Returns (Col G)</option>
-                    <option value="totalInvested">Total Invested (Col H)</option>
-                    <option value="m1Mean">M1 Mean (Avg Balances) (Col J)</option>
-                    <option value="m2Mean">M2 Mean (Col K)</option>
-                    <option value="avgGross">Avg Gross (Col L)</option>
-                    <option value="avgNet">Avg Net (Col M)</option>
-                    <option value="avgDebt">Avg Debt (Col N)</option>
-                    <option value="avgReturns">Avg Returns (Col O)</option>
-                    <option value="avgInvested">Avg Invested (Col P)</option>
+                    <!-- Dynamically populated from sheet headers -->
                 </select>
             </div>
 
             <div class="control-group">
                 <label>Sheet / Period Scope (Multi-Select)</label>
                 <select id="periodSelect" multiple size="4" onchange="renderChart()">
-                    <option value="all" selected>All Periods Combined</option>
-                    <option value="Period 2">Period 2</option>
-                    <option value="Period 3">Period 3</option>
-                    <option value="Period 4">Period 4</option>
-                    <option value="Period 5">Period 5</option>
-                    <option value="Period 7">Period 7</option>
-                    <option value="Period 8">Period 8</option>
+                    <!-- Dynamically populated from sheet periods -->
                 </select>
             </div>
 
@@ -112,9 +94,9 @@
 
     <script>
         let rawRecordData = [];
+        let availableHeaders = [];
         let chartInstance = null;
 
-        // Distinct color definitions for multi-dataset rendering
         const chartColors = [
             '#0366d6', // Blue
             '#28a745', // Green
@@ -131,18 +113,22 @@
             loadHistoricalData();
         });
 
-        /** Fetches raw historical records from the Google Apps Script backend engine */
+        /** Fetches raw historical records & dynamic header metrics from backend */
         function loadHistoricalData() {
             document.getElementById('loadingIndicator').style.display = 'flex';
 
             callServer('fetchHistoricalRecordbookData', null, (response) => {
                 try {
                     const parsed = typeof response === 'string' ? JSON.parse(response) : response;
-                    if (Array.isArray(parsed)) {
-                        rawRecordData = parsed;
+                    
+                    if (parsed && Array.isArray(parsed.records)) {
+                        rawRecordData = parsed.records;
+                        availableHeaders = parsed.headers || [];
+
+                        populateDynamicDropdowns();
                         renderChart();
                     } else {
-                        console.error("Invalid historical record data format:", response);
+                        console.error("Invalid historical record data structure:", response);
                     }
                 } catch (e) {
                     console.error("Failed to parse historical data payload:", e);
@@ -155,12 +141,45 @@
             });
         }
 
-        /** Retrieves an array of all selected values from a multi-select element */
+        /** Builds metric and period dropdown options based on backend metadata */
+        function populateDynamicDropdowns() {
+            const metricSelect = document.getElementById('metricSelect');
+            metricSelect.innerHTML = '';
+
+            // Populate Metric Columns
+            availableHeaders.forEach((hdr, idx) => {
+                const opt = document.createElement('option');
+                opt.value = hdr.key;
+                opt.textContent = hdr.label;
+                if (idx === 0) opt.selected = true; // Default to first available metric
+                metricSelect.appendChild(opt);
+            });
+
+            // Populate Periods Dynamically
+            const periodSelect = document.getElementById('periodSelect');
+            periodSelect.innerHTML = '';
+
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Periods Combined';
+            allOpt.selected = true;
+            periodSelect.appendChild(allOpt);
+
+            const periodSet = new Set();
+            rawRecordData.forEach(r => { if (r.sheet) periodSet.add(r.sheet); });
+
+            Array.from(periodSet).sort().forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                periodSelect.appendChild(opt);
+            });
+        }
+
         function getSelectedValues(selectElement) {
             return Array.from(selectElement.selectedOptions).map(option => option.value);
         }
 
-        /** Filters raw records according to active date bounds */
         function getFilteredRecordsByDate() {
             const fromDateVal = document.getElementById('filterFromDate').value;
             const toDateVal = document.getElementById('filterToDate').value;
@@ -175,22 +194,22 @@
             });
         }
 
-        /** Constructs and updates the Chart.js visual canvas element with dynamic multi-line scaling */
+        /** Constructs dynamic multi-line Chart.js canvas */
         function renderChart() {
             const dateFilteredRecords = getFilteredRecordsByDate();
-            
-            // Get selected metrics (default to 'totalBalances' if none chosen)
-            let selectedMetrics = getSelectedValues(document.getElementById('metricSelect'));
-            if (!selectedMetrics.length) selectedMetrics = ['totalBalances'];
+            const metricSelectEl = document.getElementById('metricSelect');
 
-            // Get selected periods (default to 'all' if none chosen)
+            let selectedMetrics = getSelectedValues(metricSelectEl);
+            if (!selectedMetrics.length && availableHeaders.length > 0) {
+                selectedMetrics = [availableHeaders[0].key];
+            }
+
             let selectedPeriods = getSelectedValues(document.getElementById('periodSelect'));
             if (!selectedPeriods.length) selectedPeriods = ['all'];
 
             const scaleType = document.getElementById('scaleSelect').value || 'linear';
-            const metricSelectEl = document.getElementById('metricSelect');
 
-            // Extract unique sorted dates (oldest to newest)
+            // Gather chronological unique dates
             const dateSet = new Set();
             dateFilteredRecords.slice().reverse().forEach(item => {
                 dateSet.add(item.dateStr || item.date);
@@ -200,16 +219,13 @@
             const datasets = [];
             let colorIndex = 0;
 
-            // Generate datasets based on selections
             selectedPeriods.forEach(period => {
-                // Determine whether to filter by specific sheet or include all
                 const periodRecords = dateFilteredRecords.filter(rec => period === 'all' || rec.sheet === period);
 
                 selectedMetrics.forEach(metricKey => {
                     const optionEl = metricSelectEl.querySelector(`option[value="${metricKey}"]`);
                     const metricLabel = optionEl ? optionEl.text : metricKey;
                     
-                    // Build label depending on whether multiple periods or metrics are active
                     let datasetLabel = metricLabel;
                     if (selectedPeriods.length > 1 && period !== 'all') {
                         datasetLabel = `${period} - ${metricLabel}`;
@@ -217,13 +233,19 @@
                         datasetLabel = `${period} (${metricLabel})`;
                     }
 
-                    // Map values across chronological date labels
                     const dataPoints = labels.map(labelDate => {
                         const matchingItems = periodRecords.filter(r => (r.dateStr || r.date) === labelDate);
                         if (!matchingItems.length) return null;
 
-                        const sum = matchingItems.reduce((acc, curr) => acc + (Number(curr[metricKey]) || 0), 0);
-                        return +(sum / matchingItems.length).toFixed(2);
+                        // Aggregate valid numeric records
+                        const validVals = matchingItems
+                            .map(m => m.metrics ? m.metrics[metricKey] : null)
+                            .filter(v => v !== null && v !== undefined && !isNaN(v));
+
+                        if (validVals.length === 0) return null; // Pre-existing date cutoff
+
+                        const sum = validVals.reduce((acc, curr) => acc + curr, 0);
+                        return +(sum / validVals.length).toFixed(2);
                     });
 
                     const color = chartColors[colorIndex % chartColors.length];
@@ -233,14 +255,14 @@
                         label: datasetLabel,
                         data: dataPoints,
                         borderColor: color,
-                        backgroundColor: `${color}15`, // Light transparent fill
+                        backgroundColor: `${color}15`,
                         borderWidth: 2,
                         fill: false,
                         tension: 0.2,
                         pointRadius: 2,
                         pointHoverRadius: 5,
                         pointBackgroundColor: color,
-                        spanGaps: true
+                        spanGaps: true // Gracefully handles padded/cutoff timeline gaps
                     });
                 });
             });
@@ -286,7 +308,10 @@
                             bodyFont: { size: 11 },
                             padding: 8,
                             callbacks: {
-                                label: (context) => `${context.dataset.label}: $${(context.raw || 0).toLocaleString()}`
+                                label: (context) => {
+                                    const val = context.raw;
+                                    return `${context.dataset.label}: ${val !== null ? '$' + val.toLocaleString() : 'N/A'}`;
+                                }
                             }
                         }
                     }
@@ -298,10 +323,7 @@
             const metricSelect = document.getElementById('metricSelect');
             const periodSelect = document.getElementById('periodSelect');
 
-            // Reset metric selection to first item
             Array.from(metricSelect.options).forEach((opt, idx) => opt.selected = (idx === 0));
-            
-            // Reset period selection to 'all'
             Array.from(periodSelect.options).forEach((opt, idx) => opt.selected = (idx === 0));
 
             document.getElementById('scaleSelect').selectedIndex = 0;
