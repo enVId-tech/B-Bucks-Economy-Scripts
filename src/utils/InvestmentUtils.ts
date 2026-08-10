@@ -237,8 +237,8 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
         const periodDataArray = fetchInvestmentsLedgerData();
         if ('error' in periodDataArray) return false;
 
-        const interestRateProp = fetchProperty("weeklyInterestRate");
-        const taxRateProp = fetchProperty("investmentWithdrawalTaxRate");
+        const interestRateProp = fetchProperty("weeklyInterestRate", "standardPercentages");
+        const taxRateProp = fetchProperty("investmentWithdrawalTaxRate", "standardPercentages");
 
         if ((typeof interestRateProp === 'object' && 'error' in interestRateProp) ||
             (typeof taxRateProp === 'object' && 'error' in taxRateProp)) {

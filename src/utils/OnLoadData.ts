@@ -73,6 +73,7 @@ function setCachedData(cacheKey: string, data: any): boolean {
         return false;
     }
 }
+
 /**
  * Launches a modeless dialog in the Google Sheets UI using a specified HTML template. The dialog is populated with initial data fetched from the cache, which includes individuals, services, settings, and transactions. The function takes parameters for the template name, dialog title, and dimensions (width and height) to customize the appearance of the dialog. This utility function centralizes the logic for opening various dialogs across the application, ensuring consistency in how data is passed and how dialogs are displayed.
  * @param templateName The name of the HTML template file (without the .html extension) to use for the dialog's content. This should correspond to a file in the project's HTML directory, such as "BalanceManager", "InvestmentsManager", etc.
@@ -178,13 +179,6 @@ function clearServerCacheValue(key: string): boolean {
  */
 function bulkUpdateTimestamps(): void {
     try {
-        const settings: SettingsData | { error: string } = fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
-
-        if (!settings || typeof settings === 'string' || 'error' in settings) {
-            log(`Failed to fetch settings data for timestamp update: ${typeof settings === 'string' ? settings : (settings as { error: string }).error}`, true);
-            return;
-        }
-
         // Update the timestamp first in the timestamp cell
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
         // Get all sheets that are in the timestamp list constant
@@ -239,15 +233,7 @@ function updateTimestamps() {
  * @returns {void} This function does not return a value. It performs operations on the Google Sheets document to update the historical records.
  */
 function recordDailyData(): void {
-    // Fetch settings data
-    const settings: SettingsData | { error: string } = fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
-
-    if (!settings || typeof settings === 'string' || 'error' in settings) {
-        log(`Failed to fetch settings data for daily economics recording: ${typeof settings === 'string' ? settings : (settings as { error: string }).error}`, true);
-        return;
-    }
-
-    const logDaily = settings && typeof settings !== 'string' && settings.ledgersAndRecords && settings.ledgersAndRecords.logBankingDaily;
+    const logDaily = fetchProperty("logBankingDaily", "ledgersAndRecords");
 
     // Guard against paused executions if global flag exists
     if (logDaily === false) {
