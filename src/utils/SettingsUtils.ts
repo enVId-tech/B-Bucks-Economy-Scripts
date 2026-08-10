@@ -212,13 +212,27 @@ function fetchSettingsData(): SettingsData | { error: string } {
     }
 }
 
-function fetchProperty(propertyKey: SettingsPropertyKey): string | { error: string } {
+/**
+ * Fetches a specific property from the settings data.
+ * @param propertyKey The key of the property to fetch.
+ * @param propertySection The section of the settings data to search in.
+ * @returns The value of the property or an error object if it's not found.
+ */
+function fetchProperty(propertyKey: SettingsPropertyKey, propertySection?: keyof SettingsData): string | { error: string } {
     try {
         const settings = fetchSettingsDataCached();
 
         if ('error' in settings) {
             log(`Failed to fetch settings data: ${settings.error}`, false);
             return { error: `Failed to fetch settings data: ${settings.error}` };
+        }
+
+        // If a specific section is provided, check that section first
+        if (propertySection) {
+            const section = settings[propertySection];
+            if (section && typeof section === 'object' && propertyKey in section) {
+                return String((section as any)[propertyKey]);
+            }
         }
 
         // Search through each inner configuration section group
