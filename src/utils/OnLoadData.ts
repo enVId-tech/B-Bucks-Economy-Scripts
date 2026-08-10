@@ -172,9 +172,60 @@ function clearServerCacheValue(key: string): boolean {
     }
 }
 
-function updateTimestamps(): void {
+/**
+ * Updates the timestamp in the A5 cell of each period sheet to reflect the last time the sheet was modified.
+ * @returns {void} This function does not return a value.
+ */
+function bulkUpdateTimestamps(): void {
     try {
+        const settings: SettingsData | { error: string } = fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
 
+        if (!settings || typeof settings === 'string' || 'error' in settings) {
+            log(`Failed to fetch settings data for timestamp update: ${typeof settings === 'string' ? settings : (settings as { error: string }).error}`, true);
+            return;
+        }
+
+        // Update the timestamp first in the timestamp cell
+        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        // Get all sheets that are in the timestamp list constant
+        const sheetsToUpdate = spreadsheet.getSheets().filter(sheet => {
+            return TIMESTAMP_LIST.includes(sheet.getName());
+        });
+
+        sheetsToUpdate.forEach(sheet => {
+            const cell = sheet.getRange(TIMESTAMP_CELL);
+
+            // get the person that last modified the sheet
+            const currentUser = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+            const lastModifiedBy = currentUser ? ` by ${currentUser}` : '';
+
+            cell.setValue(`Last updated: ${new Date().toLocaleString()}${lastModifiedBy}`);
+        });
+    } catch (error: any) {
+        log(`Error in bulkUpdateTimestamps: ${error.message}`, true);
+    }
+}
+
+function updateTimestampForSheet(): void {
+    try {
+        const activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+        // Only update the timestamp if the active sheet is in the TIMESTAMP_LIST
+        if (TIMESTAMP_LIST.includes(activeSheet.getName())) {
+            const cell = activeSheet.getRange(TIMESTAMP_CELL);
+            const currentUser = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+            const lastModifiedBy = currentUser ? ` by ${currentUser}` : '';
+            cell.setValue(`Last updated: ${new Date().toLocaleString()}${lastModifiedBy}`);
+        }
+    } catch (error: any) {
+        log(`Error in updateTimestampForSheet: ${error.message}`, true);
+    }
+}
+
+function updateTimestamps() {
+    try {
+        // Update the timestamp for all sheets
+        bulkUpdateTimestamps();
+        refreshAllInvestments();
     } catch (error: any) {
         log(`Error in updateTimestamps: ${error.message}`, true);
     }
