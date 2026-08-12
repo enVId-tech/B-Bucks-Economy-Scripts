@@ -52,11 +52,12 @@ function executeBalanceAction(payloadStr: string): string | void {
  * @param unitPrice The unit price to use in the operation. Must be a number.
  * @param quantity The quantity to use in the operation. Must be a number.
  * @param isManualTransaction Whether the transaction is manual or not.
- * @param transactionReason (Optional) The reason for the transaction, which can be recorded in the transaction records for auditing purposes. If not provided, it will default to "Not Specified".
- * @param range (Optional) The range of cells to which the operation will be applied. If not provided, the currently active range will be used.
- * @param fixedRow (Optional) If provided, the operation will only be applied to this specific row across all selected columns.
- * @param fixedCol (Optional) If provided, the operation will only be applied to this specific column across all selected rows.
- * @returns {string | boolean} Returns true if the operation was successful, false otherwise.
+ * @param transactionReason (Optional) The reason for the transaction. Defaults to "Not Specified".
+ * @param range (Optional) The range of cells to apply the operation to. If not provided, uses active range list.
+ * @param commentOnExpenditures Whether to leave expenditure notes on affected rows. Defaults to false.
+ * @param fixedRow (Optional) Target specific row across selected columns.
+ * @param fixedCol (Optional) Target specific column across selected rows.
+ * @returns {string | boolean} Returns true if the operation was successful, string error otherwise.
  */
 function applyMathToSelection(
   operation: Operation | string,
@@ -70,7 +71,7 @@ function applyMathToSelection(
   fixedCol?: number
 ): string | boolean {
   try {
-    // must explicitly include undefined check because isManualTransaction is a boolean so it will always evaluate as its boolean value if you check if !isManualTranscation.
+    // must explicitly include undefined check because isManualTransaction is a boolean
     if (
       operation === undefined ||
       unitPrice === undefined ||
@@ -92,11 +93,9 @@ function applyMathToSelection(
     }
 
     // Absolutely ENSURE there is no floating point precision issues
-    // god damn floating point issues kms
     const value = Number((unitPrice * quantity).toFixed(2));
 
     // Ensure the operation is in an enum format
-    // Edge case handling
     let normalMapping: Operation;
     if (typeof operation === 'string') {
       normalMapping = {
@@ -109,12 +108,13 @@ function applyMathToSelection(
       normalMapping = operation;
     }
 
-    if (!Object.values(Operation).includes(normalMapping)) {
+    if (!normalMapping || !Object.values(Operation).includes(normalMapping)) {
       log("Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.", true);
       return "Invalid operation. Must be one of ADD, SUBTRACT, MULTIPLY, or DIVIDE.";
     }
 
-    if (operation === Operation.DIVIDE && value === 0) {
+    // Fix: check normalized mapping instead of raw parameter string
+    if (normalMapping === Operation.DIVIDE && value === 0) {
       log("You cannot divide by zero.", true);
       return "You cannot divide by zero.";
     }
@@ -128,345 +128,252 @@ function applyMathToSelection(
     };
 
     const operationFunc = operations[normalMapping];
-
     const transactionRecords: TransactionRecord[] = [];
     const NOT_ALLOWED_COLS: number[] = [
       NAMES_COL,
       BALANCE_COL,
       NET_INCOME_COL,
       DATE_DEPOSIT_COL
-    ]
+    ];
 
-    // First try the faster, API efficient method using the Sheets API, with error handling to fall back to the slower method
+    // Primary Execution Method: Batch via Sheets API
     try {
-      const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
-      if (!activeRangeList) {
-        log("No active range found. Please select cells to apply the operation to.", true);
-        return "No active range found. Please select cells to apply the operation to.";
+      let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
+      
+      if (range) {
+        rangesToProcess = [range];
+      } else {
+        const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+        if (!activeRangeList) {
+          log("No active range found. Please select cells to apply the operation to.", true);
+          return "No active range found. Please select cells to apply the operation to.";
+        }
+        rangesToProcess = activeRangeList.getRanges();
       }
 
-      const ranges = activeRangeList.getRanges();
-      const spreadsheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
       const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-
-      // Use the Sheets API to apply the operation to all cells in the active range list
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
+      const affectedRows: number[] = [];
 
-      ranges.forEach(range => {
-        const sheet = range.getSheet();
+      rangesToProcess.forEach(targetSubRange => {
+        const sheet = targetSubRange.getSheet();
         const sheetName = sheet.getName();
-        // Only get numeric characters out of sheetName
         const periodName = parseInt(sheetName.replace(/\D/g, ""), 10);
 
         // Calculate target dimensions based on selection and overrides
-        let startRow = range.getRow();
-        let numRows = range.getNumRows();
-        let startCol = range.getColumn();
-        let numCols = range.getNumColumns();
+        let startRow = targetSubRange.getRow();
+        let numRows = targetSubRange.getNumRows();
+        let startCol = targetSubRange.getColumn();
+        let numCols = targetSubRange.getNumColumns();
 
-        // If fixedRow is provided, explicitly target that single row while keeping the selected columns
         if (fixedRow !== undefined) {
           startRow = fixedRow;
           numRows = 1;
         }
 
-        // If fixedCol is provided, explicitly target that single column while keeping the selected rows
         if (fixedCol !== undefined) {
           startCol = fixedCol;
           numCols = 1;
         }
 
-        // Get the target range on the sheet and its corresponding A1 notation
         const targetRange = sheet.getRange(startRow, startCol, numRows, numCols);
         const targetA1 = targetRange.getA1Notation();
         const values = targetRange.getValues();
+
+        // Fetch Names and Balances in bulk for the affected row range to prevent API quota exhaustion
+        const namesInSheet = sheet.getRange(startRow, NAMES_COL, numRows, 1).getValues();
+        const balancesInSheet = sheet.getRange(startRow, BALANCE_COL, numRows, 1).getValues();
 
         log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
 
         const updatedValues = values.map((row, rowIndex) => {
           const absoluteRowIndex = startRow + rowIndex;
+          const individualName = namesInSheet[rowIndex][0];
+          const initialBalance = balancesInSheet[rowIndex][0];
 
           return row.map((cell, colIndex) => {
             const absoluteColIndex = startCol + colIndex;
 
             if (NOT_ALLOWED_COLS.includes(absoluteColIndex) && fixedCol === undefined) {
-              log(`Operation not allowed on column ${absoluteColIndex} in range ${sheetName}!${targetA1}. Skipping this cell.`, true);
-              return cell; // Return the original value if the column is not allowed
+              log(`Operation not allowed on column ${absoluteColIndex} in range ${sheetName}!${targetA1}. Skipping cell.`, true);
+              return cell;
             }
 
             if (typeof cell === 'number' && !isNaN(cell)) {
-              const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
+              if (initialBalance === undefined || initialBalance === null || isNaN(Number(initialBalance))) {
+                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping cell.`, true);
+                return cell;
+              }
 
-              if (balance === undefined || balance === null || isNaN(balance)) {
-                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                return cell; // Return the original value if balance is invalid
+              if (!individualName) {
+                log(`Individual name is missing for row ${absoluteRowIndex}. Skipping cell.`, true);
+                return cell;
               }
 
               const result = operationFunc(cell);
-
-              const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
-
-              if (!individualName) {
-                log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                return cell; // Return the original value if individual name is missing
-              }
-
-              // FIX: Dynamically compute target column index for multi-column iterations
-              const targetColumnIndex = absoluteColIndex;
-
-              const targetColumnInitValue = sheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
-
-              if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
-                log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                return cell; // Return the original value if target column initial value is invalid
-              }
-
-              const rawTenderedMoney = unitPrice * quantity;
-              const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
-
-              if (!tenderedMoney || isNaN(tenderedMoney)) {
-                log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                return cell; // Return the original value if tendered money is invalid
-              }
+              affectedRows.push(absoluteRowIndex);
 
               transactionRecords.push({
-                individual: individualName,
+                individual: String(individualName),
                 period: periodName || undefined,
-                type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
-                serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${isManualTransaction && transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`,
+                type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${isManualTransaction && transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`.trim(),
                 unitPrice: unitPrice,
                 quantity: quantity,
-                modifiedColumn: targetColumnIndex,
-                tenderedMoney: Number(tenderedMoney.toFixed(2)),
-                initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
+                modifiedColumn: absoluteColIndex,
+                tenderedMoney: value,
+                initialColumnAmount: Number(cell.toFixed(2)),
                 newColumnAmount: result,
-                initialBalance: Number(balance.toFixed(2)),
-                newBalance: 0,
+                initialBalance: Number(Number(initialBalance).toFixed(2)),
+                newBalance: 0, // Calculated post-flush
                 timestamp: new Date().toISOString()
               });
 
               return result;
             }
 
-            log(`Non-numeric value "${cell}" found in range ${sheetName}!${targetA1}. Skipping this cell.`, true);
-            return cell; // Return the original value if it's not a number
+            log(`Non-numeric value "${cell}" found in range ${sheetName}!${targetA1}. Skipping cell.`, true);
+            return cell;
           });
         });
 
-        // FIX: Match request range to targetA1 so Sheets API doesn't receive mismatched matrix payload
         requests.push({
           range: `${sheetName}!${targetA1}`,
           values: updatedValues
         });
       });
 
-
-      // Send ONE batchUpdate request to the Sheets API to update all ranges at once
-      if (requests.length > 0 && Sheets) {
+      if (requests.length > 0 && typeof Sheets !== 'undefined') {
         Sheets.Spreadsheets.Values.batchUpdate({
           valueInputOption: "USER_ENTERED",
           data: requests
         }, spreadsheetId);
       } else {
-        log("No valid ranges found to update.", true);
+        log("No valid ranges found or Sheets API not available.", true);
         return false;
       }
 
-      SpreadsheetApp.flush()
+      SpreadsheetApp.flush();
 
-      // Comment on the rows affected by the operation with the reason and amount, with error handling to ensure it doesn't interfere with the main operation if it fails
-      if (commentOnExpenditures) {
-        commentExpenditureOnSelection(ranges.flatMap(range => {
-          const startRow = range.getRow();
-          const numRows = range.getNumRows();
-          return Array.from({ length: numRows }, (_, i) => startRow + i);
-        }), `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`);
+      // Write expenditure notes if enabled
+      if (commentOnExpenditures && affectedRows.length > 0) {
+        const uniqueRows = [...new Set(affectedRows)];
+        commentExpenditureOnSelection(
+          uniqueRows, 
+          `$${Number(value.toFixed(2))} - ${new Date().toLocaleDateString("en-US")} ${transactionReason || "Manual Adjustment"}`
+        );
       }
 
-      // Get the new balance for the selected range after performing the operation
+      // Re-read updated balances post-flush
+      if (transactionRecords.length > 0) {
+        rangesToProcess.forEach(targetSubRange => {
+          const sheet = targetSubRange.getSheet();
+          const startRow = fixedRow !== undefined ? fixedRow : targetSubRange.getRow();
+          const numRows = fixedRow !== undefined ? 1 : targetSubRange.getNumRows();
+          
+          const updatedBalances = sheet.getRange(startRow, BALANCE_COL, numRows, 1).getValues();
 
-      const newBalancesRecords: number[] = [];
-
-      ranges.forEach(range => {
-        let values = range.getValues();
-
-        const startRowIndex = range.getRow();
-
-        values.map((row, rowIndex) => {
-          const absoluteRowIndex = startRowIndex + rowIndex;
-
-          return row.map(cell => {
-            if (typeof cell === 'number' && !isNaN(cell)) {
-              const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
-
-              if (balance === undefined || balance === null || isNaN(balance)) {
-                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                return cell; // Return the original value if balance is invalid
-              }
-              newBalancesRecords.push(Number(balance.toFixed(2)));
-              return cell;
+          transactionRecords.forEach((record, idx) => {
+            if (updatedBalances[idx] && updatedBalances[idx][0] !== undefined) {
+              record.newBalance = Number(Number(updatedBalances[idx][0]).toFixed(2));
             }
           });
         });
-      });
 
-      log(`New balances calculated: ${newBalancesRecords.join(", ")}`, false);
-
-      // Change the transaction balance property to the new calculated balance
-      transactionRecords.forEach((record: TransactionRecord, index: number) => {
-        record.newBalance = Number(newBalancesRecords[index].toFixed(2));
-      });
-
-      // After successfully applying the operations, add the transaction records
-      if (transactionRecords.length > 0) {
         addTransactionRecords(transactionRecords);
       }
 
       return true;
-    } catch (error: any) {
-      // Try using the slower, API heavy method if the faster Sheets API doesn't work, with error handling for both methods
-      log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`, true);
 
+    } catch (error: any) {
+      log(`Primary Sheets API execution failed, attempting fallback Apps Script path: ${error.message}`, true);
+
+      // Fallback Method: Standard SpreadsheetApp API
       try {
         let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
-
         if (range) {
-          rangesToProcess.push(range);
+          rangesToProcess = [range];
         } else {
           const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
           if (activeRangeList) {
             rangesToProcess = activeRangeList.getRanges();
           } else {
-            log("No active range found. Please select cells to apply the operation to.", true);
             return "No active range found. Please select cells to apply the operation to.";
           }
         }
 
-        // Apply the operation to each cell in each range, with error handling for non-numeric cells
         rangesToProcess.forEach(subRange => {
-          const values = subRange.getValues();
-          const targetSheet = subRange.getSheet();
-          const startRowIndex = subRange.getRow();
-          const startColIndex = subRange.getColumn();
+          const sheet = subRange.getSheet();
+          const startRow = fixedRow !== undefined ? fixedRow : subRange.getRow();
+          const numRows = fixedRow !== undefined ? 1 : subRange.getNumRows();
+          const startCol = fixedCol !== undefined ? fixedCol : subRange.getColumn();
+          const numCols = fixedCol !== undefined ? 1 : subRange.getNumColumns();
 
-          const periodName = parseInt(targetSheet.getName().replace(/\D/g, ""), 10);
+          const targetRange = sheet.getRange(startRow, startCol, numRows, numCols);
+          const values = targetRange.getValues();
+          const periodName = parseInt(sheet.getName().replace(/\D/g, ""), 10);
 
           const updatedValues = values.map((row, rowIndex) => {
-            const absoluteRowIndex = startRowIndex + rowIndex;
+            const absoluteRowIndex = startRow + rowIndex;
 
-            return row.map(cell => {
-              if (NOT_ALLOWED_COLS.includes(startColIndex) && fixedCol === undefined) {
-                log(`Operation not allowed on column ${startColIndex} in range ${targetSheet.getName()}!${subRange.getA1Notation()}. Skipping this cell.`, true);
-                return cell; // Return the original value if the column is not allowed
+            return row.map((cell, colIndex) => {
+              const absoluteColIndex = startCol + colIndex;
+
+              if (NOT_ALLOWED_COLS.includes(absoluteColIndex) && fixedCol === undefined) {
+                return cell;
               }
 
               if (typeof cell === 'number' && !isNaN(cell)) {
-                let balance = targetSheet.getRange(absoluteRowIndex, 2).getValue();
+                const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
+                const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+
+                if (!individualName || balance === undefined || isNaN(balance)) {
+                  return cell;
+                }
 
                 const result = operationFunc(cell);
 
-                log(`Applying operation "${normalMapping}" to cell "${cell}" resulted in "${result}".`, false);
-
-                // Absolutely ENSURE there is no floating point precision issues
-                const individualName = targetSheet.getRange(absoluteRowIndex, 1).getValue();
-
-                if (!individualName) {
-                  log(`Individual name is missing for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                  return cell; // Return the original value if individual name is missing
-                }
-
-                const targetColumnIndex = startColIndex;
-
-                if (targetColumnIndex === undefined || targetColumnIndex === null || isNaN(targetColumnIndex)) {
-                  log(`Target column index is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                  return cell; // Return the original value if target column index is invalid
-                }
-
-                const targetColumnInitValue = targetSheet.getRange(absoluteRowIndex, targetColumnIndex).getValue();
-
-                if (targetColumnInitValue === undefined || targetColumnInitValue === null || isNaN(targetColumnInitValue)) {
-                  log(`Target column initial value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                  return cell; // Return the original value if target column initial value is invalid
-                }
-
-                const rawTenderedMoney = unitPrice * quantity;
-                const tenderedMoney = Number(rawTenderedMoney.toFixed(2));
-
-                if (!tenderedMoney || isNaN(tenderedMoney)) {
-                  log(`Tendered money calculation is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                  return cell; // Return the original value if tendered money is invalid
-                }
-
-                // If the operation is applied on column 3
                 transactionRecords.push({
-                  individual: individualName,
+                  individual: String(individualName),
                   period: periodName || undefined,
-                  type: operation === Operation.ADD || operation === Operation.MULTIPLY ? "Income" : "Expense",
-                  serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`,
+                  type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                  serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`.trim(),
                   unitPrice: unitPrice,
                   quantity: quantity,
-                  modifiedColumn: targetColumnIndex,
-                  tenderedMoney: tenderedMoney,
-                  initialColumnAmount: Number(targetColumnInitValue.toFixed(2)),
+                  modifiedColumn: absoluteColIndex,
+                  tenderedMoney: value,
+                  initialColumnAmount: Number(cell.toFixed(2)),
                   newColumnAmount: result,
-                  initialBalance: Number(balance.toFixed(2)),
+                  initialBalance: Number(Number(balance).toFixed(2)),
                   newBalance: 0,
                   timestamp: new Date().toISOString()
                 });
 
                 return result;
               }
-              log(`Non-numeric value "${cell}" found in range ${subRange.getSheet().getName()}!${subRange.getA1Notation()}. Skipping this cell.`, true);
-              return cell; // Return the original value if it's not a number
+              return cell;
             });
           });
 
-          subRange.setValues(updatedValues);
-
-          // Update balance column for each row in the range
-          // Get the new balance for the selected range after performing the operation
-
-          // Update transaction records with new balances
-          const newBalancesRecords: number[] = [];
-
-          rangesToProcess.forEach(range => {
-            const values = range.getValues();
-
-            const startRowIndex = range.getRow();
-
-            values.map((row, rowIndex) => {
-              const absoluteRowIndex = startRowIndex + rowIndex;
-
-              return row.map(cell => {
-                if (typeof cell === 'number' && !isNaN(cell)) {
-                  const balance = range.getSheet().getRange(absoluteRowIndex, BALANCE_COL).getValue();
-
-                  if (balance === undefined || balance === null || isNaN(balance)) {
-                    log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                    return cell; // Return the original value if balance is invalid
-                  }
-                  newBalancesRecords.push(Number(balance.toFixed(2)));
-                  return cell;
-                }
-              });
-            });
-          });
-
-          // After successfully applying the operations, add the transaction records
-          if (transactionRecords.length > 0) {
-            addTransactionRecords(transactionRecords);
-          }
+          targetRange.setValues(updatedValues);
         });
-      } catch (error: any) {
-        log(`Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`, true);
-        return `Error occurred while applying the operation, trying a slower method. If this error persists, please contact the developer. Error details: ${error.message}`;
+
+        SpreadsheetApp.flush();
+
+        if (transactionRecords.length > 0) {
+          addTransactionRecords(transactionRecords);
+        }
+
+        return true;
+      } catch (fallbackError: any) {
+        log(`Fallback method failed: ${fallbackError.message}`, true);
+        return `Error occurred while applying the operation: ${fallbackError.message}`;
       }
     }
   } catch (error: any) {
     log(`Error occurred in applyMathToSelection: ${error.message}`, true);
     return error.message;
   }
-  return true;
 }
 
 /**
