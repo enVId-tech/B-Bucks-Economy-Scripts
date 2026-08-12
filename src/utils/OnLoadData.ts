@@ -38,25 +38,107 @@ function getCachedData(cacheKey: string): string | null {
 }
 
 /**
- * Centralized setter with mutex locking to prevent concurrent write collisions.
- * @param cacheKey The key for the cached data to update.
- * @param data The data to cache (will be JSON stringified).
- * @returns {boolean} True if successfully updated, false otherwise.
+ * Retrieves the current ordered list of cached keys (oldest to newest).
+ */
+function getCacheIndex(): string[] {
+    try {
+        const raw = PropertiesService.getScriptProperties().getProperty(CACHE_INDEX_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * Updates the cache key index, maintaining LRU order and enforcing MAX_CACHE_ENTRIES.
+ */
+function touchCacheIndex(key: string): void {
+    try {
+    const props = PropertiesService.getScriptProperties();
+    let index = getCacheIndex();
+
+    // Remove existing instance of key to push it to the end (most recent)
+    index = index.filter(k => k !== key && k !== CACHE_INDEX_KEY);
+    index.push(key);
+
+    // Evict oldest entries if total keys exceed MAX_CACHE_ENTRIES
+    while (index.length > MAX_CACHE_ENTRIES) {
+        const evictedKey = index.shift();
+        if (evictedKey) {
+            CacheService.getScriptCache().remove(evictedKey);
+            props.deleteProperty(evictedKey);
+            log(`Evicted oldest cache entry to enforce max capacity: ${evictedKey}`, false);
+        }
+    }
+
+    props.setProperty(CACHE_INDEX_KEY, JSON.stringify(index));
+} catch (err: any) {
+    log(`Failed to execute touchCacheIndex: ${err.message}.`, false);
+}
+}
+
+/**
+ * Safely caps payload size by truncating arrays to keep only the most recent items.
+ */
+function enforcePayloadSizeLimit(data: any, maxBytes: number = MAX_PROPERTY_BYTES): string {
+    let serialized = typeof data === 'string' ? data : JSON.stringify(data);
+
+    // If string fits under quota, return as-is
+    if (Utilities.newBlob(serialized).getBytes().length <= maxBytes) {
+        return serialized;
+    }
+
+    // If payload is an array (or parsed object containing an array), keep only most recent entries
+    try {
+        let parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+        if (Array.isArray(parsed)) {
+            while (parsed.length > 1 && Utilities.newBlob(JSON.stringify(parsed)).getBytes().length > maxBytes) {
+                // Remove oldest item from beginning of array
+                parsed.shift();
+            }
+            return JSON.stringify(parsed);
+        } else if (typeof parsed === 'object' && parsed !== null) {
+            // Optional: If object contains array fields (like a ledger), prune array properties
+            for (const key of Object.keys(parsed)) {
+                if (Array.isArray(parsed[key])) {
+                    while (parsed[key].length > 1 && Utilities.newBlob(JSON.stringify(parsed)).getBytes().length > maxBytes) {
+                        parsed[key].shift();
+                    }
+                }
+            }
+            return JSON.stringify(parsed);
+        }
+    } catch (error: any) {
+        log(`Failed to parse and truncate payload: ${error.message}`, true);
+    }
+
+    return serialized;
+}
+
+/**
+ * Centralized setter with mutex locking, byte-size bounds, and max entry eviction.
  */
 function setCachedData(cacheKey: string, data: any): boolean {
     try {
-        const serializedData = typeof data === 'string' ? data : JSON.stringify(data);
-        const lock = LockService.getScriptLock();
+        // Enforce payload size limits (prune to keep most recent entries)
+        const safePayload = enforcePayloadSizeLimit(data, MAX_PROPERTY_BYTES);
 
+        const lock = LockService.getScriptLock();
         const hasLock = lock.tryLock(WAIT_LOCK_TIME);
+        
         if (!hasLock) {
             log(`Failed to acquire lock for cache update on key ${cacheKey}`, true);
             return false;
         }
 
         try {
-            CacheService.getScriptCache().put(cacheKey, serializedData, SERVER_SIDE_CACHE_AGE);
-            PropertiesService.getScriptProperties().setProperty(cacheKey, serializedData);
+            // Save payload to CacheService and PropertiesService
+            CacheService.getScriptCache().put(cacheKey, safePayload, SERVER_SIDE_CACHE_AGE);
+            PropertiesService.getScriptProperties().setProperty(cacheKey, safePayload);
+
+            // Maintain key index and evict oldest keys if entry limit is exceeded
+            touchCacheIndex(cacheKey);
         } finally {
             lock.releaseLock();
         }
@@ -114,13 +196,21 @@ function setServerCacheValue(data: string): boolean {
     }
 }
 
+/**
+ * Clears specific keys and cleans up the key index.
+ */
 function clearGlobalCache(keys: string[]): boolean {
     try {
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
-        cache.removeAll(keys);
 
+        cache.removeAll(keys);
         keys.forEach(key => props.deleteProperty(key));
+
+        // Update tracking index
+        let index = getCacheIndex();
+        index = index.filter(k => !keys.includes(k));
+        props.setProperty(CACHE_INDEX_KEY, JSON.stringify(index));
 
         log(`Global Cache Pipeline cleared for keys: ${keys.join(", ")}`, false);
         return true;
@@ -129,7 +219,6 @@ function clearGlobalCache(keys: string[]): boolean {
         return false;
     }
 }
-
 function clearServerCacheValue(key: string): boolean {
     try {
         const cache = CacheService.getScriptCache();

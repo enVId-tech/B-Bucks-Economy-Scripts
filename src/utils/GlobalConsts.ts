@@ -19,6 +19,12 @@ const SETTINGS_CACHED_KEY: string = "cachedSettings";
 const TRANSACTIONS_CACHED_KEY: string = "cachedTransactions";
 const INVESTMENTS_LEDGER_CACHED_KEY: string = "cachedInvestmentsLedger";
 
+// DO NOT MODIFY THESE VALUES, IT WILL BREAK CACHING
+// Upper limits based on Apps Script Quotas
+const MAX_CACHE_ENTRIES = 50; // Maximum number of distinct key entries tracked
+const MAX_PROPERTY_BYTES = 8500; // ~8.5KB safety cap for PropertiesService (Quota is 9KB)
+const CACHE_INDEX_KEY = '__GLOBAL_CACHE_INDEX__'; // Key used to maintain insertion order / LRU
+
 // ----- Dynamic Settings - These values are fetched from the settings sheet and can be modified by the user -----
 
 // --- Main Sheet ---
