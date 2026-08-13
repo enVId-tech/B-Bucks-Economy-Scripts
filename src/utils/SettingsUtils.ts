@@ -152,10 +152,13 @@ function fetchSettingsData(): SettingsData | { error: string } {
 
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-        const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
+        const sheetName = (typeof DEFAULT_SETTINGS_SHEET !== 'undefined' && DEFAULT_SETTINGS_SHEET)
+            ? DEFAULT_SETTINGS_SHEET
+            : "Settings";
+        const settingsSheet = spreadsheet.getSheetByName(sheetName);
 
         if (!settingsSheet) {
-            log("Settings sheet not found.", true);
+            log("Settings sheet not found.", false);
             return { error: "Settings sheet not found." };
         }
 
@@ -208,7 +211,7 @@ function fetchSettingsData(): SettingsData | { error: string } {
             advancedTechnicalSettings: extractSettings(Object.keys(SETTINGS_COLUMNS)[5]) as AdvancedTechnicalSettings,
         };
     } catch (err: any) {
-        log(`Error in fetchSettingsData: ${err.message}`, true);
+        log(`Error in fetchSettingsData: ${err.message}`, false);
         return { error: `Error in fetchSettingsData: ${err.message}` };
     }
 }
