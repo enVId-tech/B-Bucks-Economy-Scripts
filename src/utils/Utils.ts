@@ -263,11 +263,23 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
 }
 
 /**
- * Stamps the last modified timestamp and the user who made the modification on the specified sheet. If no sheet is provided, it defaults to the active sheet. This function is intended to be used for sheets that are part of the TIMESTAMP_LIST, which should be defined elsewhere in the project.
- * @param targetSheet The Google Sheets sheet object where the last modified timestamp should be stamped. If not provided, the function will use the currently active sheet.
- * @returns {void} This function does not return a value. It updates the specified sheet with the current timestamp and the email of the user who made the modification.
+ * Simple trigger that executes automatically when a user alters a cell in the spreadsheet.
+ * @param {GoogleAppsScript.Events.SheetsOnEdit} e - The edit event object.
  */
-function stampLastModified(targetSheet): void {
+function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
+    // Guard against running manually from the Apps Script IDE without an event object
+    if (!e || !e.range) return;
+
+    // Pass the edited sheet directly to your stamper function
+    const editedSheet = e.range.getSheet();
+    stampLastModified(editedSheet);
+}
+
+/**
+ * Stamps the last modified timestamp and user who made the modification on the specified sheet.
+ * @param targetSheet The Google Sheets sheet object where the timestamp should be stamped.
+ */
+function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): void {
     try {
         const sheet = targetSheet || SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
@@ -277,8 +289,18 @@ function stampLastModified(targetSheet): void {
         }
 
         if (TIMESTAMP_LIST.includes(sheet.getName())) {
+            // Avoid infinite trigger loops: don't re-stamp if the edit happened on the timestamp cell itself
+            if (typeof TIMESTAMP_CELL !== 'undefined' && targetSheet) {
+                const activeCell = targetSheet.getActiveCell();
+                if (activeCell && activeCell.getA1Notation() === TIMESTAMP_CELL) {
+                    return;
+                }
+            }
+
             const email = Session.getActiveUser().getEmail();
-            sheet.getRange(TIMESTAMP_CELL).setValue(`Last Modified by: ${email || "Authorized User"} on ${new Date().toLocaleString()}`);
+            const userIdentifier = email ? email : "Authorized User";
+            
+            sheet.getRange(TIMESTAMP_CELL).setValue(`Last Modified by: ${userIdentifier} on ${new Date().toLocaleString()}`);
         }
     } catch (err: any) {
         log(`Error in stampLastModified: ${err.message}`, true);
