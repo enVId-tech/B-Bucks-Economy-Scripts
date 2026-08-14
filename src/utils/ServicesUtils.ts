@@ -92,7 +92,7 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
             return { error: "No sheets found in the active spreadsheet." };
         }
 
-        log("Found sheets: " + allSheets.map(sheet => sheet.getName()).join(", "), true);
+        log("Found sheets: " + allSheets.map(sheet => sheet.getName()).join(", "), false);
 
         const servicesSheet = allSheets.find(sheet => sheet.getName() === sheetName);
         if (!servicesSheet) {
