@@ -282,6 +282,15 @@ function recordDailyData(): void {
         return;
     }
 
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, ...
+
+    // Early exit if today is Sunday (0) or Monday (1)
+    if (dayOfWeek === 0 || dayOfWeek === 1) {
+        log("Execution skipped: No weekend sheet modifications scheduled.", false);
+        return;
+    }
+
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
         ? DEFAULT_HISTORICAL_RECORDS_SHEET
