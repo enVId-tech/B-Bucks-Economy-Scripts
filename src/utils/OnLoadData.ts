@@ -327,7 +327,7 @@ function recordDailyData(): void {
                     formulaTemplate = formulaTemplate.substring(1);
                 }
 
-                // Precision Regex: match cell coordinates (e.g. A1, $B$2:$C$10) without modifying function names like SUM or AVERAGE
+                // Precision Regex: match cell coordinates without modifying function names
                 const cellRangeRegex = /\b(\$?[A-Za-z]{1,3}\$?[0-9]+(?::\$?[A-Za-z]{1,3}\$?[0-9]+)?)\b/g;
                 const scopedFormula = formulaTemplate.replace(cellRangeRegex, `'${period.name}'!$1`);
 
@@ -364,32 +364,31 @@ function recordDailyData(): void {
             ? HISTORICAL_RECORDS_ROW_START
             : 11;
 
-        const lastRow = historySheet.getLastRow();
-        const startRow = lastRow < historicalStartRow ? historicalStartRow : lastRow + 1;
+        const numNewRows = outputRows.length;
+        const numNewCols = outputRows[0].length;
 
-        const rowsNeeded = outputRows.length;
-        const currentMax = historySheet.getMaxRows();
-        if ((startRow + rowsNeeded - 1) > currentMax) {
-            historySheet.insertRowsAfter(currentMax, (startRow + rowsNeeded - 1) - currentMax);
-        }
+        // 1. Insert space directly at the top of the history list
+        historySheet.insertRowsBefore(historicalStartRow, numNewRows);
 
-        const targetRange = historySheet.getRange(startRow, 1, outputRows.length, outputRows[0].length);
+        // 2. Target the newly created empty space
+        const targetRange = historySheet.getRange(historicalStartRow, 1, numNewRows, numNewCols);
         targetRange.setValues(outputRows);
 
-        if (startRow > historicalStartRow) {
-            const templateRange = historySheet.getRange(historicalStartRow, 1, 1, outputRows[0].length);
+        // 3. Copy formatting from existing row below if available
+        const existingDataRow = historicalStartRow + numNewRows;
+        if (historySheet.getLastRow() >= existingDataRow) {
+            const templateRange = historySheet.getRange(existingDataRow, 1, 1, numNewCols);
             templateRange.copyTo(targetRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
         }
 
+        // 4. Sort the entire block down to the last row by Column A (Newest to Oldest)
         const finalLastRow = historySheet.getLastRow();
-        const totalColumns = historySheet.getLastColumn();
-
         if (finalLastRow >= historicalStartRow) {
             const dataRangeToSort = historySheet.getRange(
                 historicalStartRow,
                 1,
                 finalLastRow - historicalStartRow + 1,
-                totalColumns
+                numNewCols // Fixed to explicitly match data width
             );
             dataRangeToSort.sort({ column: 1, ascending: false });
         }
