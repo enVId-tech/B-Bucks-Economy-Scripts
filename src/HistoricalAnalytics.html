@@ -41,7 +41,8 @@
             <h1 class="header-title">📉 Historical Economic Analytics</h1>
             <p class="header-subtitle">Visualize multi-metric trends dynamically across dynamic sheet records and
                 columns</p>
-            <p class="header-subtitle"><strong>Hint:</strong> Hold Ctrl to selection multiple options to visualize more data!</p>
+            <p class="header-subtitle"><strong>Hint:</strong> Hold Ctrl to selection multiple options to visualize more
+                data!</p>
         </div>
 
         <!-- Controls Form Panel (Single Row Auto-Sized Fit Layout) -->
@@ -158,11 +159,18 @@
             const periodSelect = document.getElementById('periodSelect');
             periodSelect.innerHTML = '';
 
-            const allOpt = document.createElement('option');
-            allOpt.value = 'all';
-            allOpt.textContent = 'All Periods Combined';
-            allOpt.selected = true;
-            periodSelect.appendChild(allOpt);
+            // All Periods (Combined) -> Sums all matching values across sheets
+            const sumOpt = document.createElement('option');
+            sumOpt.value = 'all-sum';
+            sumOpt.textContent = 'All Periods (Combined)';
+            sumOpt.selected = true;
+            periodSelect.appendChild(sumOpt);
+
+            // All Periods (Average) -> Calculates mean of matching values across sheets
+            const avgOpt = document.createElement('option');
+            avgOpt.value = 'all-avg';
+            avgOpt.textContent = 'All Periods (Average)';
+            periodSelect.appendChild(avgOpt);
 
             const periodSet = new Set();
             rawRecordData.forEach(r => { if (r.sheet) periodSet.add(r.sheet); });
@@ -203,7 +211,7 @@
             }
 
             let selectedPeriods = getSelectedValues(document.getElementById('periodSelect'));
-            if (!selectedPeriods.length) selectedPeriods = ['all'];
+            if (!selectedPeriods.length) selectedPeriods = ['all-sum'];
 
             const scaleType = document.getElementById('scaleSelect').value || 'linear';
 
@@ -217,16 +225,21 @@
             let colorIndex = 0;
 
             selectedPeriods.forEach(period => {
-                const periodRecords = dateFilteredRecords.filter(rec => period === 'all' || rec.sheet === period);
+                const isAggregate = (period === 'all-sum' || period === 'all-avg' || period === 'all');
+                const periodRecords = dateFilteredRecords.filter(rec => isAggregate || rec.sheet === period);
 
                 selectedMetrics.forEach(metricKey => {
                     const optionEl = metricSelectEl.querySelector(`option[value="${metricKey}"]`);
                     const metricLabel = optionEl ? optionEl.text : metricKey;
 
                     let datasetLabel = metricLabel;
-                    if (selectedPeriods.length > 1 && period !== 'all') {
+                    if (period === 'all-sum') {
+                        datasetLabel = `All Combined - ${metricLabel}`;
+                    } else if (period === 'all-avg') {
+                        datasetLabel = `All Average - ${metricLabel}`;
+                    } else if (selectedPeriods.length > 1) {
                         datasetLabel = `${period} - ${metricLabel}`;
-                    } else if (period !== 'all' && selectedMetrics.length === 1) {
+                    } else {
                         datasetLabel = `${period} (${metricLabel})`;
                     }
 
@@ -241,7 +254,13 @@
                         if (validVals.length === 0) return null;
 
                         const sum = validVals.reduce((acc, curr) => acc + curr, 0);
-                        return +(sum / validVals.length).toFixed(2);
+
+                        // Branch math based on selected scope
+                        if (period === 'all-avg') {
+                            return +(sum / validVals.length).toFixed(2);
+                        }
+
+                        return +sum.toFixed(2);
                     });
 
                     const color = chartColors[colorIndex % chartColors.length];
