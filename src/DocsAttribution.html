@@ -89,6 +89,29 @@
                             </ul>
                         </li>
 
+                        <!-- FILE: Services-Transactions.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-services', 'file-services', 'toggle-file-services', this)">
+                                <span class="tree-toggle" id="toggle-file-services">▶</span>
+                                📄 <span>Services-&amp;-Transactions.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-services">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-services', 'hdr-income-expense', this)">
+                                        <span>Income &amp; Expense Entries</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-services', 'hdr-transaction-validation', this)">
+                                        <span>Validation &amp; Overrides</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
                         <!-- FILE: Investment-Banking.md -->
                         <li class="tree-item">
                             <div class="tree-label"
@@ -101,6 +124,104 @@
                                     <div class="tree-label"
                                         onclick="navigateToHeader('doc-investment', 'hdr-yield-rates', this)">
                                         <span>Yield Rates</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-investment', 'hdr-portfolio-principles', this)">
+                                        <span>Portfolio Principles</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Transaction-Records.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-transactions', 'file-transactions', 'toggle-file-transactions', this)">
+                                <span class="tree-toggle" id="toggle-file-transactions">▶</span>
+                                📄 <span>Transaction-Records.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-transactions">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-transactions', 'hdr-record-filters', this)">
+                                        <span>Filtering &amp; Search</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-transactions', 'hdr-transaction-audit', this)">
+                                        <span>Audit Trail</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Historical-Analytics.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-analytics', 'file-analytics', 'toggle-file-analytics', this)">
+                                <span class="tree-toggle" id="toggle-file-analytics">▶</span>
+                                📄 <span>Historical-Analytics.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-analytics">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-analytics', 'hdr-charting', this)">
+                                        <span>Charting &amp; Trends</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-analytics', 'hdr-metric-filters', this)">
+                                        <span>Metric Filters</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Banking-Settings.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-settings', 'file-settings', 'toggle-file-settings', this)">
+                                <span class="tree-toggle" id="toggle-file-settings">▶</span>
+                                📄 <span>Banking-Settings.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-settings">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-settings', 'hdr-policy-settings', this)">
+                                        <span>Banking Policy</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-settings', 'hdr-maintenance', this)">
+                                        <span>Maintenance Tools</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+
+                        <!-- FILE: Import-&amp;-Data-Setup.md -->
+                        <li class="tree-item">
+                            <div class="tree-label"
+                                onclick="toggleFile('doc-fill-sheet', 'file-fill-sheet', 'toggle-file-fill-sheet', this)">
+                                <span class="tree-toggle" id="toggle-file-fill-sheet">▶</span>
+                                📄 <span>Import-&amp;-Data-Setup.md</span>
+                            </div>
+                            <ul class="tree-children" id="file-fill-sheet">
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-fill-sheet', 'hdr-template-import', this)">
+                                        <span>Template Import</span>
+                                    </div>
+                                </li>
+                                <li class="tree-item tree-header-item">
+                                    <div class="tree-label"
+                                        onclick="navigateToHeader('doc-fill-sheet', 'hdr-data-structure', this)">
+                                        <span>Sheet Structure</span>
                                     </div>
                                 </li>
                             </ul>
@@ -170,14 +291,89 @@
             <div id="doc-overview" class="doc-section active">
                 <div class="section-card">
                     <h2>Overview</h2>
-                    <p>The B-Bucks Economy Scripts is a financial management ecosystem engineered for virtual economies
-                        in educational environments.</p>
+                    <p>The B-Bucks Economy Scripts project is a Google Sheets-based classroom economy system designed for
+                        managing digital money, service transactions, investments, and historical records in a school or club
+                        environment.</p>
+
+                    <div class="callout callout-warning">
+                        <strong>Important usage note:</strong> start with the spreadsheet menu, not the raw sheet cells. Every major function is designed to run through the banking tools so the ledger, validation, and history all stay consistent.
+                    </div>
 
                     <h3 id="hdr-project-scope">Project Scope</h3>
-                    <p>Handles account overrides, investment ledgers, transaction routing, and cached sheet lookups.</p>
+                    <p>This system combines spreadsheet automation, Apps Script backend functions, and browser-style dialog
+                        interfaces to create a complete virtual banking experience. It gives an instructor control over student
+                        accounts, school-facing transactions, ledger visibility, and analytical tooling without leaving
+                        Google Sheets.</p>
+                    <p>The project is built around a set of specialized interfaces that open from the spreadsheet menu and
+                        connect to shared utility logic, cached sheet reads, and structured transaction handling.</p>
+
+                    <h3>First-Time User Walkthrough</h3>
+                    <div class="callout callout-warning">
+                        <strong>Recommended order for new users:</strong> do not start by editing raw cells or changing settings. Open the menu, confirm the spreadsheet structure, then run the classroom actions through the proper banking tool so the history, balances, and validation stay aligned.
+                    </div>
+
+                    <ol>
+                        <li><strong>Open the app from the spreadsheet menu:</strong> in Google Sheets, open “The Central Bank of Banderas.” This is the main entry point for all system actions.</li>
+                        <li><strong>Confirm the workbook is ready:</strong> if the spreadsheet does not already contain the required student or banking sheets, use the setup/import helper to create or populate the sheet structure before entering balances.</li>
+                        <li><strong>Set up or review the student list:</strong> make sure the names or IDs used in the economy are present and correctly formatted. This affects every later transaction and lookup.</li>
+                        <li><strong>Open Manual B-Bucks first:</strong> this is the place to apply starting balances, corrections, or teacher-led adjustments. It is the safest place to begin because it establishes the initial financial baseline.</li>
+                        <li><strong>Create a normal money event:</strong> use Services &amp; Transactions when a student earns, pays, spends, or receives a fine. This is the core day-to-day flow for classroom transactions.</li>
+                        <li><strong>Use Investment Banking for growth behavior:</strong> if the economy has savings, interest, or portfolio-style earning, use this section to track deposits and investment activity without disrupting regular ledger entries.</li>
+                        <li><strong>Review the records before closing a period:</strong> open Transaction Records to confirm what happened and make sure the balance history matches the classroom reality.</li>
+                        <li><strong>Check the analytics:</strong> once entries are validated, use Historical Analytics to review trends, totals, and financial movement across time.</li>
+                        <li><strong>Only change settings when needed:</strong> open Banking Settings for rate logic, date policy, and maintenance tasks. Adjustments here affect the system rules, so they should be made intentionally and carefully.</li>
+                    </ol>
+
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <span class="feature-pill">Start</span>
+                            <strong>Open the Menu</strong>
+                            <p>Start at the custom spreadsheet menu, not by manipulating the sheet directly.</p>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-pill">Setup</span>
+                            <strong>Prepare the Sheet</strong>
+                            <p>Confirm data is ready before you begin balancing, paying, or reviewing transactions.</p>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-pill">Daily Use</span>
+                            <strong>Manual + Services</strong>
+                            <p>Use balance overrides and service entries for most normal classroom activity.</p>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-pill">Review</span>
+                            <strong>Records + Analytics</strong>
+                            <p>Always verify the ledger and trend summaries before finishing a cycle.</p>
+                        </div>
+                    </div>
+
+                    <div class="callout callout-info">
+                        <strong>What success looks like:</strong> after a first run, the workbook should show a valid student list, the initial balances loaded correctly, transaction entries reflected in the account records, and the analytics page matching the real classroom activity.
+                    </div>
 
                     <h3 id="hdr-core-workflow">Core Workflow</h3>
-                    <p>System actions originate from custom sidebar dialogs, driving gas functions via server calls.</p>
+                    <p>The user opens a menu item from the custom “Central Bank of Banderas” menu in Google Sheets. Each menu
+                        action launches a modeless dialog, which then sends requests to Apps Script functions via client-side
+                        callbacks. The server code validates data, reads or writes to the spreadsheet, updates records, and
+                        returns summary information back to the UI for display.</p>
+                    <p>In practical terms, the workflow usually looks like this:</p>
+                    <ol>
+                        <li>Open a banking tool from the spreadsheet menu.</li>
+                        <li>Select a student, range, date period, or transaction type.</li>
+                        <li>Enter or confirm a financial action such as transfer, adjustment, interest, or expense.</li>
+                        <li>Apps Script validates and writes the data to the governed sheet structures.</li>
+                        <li>The UI refreshes, showing updated totals, logs, charts, or historical summaries.</li>
+                    </ol>
+
+                    <h3>System Components</h3>
+                    <p>The product is organized into a few major areas:</p>
+                    <ul>
+                        <li><strong>Manual Balance Management:</strong> direct updates to student balances and supporting notes.</li>
+                        <li><strong>Service Transactions:</strong> income and expense-style entry workflows.</li>
+                        <li><strong>Investment Banking:</strong> controlled growth and yield-based account operations.</li>
+                        <li><strong>Records & Analytics:</strong> searchable histories and trending metrics.</li>
+                        <li><strong>Settings & Maintenance:</strong> configuration for banking logic and automated rules.</li>
+                    </ul>
                 </div>
             </div>
 
@@ -185,44 +381,207 @@
             <div id="doc-balance-mgmt" class="doc-section">
                 <div class="section-card">
                     <h2>Balance Management</h2>
+                    <p>The manual balance system is the backbone of the classroom economy. It allows an administrator to add,
+                        subtract, multiply, divide, and override balances with precise control and a visible audit trail.</p>
+
+                    <div class="callout callout-info">
+                        <strong>How to use it:</strong> open the Manual B-Bucks tool, pick the target student or range, enter the amount or operation, and add a note before submitting. This keeps the change visible and auditable.
+                    </div>
 
                     <h3 id="hdr-manual-adjustments">Manual Adjustments</h3>
-                    <p>Add or remove currency directly with optional audit notes across target ranges.</p>
+                    <p>Adjustments can be made through quick action buttons, custom amounts, and selected account ranges. Each
+                        change can include a descriptive note so the action remains transparent and reviewable later.</p>
+                    <p>This is useful for events like bonus payouts, deductions, student transfers, corrections, or teacher-led
+                        overrides. The interface is designed to minimize error by pairing numeric input with direct account
+                        targeting and a confirmation workflow.</p>
 
-                    <h3 id="hdr-tax-logic">Tax Calculations</h3>
-                    <p>Run automatic percentage reductions across target ranges while preserving exact floating point
-                        values.</p>
+                    <h3 id="hdr-tax-logic">Tax and Rule Logic</h3>
+                    <p>Tax and percentage-based deductions are handled centrally so the project can apply the same financial rules
+                        consistently across student records and periods. This is especially important when a balance adjustment is
+                        not a flat number but a percentage-based calculation.</p>
+                    <p>When taxes or reductions are triggered, the system preserves floating-point math as closely as possible,
+                        reducing the risk of rounding issues that can distort classroom balances.</p>
+
+                    <h3>Auditability and Search</h3>
+                    <p>Because educational economies need traceability, balance changes are intended to be logged along with a
+                        date, category, and reason. This makes it easier to revisit a transaction, correct a mistake, or explain
+                        why a balance was modified.</p>
                 </div>
             </div>
 
-            <!-- 3. INVESTMENT BANKING FILE -->
+            <!-- 3. SERVICES FILE -->
+            <div id="doc-services" class="doc-section">
+                <div class="section-card">
+                    <h2>Services &amp; Transactions</h2>
+                    <p>The services page supports income and expense-style entries that mirror real-world classroom economy behavior.
+                        This is where salary-like earnings, fines, purchases, and reimbursements are usually recorded.</p>
+
+                    <div class="callout callout-info">
+                        <strong>Use this when:</strong> a student earns money, pays a fee, buys an item, or needs an approved exception. The services tool is designed to record those events cleanly and consistently.
+                    </div>
+
+                    <h3 id="hdr-income-expense">Income &amp; Expense Entries</h3>
+                    <p>Users can submit a transaction type, amount, and contextual data to reflect a money event. The system handles
+                        these interactions through client-side dialogs and server-side validation before committing changes to the sheet.</p>
+
+                    <h3 id="hdr-transaction-validation">Validation &amp; Overrides</h3>
+                    <p>Some situations require a balance override or a forced transaction when a student is below zero or an item has
+                        been manually approved. The system is designed to support both standard validation and teacher override workflows.</p>
+                    <p>That balance between process and exception handling is what keeps the economy structured without becoming too rigid.</p>
+                </div>
+            </div>
+
+            <!-- 4. INVESTMENT BANKING FILE -->
             <div id="doc-investment" class="doc-section">
                 <div class="section-card">
                     <h2>Investment Banking</h2>
+                    <p>The investment banking page manages more advanced monetary behaviors such as savings or growth-based
+                        accounts. These features are useful when the class economy includes deposits, rate-based earnings, or
+                        long-term accumulation scenarios.</p>
+
+                    <div class="callout callout-info">
+                        <strong>Use this when:</strong> the class economy includes savings, investment periods, or rate-based growth. This tool tracks deposits and earning behavior without removing the teacher from the decision loop.
+                    </div>
 
                     <h3 id="hdr-yield-rates">Yield Rates</h3>
-                    <p>Configures yield rates, recurring interest payouts, and user portfolios.</p>
+                    <p>Yield rate controls define how much growth is applied to holdings over time. The system can combine this
+                        with ledger data to calculate recurring returns, investment totals, and expected account values.</p>
+                    <p>These functions let the teacher phrase the economy as more than a simple ledger: it becomes a simulation of
+                        interest, compounding, portfolio behavior, and student financial planning.</p>
+
+                    <h3 id="hdr-portfolio-principles">Portfolio Principles</h3>
+                    <p>Investment logic usually operates on balances that are tied to a learner, a period, or a predefined item
+                        category. The result is an ecosystem where directing funds into a growth cycle causes later updates while
+                        preserving the source-of-truth spreadsheet values.</p>
                 </div>
             </div>
 
-            <!-- 4. CACHING FILE -->
+            <!-- 5. TRANSACTION RECORDS FILE -->
+            <div id="doc-transactions" class="doc-section">
+                <div class="section-card">
+                    <h2>Transaction Records</h2>
+                    <p>The transaction records page is the readout for the financial history of the economy. It allows administrators
+                        to search, filter, and review all money movement that has taken place within the portfolio.</p>
+
+                    <div class="callout callout-warning">
+                        <strong>Critical review step:</strong> before closing a banking period, always check the records page. This is where you confirm the teacher-approved actions and catch mismatches before they affect analytics or balances.
+                    </div>
+
+                    <h3 id="hdr-record-filters">Filtering &amp; Search</h3>
+                    <p>Searchable records are essential when the teacher wants to inspect a single student, a date range, or a specific
+                        transaction category. This makes the system useful in both daily operations and retrospective reviews.</p>
+
+                    <h3 id="hdr-transaction-audit">Audit Trail</h3>
+                    <p>Every transaction is treated as part of a long-term recordbook. This makes it easy to review what happened, when
+                        it happened, and whether the action was aligned with school policy or an approved exception.</p>
+                </div>
+            </div>
+
+            <!-- 6. HISTORICAL ANALYTICS FILE -->
+            <div id="doc-analytics" class="doc-section">
+                <div class="section-card">
+                    <h2>Historical Analytics</h2>
+                    <p>The analytics view turns raw ledger entries into usable visual context. Instead of scanning rows manually, the
+                        teacher can view trends over time and compare how balances, incomes, and expenses evolve across periods.</p>
+
+                    <div class="callout callout-info">
+                        <strong>Best practice:</strong> use analytics after transactions are posted and verified. This lets the trends reflect the true state of the economy rather than temporary edits or unconfirmed entries.
+                    </div>
+
+                    <h3 id="hdr-charting">Charting &amp; Trends</h3>
+                    <p>Chart-based summaries help track the rise and fall of financial activity in a way that is easier to communicate
+                        to students or administrators. This provides a high-level summary of totals, changes, and recurring patterns.</p>
+
+                    <h3 id="hdr-metric-filters">Metric Filters</h3>
+                    <p>Users can focus the analytics panel by selecting a period, series, or metric column. This converts a large
+                        dataset into a digestible series of financial insights that are relevant to the point being reviewed.</p>
+                </div>
+            </div>
+
+            <!-- 7. BANKING SETTINGS FILE -->
+            <div id="doc-settings" class="doc-section">
+                <div class="section-card">
+                    <h2>Banking Settings</h2>
+                    <p>Project settings configure the rules that define how the virtual banking environment behaves. These include
+                        interest, restrictions, date boundaries, and the maintenance-style actions that keep the system healthy.</p>
+
+                    <div class="callout callout-warning">
+                        <strong>Admin warning:</strong> only change banking settings after reviewing the impact on rates, date windows, and historical comparisons. A policy change can affect every transaction unless it is applied deliberately.
+                    </div>
+
+                    <h3 id="hdr-policy-settings">Banking Policy</h3>
+                    <p>Policy settings define the assumptions behind the economy. This can include rate logic, restrictions on actions,
+                        and expected periods for collection or evaluation.</p>
+
+                    <h3 id="hdr-maintenance">Maintenance Tools</h3>
+                    <p>Maintenance options exist for cleaning, refreshing, or resetting records, making it easier to keep the system
+                        organized over time. These controls are especially important when the economy is used repeatedly across different
+                        terms or grading cycles.</p>
+                </div>
+            </div>
+
+            <!-- 8. DATA IMPORT FILE -->
+            <div id="doc-fill-sheet" class="doc-section">
+                <div class="section-card">
+                    <h2>Data Import &amp; Sheet Setup</h2>
+                    <p>The import helper is used to create or populate student sheets based on a dataset or template. This reduces the
+                        manual overhead of entering names and structure by hand.</p>
+
+                    <div class="callout callout-info">
+                        <strong>Setup shortcut:</strong> if a sheet is missing or the workbook was reset, use the import helper before running any balance or transaction logic. This restores the expected layout and reduces broken references.
+                    </div>
+
+                    <h3 id="hdr-template-import">Template Import</h3>
+                    <p>The system can create new sheets from an existing template when a required sheet is missing. This keeps the
+                        workbook consistent and reduces setup errors during onboarding.</p>
+
+                    <h3 id="hdr-data-structure">Sheet Structure</h3>
+                    <p>Reliable system behavior depends on consistent spreadsheet structure. Each sheet must follow the expected naming,
+                        position, and formatting conventions, so the script can read and write values consistently.</p>
+                </div>
+            </div>
+
+            <!-- 9. CACHING FILE -->
             <div id="doc-caching" class="doc-section">
                 <div class="section-card">
                     <h2>Caching &amp; Performance</h2>
+                    <p>The project is designed to minimize unnecessary spreadsheet reads and repeated data processing. This matters
+                        because Google Sheets operations can become slow or expensive when dozens of balances, histories, and UI
+                        refreshes are triggered in a short period of time.</p>
+
+                    <div class="callout callout-warning">
+                        <strong>Developer note:</strong> when debugging data problems, always clear or refresh cache state before assuming the sheet content is the issue. Many stale values come from cached ranges rather than the active workbook itself.
+                    </div>
 
                     <h3 id="hdr-cache-service">CacheService Strategy</h3>
-                    <p>Utilize CacheService to store processed matrix maps and eliminate redundant Sheet API read
-                        cycles.</p>
+                    <p>The system uses Apps Script caching to temporarily hold processed values such as lookup tables and shared
+                        data maps. Instead of re-reading the same sheet ranges every time a dialog refreshes or a user requests a
+                        calculation, the script can reuse stored values from the cache.</p>
                     <pre><code>const cache = CacheService.getScriptCache();
 const cachedData = cache.get("BALANCE_CACHE");</code></pre>
+                    <p>This dramatically reduces repetitive access to the Google Sheets API and improves response time for the
+                        classroom experience.</p>
 
                     <h3 id="hdr-range-selection">Direct Range Block Selection</h3>
-                    <p>Range operations target direct matrix arrays rather than hardcoded column indices across active
-                        sheets.</p>
+                    <p>Rather than reading arbitrary cell values one at a time, many utility functions operate on direct ranges of
+                        data and convert them into JavaScript arrays. This is a more efficient pattern because it keeps the workbook
+                        interactions compact and allows the logic to work with matrix-like blocks of rows and columns.</p>
+                    <p>By using these direct block operations, the app reduces overhead while still preserving the ability to calculate,
+                        compare, and format financial data in a structured way.</p>
+
+                    <h3>Developer Deep Dive: Lower-Level Flow</h3>
+                    <p>From a development perspective, the app is structured around a few repeating patterns:</p>
+                    <ul>
+                        <li>UI actions call server functions from the menu-driven dialogs.</li>
+                        <li>Utility modules centralize spreadsheet access, validation, caching, and transaction rules.</li>
+                        <li>Exposed apps-script functions convert client input into workbook-safe data structures.</li>
+                        <li>Transaction logs and analytics depend on consistent headers, row alignment, and naming conventions.</li>
+                    </ul>
+                    <p>When debugging a new feature, begin at the menu trigger, then follow the server call, then inspect the utility layer, and finally validate the workbook output. This reduces confusion when data is missing, malformed, or stale.</p>
                 </div>
             </div>
 
-            <!-- 5. ATTRIBUTION FILE -->
+            <!-- 10. ATTRIBUTION FILE -->
             <div id="doc-attribution" class="doc-section">
                 <div class="section-card">
                     <h2 id="hdr-credits">Credits &amp; Attribution</h2>
@@ -233,7 +592,7 @@ const cachedData = cache.get("BALANCE_CACHE");</code></pre>
                     </p>
                     <p>
                         <a href="https://github.com/enVId-tech" target="_blank" rel="noopener noreferrer">
-                            <strong>Developer:</strong>Erick Tran
+                            <strong>Developer:</strong> Erick Tran
                         </a>
                     </p>
                     <p><strong>Teacher:</strong> Mr. Banderas</p>
@@ -242,6 +601,18 @@ const cachedData = cache.get("BALANCE_CACHE");</code></pre>
                             <strong>License:</strong> MIT License
                         </a>
                     </p>
+                    <p>
+                        <a href="https://oxford.auhsd.us" target="_blank" rel="noopener noreferrer">
+                            <strong>School:</strong> Oxford Academy
+                        </a>
+                    </p>
+
+                    <h3>Project Credits</h3>
+                    <p>This project was created as a custom financial management system for classroom use. It was built to support
+                        a digital economy with clear accountability, simple teacher controls, and a visual structure that can be used
+                        by educators without requiring advanced spreadsheet experience.</p>
+                    <p>The repository is released under the MIT license, which allows the code to be shared, reused, and adapted
+                        with attribution.</p>
                 </div>
             </div>
 
