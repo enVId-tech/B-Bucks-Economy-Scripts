@@ -47,6 +47,8 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
         const servicesSheet = parsedData?.servicesSheet === null || parsedData?.servicesSheet === undefined ? fetchServicesSheetNames()[0] : parsedData?.servicesSheet;
 
+        log(`Using servicesSheet: ${servicesSheet}`, false);
+
         if (!forceRefresh) {
             const cachedString = getCachedData(SERVICES_CACHED_KEY);
             if (cachedString && cachedString !== "{}" && cachedString !== "") {
@@ -90,7 +92,9 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
             return { error: "No sheets found in the active spreadsheet." };
         }
 
-        const servicesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+        log("Found sheets: " + allSheets.map(sheet => sheet.getName()).join(", "), true);
+
+        const servicesSheet = allSheets.find(sheet => sheet.getName() === sheetName);
         if (!servicesSheet) {
             log("Services sheet not found.", true);
             return { error: "Services sheet not found." };

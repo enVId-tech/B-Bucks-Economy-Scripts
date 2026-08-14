@@ -54,27 +54,27 @@ function getCacheIndex(): string[] {
  */
 function touchCacheIndex(key: string): void {
     try {
-    const props = PropertiesService.getScriptProperties();
-    let index = getCacheIndex();
+        const props = PropertiesService.getScriptProperties();
+        let index = getCacheIndex();
 
-    // Remove existing instance of key to push it to the end (most recent)
-    index = index.filter(k => k !== key && k !== CACHE_INDEX_KEY);
-    index.push(key);
+        // Remove existing instance of key to push it to the end (most recent)
+        index = index.filter(k => k !== key && k !== CACHE_INDEX_KEY);
+        index.push(key);
 
-    // Evict oldest entries if total keys exceed MAX_CACHE_ENTRIES
-    while (index.length > MAX_CACHE_ENTRIES) {
-        const evictedKey = index.shift();
-        if (evictedKey) {
-            CacheService.getScriptCache().remove(evictedKey);
-            props.deleteProperty(evictedKey);
-            log(`Evicted oldest cache entry to enforce max capacity: ${evictedKey}`, false);
+        // Evict oldest entries if total keys exceed MAX_CACHE_ENTRIES
+        while (index.length > MAX_CACHE_ENTRIES) {
+            const evictedKey = index.shift();
+            if (evictedKey) {
+                CacheService.getScriptCache().remove(evictedKey);
+                props.deleteProperty(evictedKey);
+                log(`Evicted oldest cache entry to enforce max capacity: ${evictedKey}`, false);
+            }
         }
-    }
 
-    props.setProperty(CACHE_INDEX_KEY, JSON.stringify(index));
-} catch (err: any) {
-    log(`Failed to execute touchCacheIndex: ${err.message}.`, false);
-}
+        props.setProperty(CACHE_INDEX_KEY, JSON.stringify(index));
+    } catch (err: any) {
+        log(`Failed to execute touchCacheIndex: ${err.message}.`, false);
+    }
 }
 
 /**
@@ -126,7 +126,7 @@ function setCachedData(cacheKey: string, data: any): boolean {
 
         const lock = LockService.getScriptLock();
         const hasLock = lock.tryLock(WAIT_LOCK_TIME);
-        
+
         if (!hasLock) {
             log(`Failed to acquire lock for cache update on key ${cacheKey}`, true);
             return false;
@@ -159,8 +159,8 @@ function launchModelessDialog(templateName: string, title: string, width: number
 
     // Safely structure payload to avoid raw script injection bugs
     const payloadObject = {
-        [SERVICES_CACHED_KEY]: cache.get(SERVICES_CACHED_KEY) || "{}",
         [SETTINGS_CACHED_KEY]: cache.get(SETTINGS_CACHED_KEY) || "{}",
+        [SERVICES_CACHED_KEY]: cache.get(SERVICES_CACHED_KEY) || "{}",
         [TRANSACTIONS_CACHED_KEY]: cache.get(TRANSACTIONS_CACHED_KEY) || "[]",
         [INVESTMENTS_LEDGER_CACHED_KEY]: cache.get(INVESTMENTS_LEDGER_CACHED_KEY) || "{}"
     };
@@ -176,8 +176,8 @@ function launchModelessDialog(templateName: string, title: string, width: number
 }
 
 function preloadCacheForAllDialogs(): void {
-    fetchServicesDataCached(JSON.stringify({ forceRefresh: true }));
     fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
+    fetchServicesDataCached(JSON.stringify({ forceRefresh: true }));
     fetchInvestmentsDataCached(JSON.stringify({ forceRefresh: true }));
     fetchTransactionsDataCached(JSON.stringify({ forceRefresh: true }));
 }
@@ -186,7 +186,7 @@ function setServerCacheValue(data: string): boolean {
     try {
         const { key, value } = JSON.parse(data);
         const cache = CacheService.getScriptCache();
-        
+
         const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
         cache.put(key, stringValue, SERVER_SIDE_CACHE_AGE);
         return true;
@@ -406,7 +406,7 @@ function saveHistoricalRecords(): boolean {
         const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
             ? DEFAULT_HISTORICAL_RECORDS_SHEET
             : "Economic Records";
-            
+
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
         if (!sheet) {
             log(`Historical Records sheet "${sheetName}" not found.`, true);

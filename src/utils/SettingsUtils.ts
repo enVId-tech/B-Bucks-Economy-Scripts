@@ -149,7 +149,6 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
  */
 function fetchSettingsData(): SettingsData | { error: string } {
     try {
-
         const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
         const sheetName = (typeof DEFAULT_SETTINGS_SHEET !== 'undefined' && DEFAULT_SETTINGS_SHEET)
