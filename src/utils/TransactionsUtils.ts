@@ -53,13 +53,13 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
       const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
       if (cachedString && cachedString !== "{}" && cachedString !== "") {
         log(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`, false);
-        return JSON.parse(cachedString) as TransactionRecord[];
+        return cachedString as unknown as TransactionRecord[];
       }
 
       const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
       if (savedProperties) {
         cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
-        return JSON.parse(savedProperties);
+        return savedProperties as unknown as TransactionRecord[];
       }
     }
 
