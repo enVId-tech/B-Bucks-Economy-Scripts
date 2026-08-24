@@ -283,6 +283,9 @@ function applyMathToSelection(
         addTransactionRecords(transactionRecords);
       }
 
+      // Update timestamps for the affected sheet after all operations are complete
+      updateTimestampForSheet();
+
       return true;
 
     } catch (error: any) {
@@ -363,6 +366,9 @@ function applyMathToSelection(
         if (transactionRecords.length > 0) {
           addTransactionRecords(transactionRecords);
         }
+
+        // Update timestamps for the affected sheet after all operations are complete
+        updateTimestampForSheet();
 
         return true;
       } catch (fallbackError: any) {
