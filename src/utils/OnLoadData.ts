@@ -162,7 +162,7 @@ function launchModelessDialog(templateName: string, title: string, width: number
         [SETTINGS_CACHED_KEY]: cache.get(SETTINGS_CACHED_KEY) || "{}",
         [SERVICES_CACHED_KEY]: cache.get(SERVICES_CACHED_KEY) || "{}",
         [TRANSACTIONS_CACHED_KEY]: cache.get(TRANSACTIONS_CACHED_KEY) || "[]",
-        [INVESTMENTS_LEDGER_CACHED_KEY]: cache.get(INVESTMENTS_LEDGER_CACHED_KEY) || "{}"
+        // Investments are cached per period and fetched by the manager after it opens.
     };
 
     template.initialServerPayload = JSON.stringify(payloadObject);
