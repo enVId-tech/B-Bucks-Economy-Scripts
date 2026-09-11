@@ -46,27 +46,23 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
 
-        const CACHE_KEY = "cachedInvestmentsLedger";
         const cache = CacheService.getScriptCache();
-        const props = PropertiesService.getScriptProperties();
+        const indexKey = "cachedInvestmentPeriodIndex";
 
         if (!forceRefresh) {
-            const cachedData = getCachedData(CACHE_KEY);
-            if (cachedData && cachedData !== "{}" && cachedData !== "") {
-                log(`Cache hit: Investments ledger data loaded from cache. String: ${cachedData}`, false);
-                return JSON.parse(cachedData) as PeriodData[];
-            }
-            
-            const savedProperties = props.getProperty(CACHE_KEY);
-            if (savedProperties) {
-                log(`Cache hit: Investments ledger data loaded from script properties for cache key ${CACHE_KEY}. String: ${savedProperties}`, false);
-                // Repopulate fast RAM cache so the next window open loads even faster
-                cache.put(CACHE_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
-                return JSON.parse(savedProperties);
+            const periodIndex = PropertiesService.getScriptProperties().getProperty(indexKey);
+            if (periodIndex) {
+                const periodKeys = JSON.parse(periodIndex) as Array<{ periodName: string; cacheKey: string }>;
+                const cachedPeriods = periodKeys.map(({ cacheKey }) => cache.get(cacheKey));
+
+                if (cachedPeriods.every(period => period)) {
+                    log(`Cache hit: Loaded ${cachedPeriods.length} investment periods individually.`, false);
+                    return cachedPeriods.map(period => JSON.parse(period as string)) as PeriodData[];
+                }
             }
         }
 
-        log("Cache miss: Re-extracting items from Investments sheet rows...", false);
+        log("Cache miss: Re-extracting investment periods from sheets...", false);
         const periodDataArray: PeriodData[] | { error: string } = fetchInvestmentsLedgerData();
 
         if ('error' in periodDataArray) {
@@ -77,11 +73,12 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
 
         if (Array.isArray(periodDataArray)) {
-            try {
-                setCachedData(CACHE_KEY, periodDataArray);
-            } catch (cacheErr) {
-                log(`Warning: Failed to set cache payload (likely size limit), continuing return: ${cacheErr}`, true);
-            }
+            const periodKeys = periodDataArray.map(period => {
+                const cacheKey = `investmentPeriod_${Utilities.base64EncodeWebSafe(period.periodName)}`;
+                cache.put(cacheKey, JSON.stringify(period), SERVER_SIDE_CACHE_AGE);
+                return { periodName: period.periodName, cacheKey };
+            });
+            PropertiesService.getScriptProperties().setProperty(indexKey, JSON.stringify(periodKeys));
         }
 
         log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
