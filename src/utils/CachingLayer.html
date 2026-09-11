@@ -12,14 +12,16 @@
 
     // Parse initial payload passed down securely when the template compiles
     try {
-        const initialPayload = '<?!= typeof initialServerPayload !== "undefined" ? initialServerPayload : "{}" ?>';
+        const initialPayload = JSON.parse('<?!= typeof initialServerPayload !== "undefined" ? initialServerPayload : "{}" ?>');
         Object.keys(initialPayload).forEach(key => {
             window.appStateCache[key] = initialPayload[key];
         });
         console.log("Volatile RAM Layer Synchronized:", Object.keys(window.appStateCache));
 
         // Clear duplicate payload from server cache layer to free up memory, since it's now safely stored in local RAM and accessible to all child scopes without additional parsing
-        callServer('clearServerCacheValue', Object.keys(initialPayload));
+        Object.keys(initialPayload).forEach(key => {
+            callServer('clearServerCacheValue', key);
+        });
     } catch (e) {
         console.error("Failed primary compilation payload sync:", e);
     }
@@ -78,20 +80,22 @@
                         // Double check that the data isn't about to overwrite good, existing data
                         if (serializedData !== 'null' && serializedData !== '[null]' && serializedData !== '{}') {
 
-                            const cachePayload = JSON.stringify({
-                                key: cacheKey,
-                                value: serializedData
-                            });
+                            if (cacheKey !== 'cachedInvestmentsLedger') {
+                                const cachePayload = JSON.stringify({
+                                    key: cacheKey,
+                                    value: serializedData
+                                });
 
-                            callServer('setServerCacheValue', cachePayload, (cacheSetSuccess) => {
-                                if (cacheSetSuccess) {
-                                    console.log(`Successfully updated server cache for ${cacheKey}.`);
-                                } else {
-                                    console.warn(`Server cache update failed validation for ${cacheKey}.`);
-                                }
-                            }, (cacheSetError) => {
-                                console.error(`Failed to update server cache for ${cacheKey}:`, cacheSetError);
-                            });
+                                callServer('setServerCacheValue', cachePayload, (cacheSetSuccess) => {
+                                    if (cacheSetSuccess) {
+                                        console.log(`Successfully updated server cache for ${cacheKey}.`);
+                                    } else {
+                                        console.warn(`Server cache update failed validation for ${cacheKey}.`);
+                                    }
+                                }, (cacheSetError) => {
+                                    console.error(`Failed to update server cache for ${cacheKey}:`, cacheSetError);
+                                });
+                            }
                             console.log(`Successfully updated cache for ${cacheKey} across all layers.`);
                         } else {
                             console.warn(`Aborting cache update for ${cacheKey} due to invalid data format:`, serverData);
