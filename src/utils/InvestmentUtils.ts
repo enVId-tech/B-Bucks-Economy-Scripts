@@ -6,7 +6,7 @@
  * 
  * !!!--- IMPORTANT NOTE: This file was originally written in TypeScript, go to the GitHub to see the original non-compiled code. ---!!!
  *
- *  This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including functions related to investments management and other financial operations.
+ * This file contains utility functions for various operations in the B-Bucks Economy Scripts project, including functions related to investments management and other financial operations.
  */
 
 interface PeriodData {

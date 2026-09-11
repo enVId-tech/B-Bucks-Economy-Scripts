@@ -2,7 +2,12 @@
  * Copyright (c) 2026 Erick Tran. All rights reserved.
  * This file is licensed under the MIT License, check the LICENSE file for details.
  *
+ * 
  * GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts
+ * 
+ * !!!--- IMPORTANT NOTE: This file was originally written in TypeScript, go to the GitHub to see the original non-compiled code. ---!!!
+ *
+ * This file contains utility functions for managing server-side caching, timestamp updates, and historical record management in the B-Bucks Economy Scripts project.
  */
 
 interface PeriodConfig {
