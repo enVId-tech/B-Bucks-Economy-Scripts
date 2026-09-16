@@ -463,6 +463,8 @@ function handleDeposit(data: string): boolean {
                 individual: student,
                 type: "Investment",
                 period: parseInt(period.replace(/\D/g, '')) || undefined,
+                row: studentRow,
+                operation: "ADD",
                 serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
                 unitPrice: Number(currentNetAmount.toFixed(2)),
                 quantity: 1,
@@ -506,6 +508,8 @@ function handleDeposit(data: string): boolean {
         const transactionRecord: TransactionRecord[] = [{
             individual: student,
             period: parseInt(period.replace(/\D/g, '')) || undefined,
+            row: studentRow,
+            operation: "ADD",
             type: "Investment",
             serviceProvided: `Deposit ${override ? '(Override)' : ''}`,
             unitPrice: Number(amount.toFixed(2)),
@@ -605,6 +609,8 @@ function handleWithdraw(data: string): boolean {
         const transactionRecord: TransactionRecord[] = [{
             individual: student,
             period: parseInt(period.replace(/\D/g, '')) || undefined,
+            row: studentRow,
+            operation: "SUBTRACT",
             type: "Investment",
             serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
             unitPrice: Number(currentNetAmount.toFixed(2)),

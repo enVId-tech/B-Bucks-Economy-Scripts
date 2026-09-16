@@ -216,7 +216,9 @@ function applyMathToSelection(
               transactionRecords.push({
                 individual: String(individualName),
                 period: periodName || undefined,
+                row: absoluteRowIndex,
                 type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                operation: normalMapping,
                 serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${isManualTransaction && transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`.trim(),
                 unitPrice: unitPrice,
                 quantity: quantity,
@@ -339,7 +341,9 @@ function applyMathToSelection(
                 transactionRecords.push({
                   individual: String(individualName),
                   period: periodName || undefined,
+                  row: absoluteRowIndex,
                   type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                  operation: normalMapping,
                   serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`.trim(),
                   unitPrice: unitPrice,
                   quantity: quantity,
