@@ -100,12 +100,12 @@
             <div class="action-bar-section">
                 <label class="action-bar-label">Page</label>
                 <input type="number" id="logPage" value="1" min="1" class="action-bar-input"
-                    onchange="applyTransactionFilters()">
+                    oninput="applyTransactionFilters()" onchange="applyTransactionFilters()">
             </div>
             <div class="action-bar-section">
                 <label class="action-bar-label">Displayed</label>
                 <input type="number" id="logLimit" value="25" min="1" class="action-bar-input"
-                    onchange="applyTransactionFilters()">
+                    oninput="applyTransactionFilters()" onchange="applyTransactionFilters()">
             </div>
 
             <button class="btn-clear" id="clearFilterBtn" onclick="clearTransactionFilters()">Reset Filters</button>
@@ -440,7 +440,7 @@
                 };
 
                 htmlContent += `
-                <div class="record-item ${typeMapping[type] || 'unknown'}" data-selectable="true">
+                <div class="record-item ${typeMapping[type] || 'unknown'}" data-selectable="true" data-transaction-id="${id}">
                     <div class="record-item-content">
                         <div class="record-summary">
                             <div class="record-summary-left">
@@ -485,14 +485,15 @@
 
             const limitInput = document.getElementById('logLimit');
             const pageInput = document.getElementById('logPage');
-            const limit = +limitInput.value || 25;
+            const limit = Math.max(1, Number.parseInt(limitInput.value, 10) || 25);
+            limitInput.value = limit;
 
             // Calculate maximum available pages dynamically
             const totalItems = filteredTransactions.length;
             const maxPage = Math.max(1, Math.ceil(totalItems / limit));
 
             // Cap the input value if the user enters a value greater than maxPage or less than 1
-            let currentPage = +pageInput.value || 1;
+            let currentPage = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
             if (currentPage > maxPage) {
                 currentPage = maxPage;
                 pageInput.value = maxPage;
@@ -539,7 +540,7 @@
 
                 document.getElementById('loadingIndicator').style.display = 'flex'; // Show loading indicator
 
-                callServer('fetchTransactionsDataCached', null, (res) => {
+                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: true }), (res) => {
                     const response = JSON.parse(res);
 
                     if (response && Array.isArray(response)) {
@@ -578,7 +579,7 @@
             const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
             if (selectedItems.length === 0) return;
 
-            const transactionIds = Array.from(selectedItems).map(item => item.querySelector('.log-item-id').textContent.replace('TXN#', ''));
+            const transactionIds = Array.from(selectedItems).map(item => item.dataset.transactionId);
 
             console.log("Undoing Transactions:", transactionIds);
 

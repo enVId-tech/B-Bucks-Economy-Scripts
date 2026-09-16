@@ -210,6 +210,14 @@ function clearGlobalCache(keys: string[]): boolean {
         const props = PropertiesService.getScriptProperties();
 
         cache.removeAll(keys);
+        if (keys.includes(TRANSACTIONS_CACHED_KEY)) {
+            const transactionMetaKey = `${TRANSACTIONS_CACHED_KEY}_meta`;
+            const transactionChunkCount = Number(cache.get(transactionMetaKey));
+            const transactionChunkKeys = Number.isInteger(transactionChunkCount) && transactionChunkCount > 0
+                ? Array.from({ length: transactionChunkCount }, (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`)
+                : [];
+            cache.removeAll([transactionMetaKey, ...transactionChunkKeys]);
+        }
         keys.forEach(key => props.deleteProperty(key));
 
         // Update tracking index

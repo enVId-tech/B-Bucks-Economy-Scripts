@@ -129,12 +129,12 @@
                 <div class="action-bar-section">
                     <label class="action-bar-label">Page</label>
                     <input type="number" id="logPage" value="1" min="1" class="action-bar-input"
-                        onchange="applyTransactionFilters()">
+                        oninput="applyTransactionFilters()" onchange="applyTransactionFilters()">
                 </div>
                 <div class="action-bar-section">
                     <label class="action-bar-label">Displayed</label>
                     <input type="number" id="logLimit" value="25" min="1" class="action-bar-input"
-                        onchange="applyTransactionFilters()">
+                        oninput="applyTransactionFilters()" onchange="applyTransactionFilters()">
                 </div>
             </div>
 
@@ -158,7 +158,7 @@
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    this.classList.toggle('selected');
+                    item.classList.toggle('selected');
                     updateUndoButtonState();
                 });
             });
@@ -324,14 +324,15 @@
             const limitInput = document.getElementById('logLimit');
             const pageInput = document.getElementById('logPage');
 
-            const limit = +limitInput.value || 25;
+            const limit = Math.max(1, Number.parseInt(limitInput.value, 10) || 25);
+            limitInput.value = limit;
 
             // Calculate max pages based on current filtered item count
             const totalItems = filteredTransactions.length;
             const maxPage = Math.max(1, Math.ceil(totalItems / limit));
 
             // Cap the input value if the user types a page higher than maxPage
-            let currentPage = +pageInput.value || 1;
+            let currentPage = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
 
             if (currentPage > maxPage) {
                 currentPage = maxPage;
@@ -354,7 +355,7 @@
                 const logContainer = document.getElementById('log-container');
                 logContainer.innerHTML = ''; // Clear existing entries
 
-                callServer('fetchTransactionsDataCached', null, (res) => {
+                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: true }), (res) => {
                     const response = JSON.parse(res);
 
                     if (response && Array.isArray(response)) {

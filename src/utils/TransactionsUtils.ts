@@ -47,27 +47,52 @@ function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { err
     const forceRefresh = parsedData?.forceRefresh || false;
 
     const cache = CacheService.getScriptCache();
-    const props = PropertiesService.getScriptProperties();
+    const cacheMetaKey = `${TRANSACTIONS_CACHED_KEY}_meta`;
+    const cacheChunkSize = 64 * 1024;
 
     if (!forceRefresh) {
-      const cachedString = getCachedData(TRANSACTIONS_CACHED_KEY);
-      if (cachedString && cachedString !== "{}" && cachedString !== "") {
-        log(`Cache hit: Transactions data loaded from cache. String: ${cachedString}`, false);
-        return cachedString as unknown as TransactionRecord[];
-      }
+      const cachedChunkCount = Number(cache.get(cacheMetaKey));
+      if (Number.isInteger(cachedChunkCount) && cachedChunkCount > 0) {
+        const chunkKeys = Array.from(
+          { length: cachedChunkCount },
+          (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`
+        );
+        const cachedChunks = cache.getAll(chunkKeys);
+        const cachedString = chunkKeys.map(key => cachedChunks[key]).join('');
 
-      const savedProperties = props.getProperty(TRANSACTIONS_CACHED_KEY);
-      if (savedProperties) {
-        cache.put(TRANSACTIONS_CACHED_KEY, savedProperties, SERVER_SIDE_CACHE_AGE);
-        return savedProperties as unknown as TransactionRecord[];
+        if (cachedChunks && cachedString.length > 0 && chunkKeys.every(key => cachedChunks[key])) {
+          log(`Cache hit: Loaded ${cachedChunkCount} transaction cache chunks.`, false);
+          return cachedString as unknown as TransactionRecord[];
+        }
       }
     }
 
     log(`Cache miss: Re-extracting transactions from sheet rows...`, false);
     const freshTransactions = fetchTransactionsData();
-    setCachedData(TRANSACTIONS_CACHED_KEY, JSON.stringify(freshTransactions));
     if (!Array.isArray(freshTransactions)) throw new Error("Failed to fetch transactions data from sheet.");
-    return JSON.stringify(freshTransactions) as unknown as TransactionRecord[];
+    const serializedTransactions = JSON.stringify(freshTransactions);
+    const previousChunkCount = Number(cache.get(cacheMetaKey));
+    const chunkCount = Math.max(1, Math.ceil(serializedTransactions.length / cacheChunkSize));
+    const chunkEntries: { [key: string]: string } = {};
+
+    for (let index = 0; index < chunkCount; index++) {
+      chunkEntries[`${TRANSACTIONS_CACHED_KEY}_${index}`] = serializedTransactions.slice(
+        index * cacheChunkSize,
+        (index + 1) * cacheChunkSize
+      );
+    }
+
+    if (Number.isInteger(previousChunkCount) && previousChunkCount > 0) {
+      const obsoleteKeys = Array.from(
+        { length: previousChunkCount },
+        (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`
+      ).filter(key => !Object.prototype.hasOwnProperty.call(chunkEntries, key));
+      if (obsoleteKeys.length > 0) cache.removeAll(obsoleteKeys);
+    }
+
+    cache.putAll(chunkEntries, SERVER_SIDE_CACHE_AGE);
+    cache.put(cacheMetaKey, String(chunkCount), SERVER_SIDE_CACHE_AGE);
+    return serializedTransactions as unknown as TransactionRecord[];
   } catch (error: any) {
     log(`Error in fetchTransactionsDataCached: ${error.message}`, true);
     return { error: `Error in fetchTransactionsDataCached: ${error.message}` };
@@ -208,12 +233,14 @@ function fetchTransactionsData(): TransactionRecord[] | boolean {
       // Use the Sheets API to efficiently fetch all transaction records in one request, with error handling to fall back to the slower method if the API call fails
       sheetData = Sheets.Spreadsheets.Values.get(spreadsheet.getId(), `${DEFAULT_TRANSACTIONS_SHEET}!A${TRANSACTIONS_ROW_START}:N`);
 
-      if (!sheetData.values || sheetData.values.length <= 0) return false;
+      if (!sheetData.values || sheetData.values.length <= 0) return [];
     } catch (err: any) {
       log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`, true);
 
       // Fall back to the slower method of fetching all transaction records using the native SpreadsheetApp service
-      sheetData = sheet.getRange(TRANSACTIONS_ROW_START, 1, sheet.getLastRow() - TRANSACTIONS_ROW_START + 1, 14).getValues(); // A1:M
+      const lastRow = sheet.getLastRow();
+      if (lastRow < TRANSACTIONS_ROW_START) return [];
+      sheetData = { values: sheet.getRange(TRANSACTIONS_ROW_START, 1, lastRow - TRANSACTIONS_ROW_START + 1, 14).getValues() };
     }
 
     const transactionRecords: TransactionRecord[] = sheetData.values.map((row: any[]) => {
@@ -249,21 +276,23 @@ function undoTransactions(data?: string): boolean {
       return false;
     }
 
-    // Gives an array of transaction ids
-    let parsedData = JSON.parse(data);
+    const parsedPayload = JSON.parse(data);
+    const transactionIds = Array.isArray(parsedPayload)
+      ? parsedPayload
+      : parsedPayload?.transactionIds;
 
-    log(`Parsed data for undoTransactions: ${JSON.stringify(parsedData)}`, false);
+    log(`Parsed data for undoTransactions: ${JSON.stringify(parsedPayload)}`, false);
 
-    const objectToArray = (obj: any) => Object.keys(obj).map(key => obj[key]);
-
-    if (typeof parsedData === 'object' && !Array.isArray(parsedData)) {
-      parsedData = objectToArray(parsedData);
-    }
-
-    if (!Array.isArray(parsedData) || parsedData.length === 0) {
+    if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
       log("Parsed data is not a valid array or is empty. Operation aborted.", true);
       return false;
     }
+
+    const normalizedTransactionIds = transactionIds
+      .map((id: unknown) => Number(id))
+      .filter((id: number) => Number.isFinite(id));
+
+    if (normalizedTransactionIds.length === 0) return false;
 
     let transactionRecords = fetchTransactionsDataCached() as TransactionRecord[];
 
@@ -290,9 +319,10 @@ function undoTransactions(data?: string): boolean {
       }
     }
 
-    log(`Fetched ${transactionRecords[0]} transaction records for undo operation.`, false);
-    log(`Parsed data for undoTransactions: ${JSON.stringify(parsedData)}`, false);
-    const recordsToUndo = transactionRecords.filter(record => parsedData[0].includes(record.id));
+    log(`Fetched ${transactionRecords.length} transaction records for undo operation.`, false);
+    const recordsToUndo = transactionRecords.filter(record =>
+      record.id !== undefined && normalizedTransactionIds.includes(Number(record.id))
+    );
 
     if (recordsToUndo.length === 0) {
       log("No matching transaction records found for the provided IDs. Operation aborted.", true);
@@ -335,15 +365,16 @@ function undoTransactions(data?: string): boolean {
       }
       const lastRowWithData = sheet.getLastRow();
 
-      for (let row = TRANSACTIONS_ROW_START; row <= lastRowWithData; row++) {
-        const idCellValue = sheet.getRange(row, 1).getValue();
-        if (idCellValue === record.id) {
+      for (let row = lastRowWithData; row >= TRANSACTIONS_ROW_START; row--) {
+        const idCellValue = Number(sheet.getRange(row, 1).getValue());
+        if (idCellValue === Number(record.id)) {
           sheet.deleteRow(row);
           break;
         }
       }
     }
 
+    clearGlobalCache([TRANSACTIONS_CACHED_KEY]);
     log(`Successfully undone ${recordsToUndo.length} transaction(s).`, true);
     return true;
   } catch (error: any) {
