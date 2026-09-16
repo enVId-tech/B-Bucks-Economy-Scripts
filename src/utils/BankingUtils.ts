@@ -266,20 +266,20 @@ function applyMathToSelection(
         );
       }
 
-      // Re-read updated balances post-flush
+      // Re-read each record's balance by its exact sheet period and row.
       if (transactionRecords.length > 0) {
-        rangesToProcess.forEach(targetSubRange => {
-          const sheet = targetSubRange.getSheet();
-          const startRow = fixedRow !== undefined ? fixedRow : targetSubRange.getRow();
-          const numRows = fixedRow !== undefined ? 1 : targetSubRange.getNumRows();
-          
-          const updatedBalances = sheet.getRange(startRow, BALANCE_COL, numRows, 1).getValues();
+        transactionRecords.forEach(record => {
+          const recordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheets().find(sheet =>
+            parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
+          );
+          const recordRow = Number(record.row);
 
-          transactionRecords.forEach((record, idx) => {
-            if (updatedBalances[idx] && updatedBalances[idx][0] !== undefined) {
-              record.newBalance = Number(Number(updatedBalances[idx][0]).toFixed(2));
+          if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
+            const updatedBalance = Number(recordSheet.getRange(recordRow, BALANCE_COL).getValue());
+            if (Number.isFinite(updatedBalance)) {
+              record.newBalance = Number(updatedBalance.toFixed(2));
             }
-          });
+          }
         });
 
         addTransactionRecords(transactionRecords);
@@ -368,6 +368,19 @@ function applyMathToSelection(
         SpreadsheetApp.flush();
 
         if (transactionRecords.length > 0) {
+          transactionRecords.forEach(record => {
+            const recordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheets().find(sheet =>
+              parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
+            );
+            const recordRow = Number(record.row);
+
+            if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
+              const updatedBalance = Number(recordSheet.getRange(recordRow, BALANCE_COL).getValue());
+              if (Number.isFinite(updatedBalance)) {
+                record.newBalance = Number(updatedBalance.toFixed(2));
+              }
+            }
+          });
           addTransactionRecords(transactionRecords);
         }
 
