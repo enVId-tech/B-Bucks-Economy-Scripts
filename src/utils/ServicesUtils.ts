@@ -187,7 +187,7 @@ function executeServiceAction(payloadStr: string): string | void {
             log("Operation is additive, multiplicative, or a negative override is enabled.", false);
         } else {
             log("Operation is subtractive and no negative override is enabled. Checking for minimum balance constraints.", false);
-            const personsNegative: string[] = [];
+            const personsNegative = new Set<string>();
 
             // Fetch all selected cells in the active sheet, if they have a balance below the minimum required to remove, return a message to the user that they cannot remove more than the minimum balance
             const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
@@ -217,32 +217,43 @@ function executeServiceAction(payloadStr: string): string | void {
 
                 log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
 
-                values.map((row, rowIndex) => {
+                values.forEach((row, rowIndex) => {
                     const absoluteRowIndex = startRow + rowIndex;
 
-                    return row.map((cell) => {
+                    row.forEach((cell) => {
                         if (typeof cell === 'number' && !isNaN(cell)) {
                             const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
 
-                            if (balance === undefined || balance === null || isNaN(balance)) {
-                                log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping this cell.`, true);
-                                return cell; // Return the original value if balance is invalid
+                            const nameValue = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+                            const individualName = typeof nameValue === "string" ? nameValue.trim() : "";
+                            const personLabel = individualName || `row ${absoluteRowIndex}`;
+
+                            if (typeof balance !== "number" || !Number.isFinite(balance)) {
+                                log(`Balance value is invalid for ${personLabel}.`, true);
+                                personsNegative.add(`${personLabel} (invalid balance)`);
+                                return;
                             }
 
-                            const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+                            if (!individualName) {
+                                log(`Person name is invalid for row ${absoluteRowIndex}.`, true);
+                                personsNegative.add(`${personLabel} (invalid name)`);
+                                return;
+                            }
 
                             // If the operation is subtractive and the balance minus the amount is less than the minimum required, add the individual to the list of persons with negative balances
                             if (operation === "SUBTRACT" && balance - (unitPrice * quantity) < 0) {
-                                personsNegative.push(individualName);
+                                personsNegative.add(individualName);
                             }
                         }
                     });
                 });
             });
 
-            log(`Some selected cells have negative balances. Operation will not proceed unless 'Negative Override' is enabled. 
-                Cells for [${personsNegative.join(" - ")}] have negative balances.`, true);
-            return `Some selected cells have negative balances. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${personsNegative.join(" - ")}] have negative balances.`;
+            if (personsNegative.size > 0) {
+                const negativePeople = Array.from(personsNegative).join(" - ");
+                log(`Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${negativePeople}] cannot be processed.`, true);
+                return `Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${negativePeople}] cannot be processed.`;
+            }
         }
 
         // If the operation is additive, always add to EARNINGS_COL
