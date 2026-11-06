@@ -287,9 +287,9 @@
                     <div class="info-box info-box-margin-top">
                         💡 <strong>Note:</strong> ${meta.note}
                     </div>
-                    <div class="processing-note" id="processing-${sectionKey}" style="display: none;">🔄 Saving settings, please wait...</div>
-                    <div class="success-note" id="success-${sectionKey}" style="display: none;">✅ Settings saved successfully!</div>
-                    <div class="error-note" id="error-${sectionKey}" style="display: none;">❌ Error saving settings.</div>
+                    <div class="processing-note is-hidden" id="processing-${sectionKey}">🔄 Saving settings, please wait...</div>
+                    <div class="success-note is-hidden" id="success-${sectionKey}">✅ Settings saved successfully!</div>
+                    <div class="error-note is-hidden" id="error-${sectionKey}">❌ Error saving settings.</div>
                     <div class="btn-group">
                         <button class="btn btn-primary" onclick="saveSection('${sectionKey}')">💾 Save</button>
                         <button class="btn btn-danger" onclick="initializeBankingSettings(false, '${sectionKey}')">Reset to Default</button>
