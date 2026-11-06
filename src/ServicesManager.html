@@ -21,6 +21,9 @@
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
 
+    <!-- Rolling window over the transaction log (pairs with utils/TransactionCache.ts) -->
+    <?!= include('utils/TransactionWindow'); ?>
+
     <!-- Include Caching Layer Utility for efficient client-side data management -->
     <!-- IMPORTANT!!!1!1!1!1!! The import for the cache file MUST come AFTER the Client-to-Server utility, CachingLayer.html uses functions from it -->
     <?!= include('utils/CachingLayer'); ?>
@@ -194,7 +197,6 @@
     </div>
 
     <script>
-        let allTransactions = [];
 
         // Execute as soon as the DOM frame paints to configure UI components
         document.addEventListener('DOMContentLoaded', async () => {
@@ -202,10 +204,15 @@
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
             document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
 
+            // Remember when the admin picks a quarter themselves, so the automatic updates never fight them.
+            document.getElementById('quarterSelectIncome').addEventListener('change', () => { quarterManuallyChosen.Income = true; });
+            document.getElementById('quarterSelectSpending').addEventListener('change', () => { quarterManuallyChosen.Spending = true; });
+
             await autoConfigureCurrentQuarter();
+            startQuarterWatcher();
             loadServicesSheetOptions();
             await populateLists(null, false, null);
-            loadTransactionData();
+            loadTransactionData(false);
         });
 
         document.addEventListener('click', () => {
@@ -256,20 +263,6 @@
             return String(value ?? '').toLowerCase().trim();
         }
 
-        function getFilteredTransactions() {
-            const searchQuery = normalizeFilterText(document.getElementById('logSearchName').value);
-            const filterDate = document.getElementById('logFilterDate').value;
-
-            return allTransactions.filter(transaction => {
-                const matchesName = !searchQuery || normalizeFilterText(transaction.individual).includes(searchQuery);
-                const transactionDate = new Date(transaction.timestamp);
-                const transactionDateValue = Number.isNaN(transactionDate.getTime()) ? '' : transactionDate.toLocaleDateString('en-CA');
-                const matchesDate = !filterDate || transactionDateValue === filterDate;
-
-                return matchesName && matchesDate;
-            });
-        }
-
         function renderTransactionLog(transactions) {
             const logContainer = document.getElementById('log-container');
 
@@ -287,24 +280,8 @@
 
             let htmlContent = '';
 
-            // bug fix: order transactions CORRECTly and not by per page slice.
-
-            // Calculate pagination bounds
-            const currentPage = +document.getElementById('logPage').value || 1;
-            let limit = +document.getElementById('logLimit').value || 25;
-
-            // If log limit is empty or < 1, default to 25
-            if (limit < 1) {
-                document.getElementById('logLimit').value = 25;
-                limit = 25;
-            }
-
-            // Reverse all matching transactions first so entries are displayed in descending order (most recent first)
-            const reversedTransactions = transactions.slice().reverse();
-
-            // Slice out ONLY the items that belong on the active page
-            const startIndex = (currentPage - 1) * limit;
-            const paginatedTransactions = reversedTransactions.slice(startIndex, startIndex + limit);
+            // The server already returned exactly this page, newest first.
+            const paginatedTransactions = transactions;
 
             // Render the page's slice
             paginatedTransactions.forEach(transaction => {
@@ -378,30 +355,67 @@
             document.getElementById('loadingIndicatorTransactions').style.display = 'none';
         }
 
+        // ---- Rolling transaction log: only a window of pages is ever held in memory (see utils/TransactionWindow.html) ----
+        const txLog = new RollingTransactionLog();
+        let applyFiltersTimer = null;
+        let renderToken = 0;
+
+        /** Server-side filters for this panel's two inputs: name contains + a single day (in the admin's local time zone). */
+        function getLogFilters() {
+            const filters = {};
+            const name = document.getElementById('logSearchName').value.trim();
+            const day = document.getElementById('logFilterDate').value; // yyyy-mm-dd
+            if (name) filters.studentContains = name;
+            if (day) {
+                const [year, month, date] = day.split('-').map(Number);
+                filters.fromMs = new Date(year, month - 1, date).getTime();
+                filters.toMs = new Date(year, month - 1, date + 1).getTime() - 1;
+            }
+            return filters;
+        }
+
+        /**
+         * Re-reads the Page / Displayed / filter inputs and shows that page. Pages inside the in-memory window render instantly;
+         * anything else is fetched, and the window then re-centres around the page in the background.
+         * Debounced so typing in the inputs doesn't fire a request per keystroke.
+         */
         function applyTransactionFilters() {
-            const filteredTransactions = getFilteredTransactions();
+            clearTimeout(applyFiltersTimer);
+            applyFiltersTimer = setTimeout(() => renderCurrentLogPage(false), 200);
+        }
+
+        async function renderCurrentLogPage(force = false) {
+            const token = ++renderToken;
             const limitInput = document.getElementById('logLimit');
             const pageInput = document.getElementById('logPage');
 
-            const limit = Math.max(1, Number.parseInt(limitInput.value, 10) || 25);
+            const limit = Math.max(1, Math.min(200, Number.parseInt(limitInput.value, 10) || 25));
             limitInput.value = limit;
+            const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
 
-            // Calculate max pages based on current filtered item count
-            const totalItems = filteredTransactions.length;
-            const maxPage = Math.max(1, Math.ceil(totalItems / limit));
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex';
+            try {
+                const result = await txLog.getPage({ page, pageSize: limit, filters: getLogFilters(), force });
+                if (token !== renderToken) return; // a newer request superseded this one
 
-            // Cap the input value if the user types a page higher than maxPage
-            let currentPage = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
-
-            if (currentPage > maxPage) {
-                currentPage = maxPage;
-                pageInput.value = maxPage;
-            } else if (currentPage < 1) {
-                currentPage = 1;
-                pageInput.value = 1;
+                pageInput.value = result.page; // the server clamps pages past the end
+                pageInput.setAttribute('max', result.totalPages);
+                renderTransactionLog(result.records);
+            } catch (error) {
+                if (token !== renderToken) return;
+                console.error('Error fetching transaction data:', error);
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
             }
+        }
 
-            renderTransactionLog(filteredTransactions);
+        /**
+         * Fetches the current page of the transaction log and renders it.
+         * @param {boolean} refresh - true after the log changed (new transaction, undo): drops the in-memory window so the page is re-read.
+         */
+        function loadTransactionData(refresh = true) {
+            if (refresh) txLog.invalidate();
+            document.getElementById('log-container').innerHTML = '';
+            renderCurrentLogPage(false);
         }
 
         async function addBalance(type = null) {
@@ -504,62 +518,119 @@
             document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide applying indicator
         }
 
+        // Tracks whether the admin picked a quarter by hand. While true we never move that dropdown automatically.
+        const quarterManuallyChosen = { Income: false, Spending: false };
+        let activeQuarterId = null;
+        let quarterWatcherStarted = false;
+
+        const QUARTER_WORDS = ['One', 'Two', 'Three', 'Four'];
+
+        function parseQuarterBoundary(value) {
+            if (value === undefined || value === null || value === '') return null;
+            const ms = value instanceof Date ? value.getTime() : (typeof value === 'number' ? value : Date.parse(String(value)));
+            return Number.isFinite(ms) ? ms : null;
+        }
+
         /**
-         * Inspects the cached banking configuration dates and automatically updates
-         * the quarter select element to reflect the current real-world timeframe.
+         * Client-side mirror of resolveCurrentQuarter() in utils/QuarterUtils.ts. Only used as a fallback when the server
+         * can't be reached. Keep the two in sync.
+         * Accepts the real settings keys (startQ1Date) and the legacy ones (startQuarterOneDate).
+         * @param {Object} dates - importantDates from the settings matrix.
+         * @returns {string} "Q1" | "Q2" | "Q3" | "Q4"
+         */
+        function getCurrentQuarter(dates, nowMs = Date.now()) {
+            const source = dates || {};
+            const DAY = 24 * 60 * 60 * 1000;
+            const quarters = [];
+
+            for (let i = 0; i < 4; i++) {
+                const start = parseQuarterBoundary(source[`startQ${i + 1}Date`]) ?? parseQuarterBoundary(source[`startQuarter${QUARTER_WORDS[i]}Date`]);
+                let end = parseQuarterBoundary(source[`endQ${i + 1}Date`]) ?? parseQuarterBoundary(source[`endQuarter${QUARTER_WORDS[i]}Date`]);
+                if (start === null) continue;
+                // A plain date means "through the end of that day"
+                if (end !== null && new Date(end).getHours() === 0 && new Date(end).getMinutes() === 0) end += DAY - 1;
+                quarters.push({ id: `Q${i + 1}`, start, end });
+            }
+
+            if (!quarters.length) return 'Q1';
+
+            const started = quarters.filter(q => q.start <= nowMs).sort((a, b) => a.start - b.start);
+            if (!started.length) return quarters.slice().sort((a, b) => a.start - b.start)[0].id;
+
+            // The most recently started quarter wins: it is active, or (during a break / after the year) stays selected.
+            return started[started.length - 1].id;
+        }
+
+        /**
+         * Which quarter is it right now? Asks the server (single source of truth, uses the spreadsheet's time zone) and
+         * falls back to the cached settings if the call fails.
+         * @returns {Promise<string>} "Q1" | "Q2" | "Q3" | "Q4"
+         */
+        async function getActiveQuarter(forceRefresh = false) {
+            try {
+                const info = await callServerAsync('getCurrentQuarterInfo');
+                if (info && typeof info === 'object' && /^Q[1-4]$/.test(info.quarter)) {
+                    return info.quarter;
+                }
+                console.warn('Unexpected quarter payload, using local fallback:', info);
+            } catch (e) {
+                console.warn('Server quarter lookup failed, using local fallback:', e);
+            }
+
+            const settings = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', forceRefresh);
+            return getCurrentQuarter(settings && settings.importantDates);
+        }
+
+        /**
+         * Sets both quarter dropdowns to the quarter that matches today's date, leaving any dropdown the admin changed by hand alone.
+         * @returns {Promise<boolean>} true if a dropdown actually changed (so lists need repopulating).
          */
         async function autoConfigureCurrentQuarter() {
             const expenseQuarterSelect = document.getElementById('quarterSelectSpending');
             const incomeQuarterSelect = document.getElementById('quarterSelectIncome');
 
-            if (!expenseQuarterSelect || !incomeQuarterSelect) return;
+            if (!expenseQuarterSelect || !incomeQuarterSelect) return false;
 
             try {
-                const settings = await fetchClientData('cachedSettings', 'fetchSettingsDataCached', false);
+                const activeQuarter = await getActiveQuarter();
+                const changed = activeQuarter !== activeQuarterId;
+                activeQuarterId = activeQuarter;
 
-                console.log("Fetched settings for auto-configuration:", settings);
-
-                if (settings && settings.importantDates) {
-                    const activeQuarter = getCurrentQuarter(settings.importantDates);
-
-                    // Programmatically set the drop-down value
+                let touched = false;
+                if (!quarterManuallyChosen.Spending && expenseQuarterSelect.value !== activeQuarter) {
                     expenseQuarterSelect.value = activeQuarter;
-                    incomeQuarterSelect.value = activeQuarter;
-                    console.log(`Calendar bounds evaluated. Automatically localized to: ${activeQuarter}`);
+                    touched = true;
                 }
+                if (!quarterManuallyChosen.Income && incomeQuarterSelect.value !== activeQuarter) {
+                    incomeQuarterSelect.value = activeQuarter;
+                    touched = true;
+                }
+
+                if (changed) console.log(`Calendar bounds evaluated. Automatically localized to: ${activeQuarter}`);
+                return touched;
             } catch (e) {
-                console.error("Failed to auto-detect current active economic quarter:", e);
+                console.error('Failed to auto-detect current active economic quarter:', e);
+                return false;
             }
         }
 
         /**
-         * Pure logical helper that checks today's date against active configuration windows.
-         * @param {Object} dates - The importantDates object from your settings matrix
-         * @returns {string} "Q1" | "Q2" | "Q3" | "Q4" (Defaults to "Q1" if out-of-bounds)
+         * Keeps the quarter in step with the calendar while the dialog stays open (it can sit open across a quarter boundary
+         * or overnight): re-checks every 5 minutes and whenever the dialog regains focus.
          */
-        function getCurrentQuarter(dates) {
-            const today = new Date();
+        function startQuarterWatcher() {
+            if (quarterWatcherStarted) return;
+            quarterWatcherStarted = true;
 
-            // FIXED: Helper to convert string stamps into true comparable Date objects
-            const parseDate = (dateVal) => {
-                if (!dateVal) return null;
-                const parsed = new Date(dateVal);
-                return isNaN(parsed.getTime()) ? null : parsed;
+            const recheck = async () => {
+                if (await autoConfigureCurrentQuarter()) {
+                    await populateLists(null, false, null);
+                }
             };
 
-            const q1Start = parseDate(dates.startQuarterOneDate), q1End = parseDate(dates.endQuarterOneDate);
-            const q2Start = parseDate(dates.startQuarterTwoDate), q2End = parseDate(dates.endQuarterTwoDate);
-            const q3Start = parseDate(dates.startQuarterThreeDate), q3End = parseDate(dates.endQuarterThreeDate);
-            const q4Start = parseDate(dates.startQuarterFourDate), q4End = parseDate(dates.endQuarterFourDate);
-
-            if (q1Start && q1End && today >= q1Start && today <= q1End) return "Q1";
-            if (q2Start && q2End && today >= q2Start && today <= q2End) return "Q2";
-            if (q3Start && q3End && today >= q3Start && today <= q3End) return "Q3";
-            if (q4Start && q4End && today >= q4Start && today <= q4End) return "Q4";
-
-            if (q4End && today > q4End) return "Q4";
-
-            return "Q1"
+            setInterval(recheck, 5 * 60 * 1000);
+            window.addEventListener('focus', recheck);
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) recheck(); });
         }
 
         /**
@@ -582,15 +653,10 @@
 
             let sheetToSend = servicesSheet === null || servicesSheet === undefined ? null : servicesSheet;
 
-            let quarter = "Q1";
-
-            if (targetType === 'Income') {
-                quarter = quarterSelectIncome.value;
-            } else if (targetType === 'Expense') {
-                quarter = quarterSelectSpending.value;
-            } else {
-                quarter = getCurrentQuarter((await fetchClientData('cachedSettings', 'fetchSettingsDataCached', forceRefresh, ["servicesSheet", servicesSheet])).importantDates);
-            }
+            // Each list prices items using the quarter selected for that list (auto-set to today's quarter, or the admin's choice).
+            const quarterIncome = quarterSelectIncome.value || activeQuarterId || await getActiveQuarter(forceRefresh);
+            const quarterExpense = quarterSelectSpending.value || activeQuarterId || await getActiveQuarter(forceRefresh);
+            const quarter = `Income: ${quarterIncome}, Expense: ${quarterExpense}`;
 
             try {
                 const response = await fetchClientData('cachedServices', 'fetchServicesDataCached', forceRefresh, ["servicesSheet", servicesSheet]);
@@ -611,10 +677,11 @@
                     const item = response[i];
 
                     if (!item.itemName || !item.category) continue;
-                    if (!item.pricing || item.pricing[quarter] === undefined || item.pricing[quarter] === null) continue;
+                    const itemQuarter = item.category === 'Income' ? quarterIncome : quarterExpense;
+                    if (!item.pricing || item.pricing[itemQuarter] === undefined || item.pricing[itemQuarter] === null) continue;
 
-                    const price = item.pricing[quarter];
-                    const limit = (item.limit && item.limit[quarter]) ? ` | Max: ${item.limit[quarter]}` : '';
+                    const price = item.pricing[itemQuarter];
+                    const limit = (item.limit && item.limit[itemQuarter]) ? ` | Max: ${item.limit[itemQuarter]}` : '';
                     const optionMarkup = `<option value="${item.itemName}" data-price="${price}">${item.itemName} ($${price})</option>`;
 
                     if (item.category === 'Income' && incomeSelect) {
@@ -641,43 +708,6 @@
             } catch (error) {
                 loadingIndicator.style.display = 'none'; // Ensure loading indicator is hidden on error
                 console.error("Error populating item lists:", error);
-            }
-        }
-
-        /**
-         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
-         */
-        function loadTransactionData(refresh = true) {
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
-            try {
-                const logContainer = document.getElementById('log-container');
-                logContainer.innerHTML = ''; // Clear existing entries
-
-                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: refresh }), (res) => {
-                    try {
-                        if (!res) {
-                            console.error("No response received from server for transaction data.");
-                            return;
-                        }
-                    } catch (parseError) {
-                        console.error("Failed to parse server response for transaction data:", parseError);
-                        return;
-                    }
-
-                    const response = JSON.parse(res);
-
-                    if (response && Array.isArray(response)) {
-                        allTransactions = response;
-                        applyTransactionFilters();
-                    } else {
-                        console.error("Invalid response format from server.");
-                    }
-                }, (error) => {
-                    console.error("Error fetching transaction data:", error);
-                });
-            } catch (err) {
-                console.error("Error in loadTransactionData:", err);
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
             }
         }
 

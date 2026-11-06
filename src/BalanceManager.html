@@ -21,6 +21,9 @@
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
 
+    <!-- Rolling window over the transaction log (pairs with utils/TransactionCache.ts) -->
+    <?!= include('utils/TransactionWindow'); ?>
+
     <!-- Include Caching Layer Utility for efficient client-side data management -->
     <!-- IMPORTANT!!!1!1!1!1!! The import for the cache file MUST come AFTER the Client-to-Server utility, CachingLayer.html uses functions from it -->
     <?!= include('utils/CachingLayer'); ?>
@@ -147,7 +150,6 @@
         </div>
     </div>
     <script>
-        let allTransactions = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
@@ -189,25 +191,11 @@
                 }
             });
 
-            loadTransactionData();
+            loadTransactionData(false);
         })
 
         function normalizeFilterText(value) {
             return String(value ?? '').toLowerCase().trim();
-        }
-
-        function getFilteredTransactions() {
-            const searchQuery = normalizeFilterText(document.getElementById('logSearchName').value);
-            const filterDate = document.getElementById('logFilterDate').value;
-
-            return allTransactions.filter(transaction => {
-                const matchesName = !searchQuery || normalizeFilterText(transaction.individual).includes(searchQuery);
-                const transactionDate = new Date(transaction.timestamp);
-                const transactionDateValue = Number.isNaN(transactionDate.getTime()) ? '' : transactionDate.toLocaleDateString('en-CA');
-                const matchesDate = !filterDate || transactionDateValue === filterDate;
-
-                return matchesName && matchesDate;
-            });
         }
 
         function renderTransactionLog(transactions) {
@@ -227,24 +215,8 @@
 
             let htmlContent = '';
 
-            // bug fix: order transactions CORRECTly and not by per page slice.
-
-            // Calculate pagination bounds
-            const currentPage = +document.getElementById('logPage').value || 1;
-            let limit = +document.getElementById('logLimit').value || 25;
-
-            // If log limit is empty or < 1, default to 25
-            if (limit < 1) {
-                document.getElementById('logLimit').value = 25;
-                limit = 25;
-            }
-
-            // Reverse all matching transactions first so entries are displayed in descending order (most recent first)
-            const reversedTransactions = transactions.slice().reverse();
-
-            // Slice out ONLY the items that belong on the active page
-            const startIndex = (currentPage - 1) * limit;
-            const paginatedTransactions = reversedTransactions.slice(startIndex, startIndex + limit);
+            // The server already returned exactly this page, newest first.
+            const paginatedTransactions = transactions;
 
             // Render the page's slice
             paginatedTransactions.forEach(transaction => {
@@ -319,57 +291,67 @@
         }
 
 
-        function applyTransactionFilters() {
-            const filteredTransactions = getFilteredTransactions();
-            const limitInput = document.getElementById('logLimit');
-            const pageInput = document.getElementById('logPage');
+        // ---- Rolling transaction log: only a window of pages is ever held in memory (see utils/TransactionWindow.html) ----
+        const txLog = new RollingTransactionLog();
+        let applyFiltersTimer = null;
+        let renderToken = 0;
 
-            const limit = Math.max(1, Number.parseInt(limitInput.value, 10) || 25);
-            limitInput.value = limit;
-
-            // Calculate max pages based on current filtered item count
-            const totalItems = filteredTransactions.length;
-            const maxPage = Math.max(1, Math.ceil(totalItems / limit));
-
-            // Cap the input value if the user types a page higher than maxPage
-            let currentPage = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
-
-            if (currentPage > maxPage) {
-                currentPage = maxPage;
-                pageInput.value = maxPage;
-            } else if (currentPage < 1) {
-                currentPage = 1;
-                pageInput.value = 1;
+        /** Server-side filters for this panel's two inputs: name contains + a single day (in the admin's local time zone). */
+        function getLogFilters() {
+            const filters = {};
+            const name = document.getElementById('logSearchName').value.trim();
+            const day = document.getElementById('logFilterDate').value; // yyyy-mm-dd
+            if (name) filters.studentContains = name;
+            if (day) {
+                const [year, month, date] = day.split('-').map(Number);
+                filters.fromMs = new Date(year, month - 1, date).getTime();
+                filters.toMs = new Date(year, month - 1, date + 1).getTime() - 1;
             }
-
-            renderTransactionLog(filteredTransactions);
+            return filters;
         }
 
         /**
-         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
+         * Re-reads the Page / Displayed / filter inputs and shows that page. Pages inside the in-memory window render instantly;
+         * anything else is fetched, and the window then re-centres around the page in the background.
+         * Debounced so typing in the inputs doesn't fire a request per keystroke.
          */
-        function loadTransactionData() {
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
+        function applyTransactionFilters() {
+            clearTimeout(applyFiltersTimer);
+            applyFiltersTimer = setTimeout(() => renderCurrentLogPage(false), 200);
+        }
 
+        async function renderCurrentLogPage(force = false) {
+            const token = ++renderToken;
+            const limitInput = document.getElementById('logLimit');
+            const pageInput = document.getElementById('logPage');
+
+            const limit = Math.max(1, Math.min(200, Number.parseInt(limitInput.value, 10) || 25));
+            limitInput.value = limit;
+            const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
+
+            document.getElementById('loadingIndicatorTransactions').style.display = 'flex';
             try {
-                const logContainer = document.getElementById('log-container');
-                logContainer.innerHTML = ''; // Clear existing entries
+                const result = await txLog.getPage({ page, pageSize: limit, filters: getLogFilters(), force });
+                if (token !== renderToken) return; // a newer request superseded this one
 
-                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: true }), (res) => {
-                    const response = JSON.parse(res);
-
-                    if (response && Array.isArray(response)) {
-                        allTransactions = response;
-                        applyTransactionFilters();
-                    } else {
-                        console.error("Invalid response format from server.");
-                    }
-                }, (error) => {
-                    console.error("Error fetching transaction data:", error);
-                });
-            } catch (err) {
-                console.error("Error in loadTransactionData:", err);
+                pageInput.value = result.page; // the server clamps pages past the end
+                pageInput.setAttribute('max', result.totalPages);
+                renderTransactionLog(result.records);
+            } catch (error) {
+                if (token !== renderToken) return;
+                console.error('Error fetching transaction data:', error);
+                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
             }
+        }
+
+        /**
+         * Fetches the current page of the transaction log and renders it.
+         * @param {boolean} refresh - true after the log changed (new transaction, undo): drops the in-memory window so the page is re-read.
+         */
+        function loadTransactionData(refresh = true) {
+            if (refresh) txLog.invalidate();
+            document.getElementById('log-container').innerHTML = '';
+            renderCurrentLogPage(false);
         }
 
         /**

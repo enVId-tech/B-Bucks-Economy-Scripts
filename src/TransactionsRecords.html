@@ -20,6 +20,9 @@
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
+
+    <!-- Rolling window over the transaction log (pairs with utils/TransactionCache.ts) -->
+    <?!= include('utils/TransactionWindow'); ?>
 </head>
 
 <body>
@@ -148,7 +151,6 @@
         <div class="records-container" id="recordsContainer"></div>
     </div>
     <script>
-        let allTransactions = [];
 
         function updateUndoButtonState() {
             const undoBtn = document.getElementById('undoSelectedBtn');
@@ -156,21 +158,167 @@
             undoBtn.disabled = selectedItems.length === 0;
         }
 
-        document.addEventListener('DOMContentLoaded', async () => {
+        // ---- Rolling transaction log: only a window of pages is ever held in memory (see utils/TransactionWindow.html) ----
+        const txLog = new RollingTransactionLog();
+        let facets = { periods: [], types: [], allStudents: [], studentsByPeriod: {} };
+        let applyFiltersTimer = null;
+        let renderToken = 0;
+
+        const TYPE_LABELS = { Income: 'Income', Expense: 'Spending', Investment: 'Investment' };
+        const TYPE_VALUES = { Income: 'income', Expense: 'spending', Investment: 'deposit' };
+
+        function getTransactionTypeLabel(type) {
+            return TYPE_VALUES[type] || 'unknown';
+        }
+
+        /** Filters sent to the server. Dates become epoch ms in the admin's own time zone. */
+        function getServerFilters() {
+            const fromDate = document.getElementById('filterFromDate').value;
+            const toDate = document.getElementById('filterToDate').value;
+            return {
+                search: document.getElementById('filterSearch').value.trim(),
+                scope: document.getElementById('filterScope').value,
+                period: document.getElementById('filterPeriod').value,
+                student: document.getElementById('filterStudent').value,
+                type: document.getElementById('filterType').value,
+                fromMs: fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null,
+                toMs: toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : null
+            };
+        }
+
+        /** Rebuilds a <select> from a list of {value, label}, keeping the current choice if it still exists. */
+        function fillSelect(selectId, firstLabel, options) {
+            const select = document.getElementById(selectId);
+            const current = select.value;
+            select.innerHTML = '';
+            const first = document.createElement('option');
+            first.value = '';
+            first.textContent = firstLabel;
+            select.appendChild(first);
+            options.forEach(({ value, label }) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                select.appendChild(option);
+            });
+            select.value = options.some(o => String(o.value) === current) ? current : '';
+        }
+
+        function populateStudentOptions() {
+            const period = document.getElementById('filterPeriod').value;
+            const names = period ? (facets.studentsByPeriod[period] || []) : facets.allStudents;
+            fillSelect('filterStudent', 'All Students', names.map(name => ({ value: name, label: name })));
+        }
+
+        function populateFilterOptions() {
+            fillSelect('filterPeriod', 'All Periods', facets.periods.map(p => ({ value: p, label: `Period ${p}` })));
+            fillSelect('filterType', 'All Types', facets.types.map(t => ({ value: TYPE_VALUES[t] || 'unknown', label: TYPE_LABELS[t] || t })));
+            populateStudentOptions();
+        }
+
+        /** Drop-down contents come from a compact server summary, never from the full log. Respects the date range. */
+        async function loadFacets() {
+            try {
+                const { fromMs, toMs } = getServerFilters();
+                const result = await callServerAsync('fetchTransactionFacets', JSON.stringify({ fromMs, toMs }));
+                if (result && !result.error) {
+                    facets = result;
+                    populateFilterOptions();
+                }
+            } catch (error) {
+                console.error('Failed to load filter options:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            if (!stats) return;
+            document.getElementById('totalCount').textContent = stats.total;
+            document.getElementById('incomeCount').textContent = stats.income;
+            document.getElementById('spendingCount').textContent = stats.spending;
+            document.getElementById('netAmount').textContent = `$${Number(stats.net).toFixed(2)}`;
+        }
+
+        /** Debounced so typing in the search / page boxes doesn't fire a request per keystroke. */
+        function applyTransactionFilters() {
+            clearTimeout(applyFiltersTimer);
+            applyFiltersTimer = setTimeout(() => renderCurrentRecordsPage(false), 200);
+        }
+
+        /**
+         * Shows the page named in the Page box. Pages inside the in-memory window render instantly; anything else is fetched,
+         * and the window (plus the server cache) then re-centres around the page in the background.
+         */
+        async function renderCurrentRecordsPage(force = false) {
+            const token = ++renderToken;
+            const limitInput = document.getElementById('logLimit');
+            const pageInput = document.getElementById('logPage');
+
+            const limit = Math.max(1, Math.min(200, Number.parseInt(limitInput.value, 10) || 25));
+            limitInput.value = limit;
+            const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
+
+            document.getElementById('loadingIndicator').style.display = 'flex';
+            try {
+                const result = await txLog.getPage({ page, pageSize: limit, filters: getServerFilters(), force, includeStats: true });
+                if (token !== renderToken) return; // a newer request superseded this one
+
+                pageInput.value = result.page; // the server clamps pages past the end
+                pageInput.setAttribute('max', result.totalPages);
+                updateStats(result.stats);
+                renderTransactionRecords(result.records);
+                document.getElementById('loadingIndicator').style.display = 'none';
+            } catch (error) {
+                if (token !== renderToken) return;
+                console.error('Error fetching transaction data:', error);
+                document.getElementById('recordsContainer').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <div>Failed to load transactions. Please try again later.</div>
+                    </div>
+                `;
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+
+        function clearTransactionFilters() {
+            document.getElementById('filterSearch').value = '';
+            document.getElementById('filterScope').value = 'all';
+            document.getElementById('filterPeriod').value = '';
+            document.getElementById('filterStudent').value = '';
+            document.getElementById('filterType').value = '';
+            document.getElementById('filterFromDate').value = '';
+            document.getElementById('filterToDate').value = '';
+            document.getElementById('logPage').value = '1';
+            document.getElementById('logLimit').value = '25';
+
+            loadFacets();
+            applyTransactionFilters();
+        }
+
+        /**
+         * Reloads the log.
+         * @param {boolean} force - true (the Refresh button) rebuilds the server cache from the sheet, picking up manual sheet edits.
+         *   false (first load, after an undo) only drops the browser window; the server cache validates itself by row count.
+         */
+        function loadTransactionData(force = true) {
+            txLog.invalidate();
+            document.getElementById('recordsContainer').innerHTML = '';
+            loadFacets();
+            renderCurrentRecordsPage(force);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('filterPeriod').addEventListener('change', () => {
-                const dateFilteredTransactions = getTransactionsFilteredByDateRange(allTransactions);
-                populateStudentFilterOptions(dateFilteredTransactions);
+                populateStudentOptions();
                 applyTransactionFilters();
             });
 
-            document.getElementById('filterFromDate').addEventListener('change', () => {
-                updateFiltersForDateRange();
-                applyTransactionFilters();
-            });
-
-            document.getElementById('filterToDate').addEventListener('change', () => {
-                updateFiltersForDateRange();
-                applyTransactionFilters();
+            // The date range narrows which periods / students / types exist, so the drop-downs are rebuilt with it
+            ['filterFromDate', 'filterToDate'].forEach(id => {
+                document.getElementById(id).addEventListener('change', async () => {
+                    await loadFacets();
+                    applyTransactionFilters();
+                });
             });
 
             document.getElementById('recordsContainer').addEventListener('click', (event) => {
@@ -183,7 +331,7 @@
             });
 
             // Deselect all when clicking outside
-            document.addEventListener('click', () => {
+            document.addEventListener('click', (event) => {
                 if (event.target === document.body || event.target === document.documentElement) {
                     document.querySelectorAll('[data-selectable="true"].selected').forEach(item => {
                         item.classList.remove('selected');
@@ -192,12 +340,9 @@
                 }
             });
 
-            loadTransactionData();
+            loadTransactionData(false);
         });
 
-        function normalizeText(value) {
-            return String(value ?? '').toLowerCase().trim();
-        }
 
         function getTransactionTypeLabel(type) {
             const typeMapping = {
@@ -207,175 +352,6 @@
             };
 
             return typeMapping[type] || 'unknown';
-        }
-
-        function populateStudentFilterOptions(transactions) {
-            const studentSelect = document.getElementById('filterStudent');
-            const currentValue = studentSelect.value;
-            const selectedPeriod = document.getElementById('filterPeriod').value;
-
-            // Filter transactions by selected period if one is chosen
-            const filteredTransactions = selectedPeriod
-                ? transactions.filter(t => String(t.period) === selectedPeriod)
-                : transactions;
-
-            const uniqueStudents = [...new Set(
-                filteredTransactions
-                    .map(transaction => String(transaction.individual || '').trim())
-                    .filter(Boolean)
-            )].sort((a, b) => a.localeCompare(b));
-
-            studentSelect.innerHTML = '<option value="">All Students</option>';
-
-            uniqueStudents.forEach(student => {
-                const option = document.createElement('option');
-                option.value = student;
-                option.textContent = student;
-                studentSelect.appendChild(option);
-            });
-
-            if (uniqueStudents.includes(currentValue)) {
-                studentSelect.value = currentValue;
-            } else {
-                studentSelect.value = '';
-            }
-        }
-
-        function populatePeriodFilterOptions(transactions) {
-            const periodSelect = document.getElementById('filterPeriod');
-            const currentValue = periodSelect.value;
-
-            const uniquePeriods = [...new Set(
-                transactions
-                    .map(transaction => transaction.period)
-                    .filter(period => period !== null && period !== undefined)
-            )].sort((a, b) => a - b);
-
-            periodSelect.innerHTML = '<option value="">All Periods</option>';
-
-            uniquePeriods.forEach(period => {
-                const option = document.createElement('option');
-                option.value = period;
-                option.textContent = `Period ${period}`;
-                periodSelect.appendChild(option);
-            });
-
-            if (uniquePeriods.includes(Number(currentValue))) {
-                periodSelect.value = currentValue;
-            }
-        }
-
-        function populateTypeFilterOptions(transactions) {
-            const typeSelect = document.getElementById('filterType');
-            const currentValue = typeSelect.value;
-
-            const typeMapping = {
-                Income: 'income',
-                Expense: 'spending',
-                Investment: 'deposit',
-            };
-
-            const uniqueTypes = [...new Set(
-                transactions
-                    .map(transaction => transaction.type)
-                    .filter(type => type !== null && type !== undefined)
-            )];
-
-            typeSelect.innerHTML = '<option value="">All Types</option>';
-
-            uniqueTypes.forEach(type => {
-                const mappedType = typeMapping[type] || 'unknown';
-                const displayName = type === 'Income' ? 'Income' : type === 'Expense' ? 'Spending' : type === 'Investment' ? 'Investment' : type;
-
-                const option = document.createElement('option');
-                option.value = mappedType;
-                option.textContent = displayName;
-                typeSelect.appendChild(option);
-            });
-
-            if (Array.from(typeSelect.options).some(opt => opt.value === currentValue)) {
-                typeSelect.value = currentValue;
-            } else {
-                typeSelect.value = '';
-            }
-        }
-
-        function getTransactionsFilteredByDateRange(transactions) {
-            const fromDateValue = document.getElementById('filterFromDate').value;
-            const toDateValue = document.getElementById('filterToDate').value;
-
-            return transactions.filter(transaction => {
-                const transactionDate = transaction.timestamp ? new Date(transaction.timestamp) : null;
-
-                if (!transactionDate) return true;
-
-                if (fromDateValue && transactionDate < new Date(`${fromDateValue}T00:00:00`)) return false;
-                if (toDateValue && transactionDate > new Date(`${toDateValue}T23:59:59.999`)) return false;
-
-                return true;
-            });
-        }
-
-        function updateFiltersForDateRange() {
-            const dateFilteredTransactions = getTransactionsFilteredByDateRange(allTransactions);
-            populatePeriodFilterOptions(dateFilteredTransactions);
-            populateTypeFilterOptions(dateFilteredTransactions);
-            populateStudentFilterOptions(dateFilteredTransactions);
-        }
-
-        function matchesSearch(transaction, scope, query) {
-            if (!query) return true;
-
-            const fields = {
-                all: [
-                    transaction.id,
-                    transaction.individual,
-                    transaction.period,
-                    transaction.type,
-                    transaction.serviceProvided,
-                    transaction.unitPrice,
-                    transaction.quantity,
-                    transaction.modifiedColumn,
-                    transaction.tenderedMoney,
-                    transaction.timestamp,
-                ],
-                student: [transaction.individual],
-                item: [transaction.serviceProvided],
-                type: [transaction.type],
-                period: [transaction.period],
-                id: [transaction.id],
-                column: [transaction.modifiedColumn],
-            };
-
-            const haystack = (fields[scope] || fields.all)
-                .map(normalizeText)
-                .join(' ');
-
-            return haystack.includes(query);
-        }
-
-        function getFilteredTransactions() {
-            const searchQuery = normalizeText(document.getElementById('filterSearch').value);
-            const searchScope = document.getElementById('filterScope').value;
-            const periodValue = document.getElementById('filterPeriod').value;
-            const studentValue = normalizeText(document.getElementById('filterStudent').value);
-            const typeValue = document.getElementById('filterType').value;
-            const fromDateValue = document.getElementById('filterFromDate').value;
-            const toDateValue = document.getElementById('filterToDate').value;
-
-            return allTransactions.filter(transaction => {
-                const transactionType = getTransactionTypeLabel(transaction.type);
-                const transactionDate = transaction.timestamp ? new Date(transaction.timestamp) : null;
-
-                if (periodValue && String(transaction.period) !== periodValue) return false;
-                if (studentValue && normalizeText(transaction.individual) !== studentValue) return false;
-                if (typeValue && transactionType !== typeValue) return false;
-                if (fromDateValue && transactionDate && transactionDate < new Date(`${fromDateValue}T00:00:00`)) return false;
-                if (toDateValue && transactionDate && transactionDate > new Date(`${toDateValue}T23:59:59.999`)) return false;
-                if (!matchesSearch(transaction, searchScope, searchQuery)) return false;
-
-                return true;
-            });
         }
 
         function renderTransactionRecords(transactions) {
@@ -394,16 +370,8 @@
 
             let htmlContent = '';
 
-            // Calculate pagination bounds
-            const currentPage = +document.getElementById('logPage').value || 1;
-            const limit = +document.getElementById('logLimit').value || 25;
-
-            // Reverse all matching transactions globally first so latest is at index 0
-            const reversedTransactions = transactions.slice().reverse();
-
-            // Slice out ONLY the items that belong on the active page
-            const startIndex = (currentPage - 1) * limit;
-            const paginatedTransactions = reversedTransactions.slice(startIndex, startIndex + limit);
+            // The server already returned exactly this page, newest first.
+            const paginatedTransactions = transactions;
 
             paginatedTransactions.forEach(transaction => {
                 const { id, individual, period, type, serviceProvided, unitPrice, quantity, modifiedColumn, tenderedMoney, initialColumnAmount, newColumnAmount, initialBalance, newBalance, timestamp } = transaction;
@@ -480,95 +448,6 @@
             document.getElementById('loadingIndicator').style.display = 'none'; // Hide loading indicator
         }
 
-        function applyTransactionFilters() {
-            const filteredTransactions = getFilteredTransactions();
-
-            const limitInput = document.getElementById('logLimit');
-            const pageInput = document.getElementById('logPage');
-            const limit = Math.max(1, Number.parseInt(limitInput.value, 10) || 25);
-            limitInput.value = limit;
-
-            // Calculate maximum available pages dynamically
-            const totalItems = filteredTransactions.length;
-            const maxPage = Math.max(1, Math.ceil(totalItems / limit));
-
-            // Cap the input value if the user enters a value greater than maxPage or less than 1
-            let currentPage = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
-            if (currentPage > maxPage) {
-                currentPage = maxPage;
-                pageInput.value = maxPage;
-            } else if (currentPage < 1) {
-                currentPage = 1;
-                pageInput.value = 1;
-            }
-
-            pageInput.setAttribute('max', maxPage);
-
-            renderTransactionRecords(filteredTransactions);
-
-            document.getElementById('totalCount').textContent = filteredTransactions.length;
-            document.getElementById('incomeCount').textContent = filteredTransactions.filter(tx => tx.type === 'Income').length;
-            document.getElementById('spendingCount').textContent = filteredTransactions.filter(tx => tx.type === 'Expense').length;
-            document.getElementById('netAmount').textContent = `$${filteredTransactions.reduce((sum, tx) => sum + Number((tx.newBalance - tx.initialBalance).toFixed(2)), 0).toFixed(2)}`;
-        }
-
-        function clearTransactionFilters() {
-            document.getElementById('filterSearch').value = '';
-            document.getElementById('filterScope').value = 'all';
-            document.getElementById('filterPeriod').value = '';
-            document.getElementById('filterStudent').value = '';
-            document.getElementById('filterType').value = '';
-            document.getElementById('filterFromDate').value = '';
-            document.getElementById('filterToDate').value = '';
-            document.getElementById('logPage').value = '1';
-            document.getElementById('logLimit').value = '25';
-
-            populatePeriodFilterOptions(allTransactions);
-            populateTypeFilterOptions(allTransactions);
-            populateStudentFilterOptions(allTransactions);
-
-            applyTransactionFilters();
-        }
-
-        /**
-         * Fetches transaction data from the server and populates the activity log. It handles errors gracefully and logs the last response for debugging purposes.
-         */
-        function loadTransactionData() {
-            try {
-                const logContainer = document.getElementById('recordsContainer');
-                logContainer.innerHTML = ''; // Clear existing entries
-
-                document.getElementById('loadingIndicator').style.display = 'flex'; // Show loading indicator
-
-                callServer('fetchTransactionsDataCached', JSON.stringify({ forceRefresh: true }), (res) => {
-                    const response = JSON.parse(res);
-
-                    if (response && Array.isArray(response)) {
-                        allTransactions = response;
-                        populatePeriodFilterOptions(allTransactions);
-                        populateTypeFilterOptions(allTransactions);
-                        populateStudentFilterOptions(allTransactions);
-                        applyTransactionFilters();
-
-                        // Fill in general transaction statistics
-                    } else {
-                        console.error("Invalid response format from server.");
-                        document.getElementById('recordsContainer').innerHTML = `
-                            <div class="empty-state">
-                                <div class="empty-state-icon">⚠️</div>
-                                <div>Failed to load transactions. Please try again later.</div>
-                            </div>
-                        `;
-                        document.getElementById('loadingIndicator').style.display = 'none'; // Hide loading indicator
-                    }
-                }, (error) => {
-                    console.error("Error fetching transaction data:", error);
-                });
-            } catch (err) {
-                console.error("Error in loadTransactionData:", err);
-            }
-        }
-
         function updateUndoButtonState() {
             const undoBtn = document.getElementById('undoSelectedBtn');
             const selectedItems = document.querySelectorAll('[data-selectable="true"].selected');
@@ -587,7 +466,7 @@
                 if (response) {
                     console.log("Successfully undone transactions:", transactionIds);
                     // Refresh the log after undoing
-                    loadTransactionData();
+                    loadTransactionData(false);
                 } else {
                     console.error("Failed to undo transactions:", response.error);
                 }

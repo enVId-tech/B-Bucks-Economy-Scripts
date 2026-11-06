@@ -1,0 +1,146 @@
+<!-- Coded by Erick Tran for Mr. Banderas, 2026 -->
+<!-- Copyright (c) 2026 Erick Tran. All rights reserved. -->
+<!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
+
+<!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
+<!-- Client half of the rolling transaction cache (server half: utils/TransactionCache.ts). Include after utils/ClientToServer. -->
+
+<script>
+    /**
+     * RollingTransactionLog - a sliding, in-memory window over the (potentially huge) transaction log.
+     *
+     * The browser never holds the whole log. It holds the page being viewed plus a few neighbouring pages (the "window"),
+     * handed over by the server. Switching to a page that is already inside the window renders instantly from RAM; a page
+     * outside it triggers one server call. After every switch a debounced background request asks the server to re-centre
+     * both its own block cache and this window on the new page, biased towards the direction the admin is paging, so the
+     * next page is nearly always already here. Memory use is bounded by the server's window size, not by the log size.
+     *
+     * Usage:
+     *   const log = new RollingTransactionLog();
+     *   const res = await log.getPage({ page: 2, pageSize: 25, filters: { studentContains: 'ana' } });
+     *   // res = { records (this page, newest first), page, totalPages, total, stats?, fromMemory }
+     *   log.invalidate();   // after the log changed (new transaction, undo): drop the window, next call re-fetches
+     */
+    class RollingTransactionLog {
+        constructor(options = {}) {
+            this.rollDelayMs = options.rollDelayMs === undefined ? 350 : options.rollDelayMs;
+            this.seq = 0;          // id of the newest request issued
+            this.appliedSeq = 0;   // id of the newest response applied (older responses are ignored)
+            this.rollTimer = null;
+            this.lastPage = 1;
+            this.lastCache = null; // server cache diagnostics from the latest response (handy in the dev console)
+            this.reset();
+        }
+
+        reset() {
+            this.win = null;       // { startIndex, records } - newest first
+            this.total = 0;
+            this.totalPages = 1;
+            this.filterKey = null;
+            this.pageSize = 0;
+            this.stats = null;
+        }
+
+        /** Drops the in-memory window. The next getPage() goes to the server (which self-validates its own cache). */
+        invalidate() {
+            clearTimeout(this.rollTimer);
+            this.seq++;
+            this.appliedSeq = this.seq; // anything still in flight is now stale
+            this.reset();
+        }
+
+        /** Removes empty filter fields so "no filters" always serialises identically. */
+        static cleanFilters(filters) {
+            const clean = {};
+            Object.entries(filters || {}).forEach(([key, value]) => {
+                if (value === undefined || value === null || value === '') return;
+                clean[key] = value;
+            });
+            if (clean.search && !clean.scope) clean.scope = 'all';
+            if (!clean.search) delete clean.scope;
+            return clean;
+        }
+
+        _direction(page) {
+            const delta = page - this.lastPage;
+            if (delta === 0 || Math.abs(delta) > 3) return 'jump';
+            return delta > 0 ? 'forward' : 'backward';
+        }
+
+        _slice(page, pageSize) {
+            if (!this.win || page < 1 || page > this.totalPages) return null;
+            const start = (page - 1) * pageSize;
+            const end = Math.min(this.total, page * pageSize);
+            const offset = start - this.win.startIndex;
+            if (offset < 0 || start + (end - start) > this.win.startIndex + this.win.records.length) return null;
+            return this.win.records.slice(offset, offset + (end - start));
+        }
+
+        /**
+         * @param {Object} opts
+         * @param {number} opts.page 1-based page (1 = newest transactions)
+         * @param {number} opts.pageSize records per page
+         * @param {Object} [opts.filters] see TxFilters in utils/TransactionCache.ts
+         * @param {boolean} [opts.force] true = rebuild the server cache from the sheet (use for an explicit "Refresh")
+         * @param {boolean} [opts.includeStats] also return totals (income / spending / net) for the current filter
+         */
+        async getPage({ page = 1, pageSize = 25, filters = {}, force = false, includeStats = false } = {}) {
+            const clean = RollingTransactionLog.cleanFilters(filters);
+            const key = JSON.stringify(clean);
+            const direction = this._direction(page);
+
+            const sameShape = this.win && this.filterKey === key && this.pageSize === pageSize && (!includeStats || this.stats);
+            if (!force && sameShape) {
+                const records = this._slice(page, pageSize);
+                if (records) {
+                    this.lastPage = page; // (direction was captured above, before lastPage moved)
+                    this._scheduleRoll({ page, pageSize, clean, key, includeStats, direction });
+                    return { records, page, totalPages: this.totalPages, total: this.total, stats: this.stats, fromMemory: true };
+                }
+            }
+
+            clearTimeout(this.rollTimer);
+            const response = await this._request({ page, pageSize, clean, key, direction, force, includeStats });
+            this.lastPage = response.page;
+            return response;
+        }
+
+        async _request({ page, pageSize, clean, key, direction, force = false, includeStats = false }) {
+            const mySeq = ++this.seq;
+            const filtered = Object.keys(clean).length > 0;
+            const serverFunction = filtered ? 'queryTransactions' : 'fetchTransactionsPage';
+
+            const resp = await callServerAsync(serverFunction, JSON.stringify({
+                page, pageSize, direction, filters: clean, forceRefresh: force, includeStats: includeStats || filtered
+            }));
+
+            if (!resp || resp.error || !resp.window) {
+                throw new Error((resp && resp.error) || 'Empty transaction response from server.');
+            }
+
+            if (mySeq > this.appliedSeq) {
+                this.appliedSeq = mySeq;
+                this.win = resp.window;
+                this.total = resp.total;
+                this.totalPages = resp.totalPages;
+                this.filterKey = key;
+                this.pageSize = resp.pageSize;
+                if (resp.stats) this.stats = resp.stats;
+                if (resp.cache) this.lastCache = resp.cache;
+            }
+
+            const start = (resp.page - 1) * resp.pageSize - resp.window.startIndex;
+            const records = resp.window.records.slice(Math.max(0, start), Math.max(0, start) + resp.pageSize);
+            return { records, page: resp.page, totalPages: resp.totalPages, total: resp.total, stats: resp.stats || this.stats, fromMemory: false };
+        }
+
+        /** After a page switch, quietly re-centre the server cache and this window on the new page (debounced). */
+        _scheduleRoll({ page, pageSize, clean, key, includeStats, direction }) {
+            clearTimeout(this.rollTimer);
+            this.rollTimer = setTimeout(() => {
+                this._request({ page, pageSize, clean, key, direction, includeStats })
+                    .catch(error => console.warn('Background window roll failed (the current page is unaffected):', error));
+            }, this.rollDelayMs);
+        }
+    }
+</script>
