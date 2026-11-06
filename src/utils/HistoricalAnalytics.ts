@@ -70,6 +70,96 @@ function formatHistoricalDay(ms: number, timeZone: string): { day: string; dateS
 }
 
 /**
+ * Reads the metric header row of a records sheet.
+ * @returns keys: one stable key per metric column (index 0 = first metric column); headers: the labelled ones.
+ */
+function parseHistoricalHeaders(sheet: GoogleAppsScript.Spreadsheet.Sheet, lastCol: number): { keys: string[]; headers: MetricHeader[] } {
+  const numHeaderCols = lastCol - (getMetricDataStartColumn() - 1);
+  const headerValues = sheet.getRange(getHeaderRowIndex(), getMetricDataStartColumn(), 1, numHeaderCols).getValues()[0];
+  const keys: string[] = [];
+  const headers: MetricHeader[] = [];
+
+  headerValues.forEach((headerVal, idx) => {
+    const colIndex = idx + getMetricDataStartColumn();
+    const rawHeaderStr = String(headerVal || '').trim();
+
+    if (rawHeaderStr) {
+      const key = sanitizeHistoricalKey(rawHeaderStr, colIndex);
+      keys[idx] = key;
+      headers.push({ key, label: rawHeaderStr, colIndex });
+    } else {
+      keys[idx] = `col_${colIndex}`;
+    }
+  });
+  return { keys, headers };
+}
+
+/**
+ * Computes the current, not-yet-recorded data point from the period-sheet formulas (the slow part of the analytics payload).
+ * Shared by the full payload and by the stand-alone live endpoint so both produce exactly the same records.
+ */
+function computeLiveHistoricalPoint(
+  spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet, timeZone: string, liveSheetName: string, liveHeaderKeys: string[] | null
+): { records: HistoricalRecord[]; liveIncluded: boolean; liveError?: string } {
+  const records: HistoricalRecord[] = [];
+  const liveSheet = getSheetNamed(liveSheetName);
+  if (!liveSheet) {
+    return { records, liveIncluded: false, liveError: `Sheet "${liveSheetName}" not found, so the current values can't be computed.` };
+  }
+
+  const lock = LockService.getScriptLock();
+  const gotLock = lock.tryLock(5000); // the evaluation briefly creates a scratch sheet, so don't overlap with the daily recorder
+  try {
+    if (!gotLock) throw new Error("Another process is updating records right now.");
+    const evaluated = evaluatePeriodFormulas(spreadsheet, liveSheet);
+    const keys: string[] = liveHeaderKeys || [];
+    const nowMs = Date.now();
+    const { day, dateStr } = formatHistoricalDay(nowMs, timeZone);
+
+    evaluated.forEach(row => {
+      const metricsMap: Record<string, number | null> = {};
+      row.values.forEach((val, idx) => {
+        const key = keys[idx];
+        if (!key) return;
+        const numVal = Number(val);
+        metricsMap[key] = (val !== null && val !== '' && !isNaN(numVal)) ? numVal : null;
+      });
+      records.push({ day, ts: nowMs, date: day, dateStr, sheet: row.name, live: true, source: "current", metrics: metricsMap });
+    });
+    return { records, liveIncluded: evaluated.length > 0 };
+  } catch (error: any) {
+    const liveError = `Current values could not be computed: ${error.message}`;
+    log(`fetchHistoricalRecordbookData: ${liveError}`, false);
+    return { records: [], liveIncluded: false, liveError };
+  } finally {
+    if (gotLock) lock.releaseLock();
+  }
+}
+
+/**
+ * Stand-alone live point for the analytics tab: the dialog first draws the stored history (includeLive:false, fast) and then
+ * asks for this to add the ◆ point. Returns { records, meta: { generatedAt, liveIncluded, liveError? } } as JSON.
+ */
+function fetchLiveHistoricalPoint(): string {
+  const spreadsheet = getSS();
+  const timeZone = spreadsheet.getSpreadsheetTimeZone();
+  const liveSheetName = getHistoricalRecordsSheetName();
+  const liveSheet = getSheetNamed(liveSheetName);
+
+  let liveHeaderKeys: string[] | null = null;
+  if (liveSheet) {
+    const lastCol = liveSheet.getLastColumn();
+    if (lastCol >= getMetricDataStartColumn()) liveHeaderKeys = parseHistoricalHeaders(liveSheet, lastCol).keys;
+  }
+
+  const live = computeLiveHistoricalPoint(spreadsheet, timeZone, liveSheetName, liveHeaderKeys);
+  return JSON.stringify({
+    records: live.records,
+    meta: { generatedAt: new Date().toISOString(), liveIncluded: live.liveIncluded, ...(live.liveError ? { liveError: live.liveError } : {}) }
+  });
+}
+
+/**
  * Returns the data for the Historical Analytics chart as a JSON string.
  *
  * Sources, in order:
@@ -114,24 +204,9 @@ function fetchHistoricalRecordbookData(data?: string): string {
     // Headers are read even when there are no data rows yet, so the live sheet still defines the metric columns for the current point.
     if (lastCol < getMetricDataStartColumn()) return;
 
-    const numHeaderCols = lastCol - (getMetricDataStartColumn() - 1);
-    const headerValues = sheet.getRange(getHeaderRowIndex(), getMetricDataStartColumn(), 1, numHeaderCols).getValues()[0];
-    const sheetHeaderKeys: string[] = [];
-
-    headerValues.forEach((headerVal, idx) => {
-      const colIndex = idx + getMetricDataStartColumn();
-      const rawHeaderStr = String(headerVal || '').trim();
-
-      if (rawHeaderStr) {
-        const key = sanitizeHistoricalKey(rawHeaderStr, colIndex);
-        sheetHeaderKeys[idx] = key;
-        if (!globalHeadersMap.has(key)) {
-          globalHeadersMap.set(key, { key, label: rawHeaderStr, colIndex });
-        }
-      } else {
-        sheetHeaderKeys[idx] = `col_${colIndex}`;
-      }
-    });
+    const parsedHeaders = parseHistoricalHeaders(sheet, lastCol);
+    parsedHeaders.headers.forEach(h => { if (!globalHeadersMap.has(h.key)) globalHeadersMap.set(h.key, h); });
+    const sheetHeaderKeys = parsedHeaders.keys;
 
     if (isLiveSheet) liveHeaderKeys = sheetHeaderKeys;
     if (lastRow < getHistoricalRecordsRowStart()) return;
@@ -176,37 +251,10 @@ function fetchHistoricalRecordbookData(data?: string): string {
   let liveError: string | undefined;
 
   if (includeLive) {
-    const liveSheet = getSheetNamed(liveSheetName);
-    if (!liveSheet) {
-      liveError = `Sheet "${liveSheetName}" not found, so the current values can't be computed.`;
-    } else {
-      const lock = LockService.getScriptLock();
-      const gotLock = lock.tryLock(5000); // the evaluation briefly creates a scratch sheet, so don't overlap with the daily recorder
-      try {
-        if (!gotLock) throw new Error("Another process is updating records right now.");
-        const evaluated = evaluatePeriodFormulas(spreadsheet, liveSheet);
-        const keys: string[] = liveHeaderKeys || [];
-        const nowMs = Date.now();
-        const { day, dateStr } = formatHistoricalDay(nowMs, timeZone);
-
-        evaluated.forEach(row => {
-          const metricsMap: Record<string, number | null> = {};
-          row.values.forEach((val, idx) => {
-            const key = keys[idx];
-            if (!key) return;
-            const numVal = Number(val);
-            metricsMap[key] = (val !== null && val !== '' && !isNaN(numVal)) ? numVal : null;
-          });
-          collected.push({ day, ts: nowMs, date: day, dateStr, sheet: row.name, live: true, source: "current", metrics: metricsMap });
-        });
-        liveIncluded = evaluated.length > 0;
-      } catch (error: any) {
-        liveError = `Current values could not be computed: ${error.message}`;
-        log(`fetchHistoricalRecordbookData: ${liveError}`, false);
-      } finally {
-        if (gotLock) lock.releaseLock();
-      }
-    }
+    const live = computeLiveHistoricalPoint(spreadsheet, timeZone, liveSheetName, liveHeaderKeys);
+    live.records.forEach(r => collected.push(r));
+    liveIncluded = live.liveIncluded;
+    liveError = live.liveError;
   }
 
   // Chronological, oldest first, no matter how many sheets the rows came from.
