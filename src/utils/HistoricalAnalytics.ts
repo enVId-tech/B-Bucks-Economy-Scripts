@@ -73,8 +73,8 @@ function formatHistoricalDay(ms: number, tz: string): { day: string; dateStr: st
  * Returns the data for the Historical Analytics chart as a JSON string.
  *
  * Sources, in order:
- *  1. the live "Historical Records" sheet (always included by name, regardless of SHEET_NAME_PATTERN),
- *  2. every archived sheet whose name matches SHEET_NAME_PATTERN (e.g. "Records_2026-09-01T..."),
+ *  1. the live "Historical Records" sheet (always included by name, regardless of getSheetNamePattern()),
+ *  2. every archived sheet whose name matches getSheetNamePattern() (e.g. "Records_2026-09-01T..."),
  *  3. a "current" snapshot computed right now from the period sheets using the same formulas the daily recorder uses, so the chart
  *     reaches today even if today's snapshot hasn't been recorded yet.
  *
@@ -92,8 +92,8 @@ function fetchHistoricalRecordbookData(data?: string): string {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tz = ss.getSpreadsheetTimeZone();
-  const liveSheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined' ? DEFAULT_HISTORICAL_RECORDS_SHEET : "Historical Records";
-  const patternRegex = new RegExp(SHEET_NAME_PATTERN, 'i');
+  const liveSheetName = getHistoricalRecordsSheetName();
+  const patternRegex = new RegExp(getSheetNamePattern(), 'i');
 
   // Live sheet first, then archives (matched by pattern) in tab order.
   const recordSheets = ss.getSheets().filter(sheet => sheet.getName() === liveSheetName || patternRegex.test(sheet.getName()));
@@ -112,14 +112,14 @@ function fetchHistoricalRecordbookData(data?: string): string {
     const lastCol = sheet.getLastColumn();
 
     // Headers are read even when there are no data rows yet, so the live sheet still defines the metric columns for the current point.
-    if (lastCol < METRIC_DATA_START_COL) return;
+    if (lastCol < getMetricDataStartColumn()) return;
 
-    const numHeaderCols = lastCol - (METRIC_DATA_START_COL - 1);
-    const headerValues = sheet.getRange(HEADER_ROW_INDEX, METRIC_DATA_START_COL, 1, numHeaderCols).getValues()[0];
+    const numHeaderCols = lastCol - (getMetricDataStartColumn() - 1);
+    const headerValues = sheet.getRange(getHeaderRowIndex(), getMetricDataStartColumn(), 1, numHeaderCols).getValues()[0];
     const sheetHeaderKeys: string[] = [];
 
     headerValues.forEach((headerVal, idx) => {
-      const colIndex = idx + METRIC_DATA_START_COL;
+      const colIndex = idx + getMetricDataStartColumn();
       const rawHeaderStr = String(headerVal || '').trim();
 
       if (rawHeaderStr) {
@@ -134,15 +134,15 @@ function fetchHistoricalRecordbookData(data?: string): string {
     });
 
     if (isLiveSheet) liveHeaderKeys = sheetHeaderKeys;
-    if (lastRow < HISTORICAL_RECORDS_ROW_START) return;
+    if (lastRow < getHistoricalRecordsRowStart()) return;
 
-    const numDataRows = lastRow - (HISTORICAL_RECORDS_ROW_START - 1);
-    const dataMatrix = sheet.getRange(HISTORICAL_RECORDS_ROW_START, 1, numDataRows, lastCol).getValues();
+    const numDataRows = lastRow - (getHistoricalRecordsRowStart() - 1);
+    const dataMatrix = sheet.getRange(getHistoricalRecordsRowStart(), 1, numDataRows, lastCol).getValues();
 
     for (let i = 0; i < dataMatrix.length; i++) {
       const row = dataMatrix[i];
       const ts = toTimestampMs(row[0]);                       // Col A (Date)
-      const sheetPeriod = String(row[PERIOD_COL_INDEX - 1] || '').trim(); // Col B (Sheet/Period)
+      const sheetPeriod = String(row[getPeriodColumnIndex() - 1] || '').trim(); // Col B (Sheet/Period)
 
       if (ts === null || !sheetPeriod) continue;
 
@@ -152,8 +152,8 @@ function fetchHistoricalRecordbookData(data?: string): string {
       seen.add(dedupeKey);
 
       const metricsMap: Record<string, number | null> = {};
-      for (let colIdx = METRIC_DATA_START_COL - 1; colIdx < row.length; colIdx++) {
-        const metricKey = sheetHeaderKeys[colIdx - (METRIC_DATA_START_COL - 1)];
+      for (let colIdx = getMetricDataStartColumn() - 1; colIdx < row.length; colIdx++) {
+        const metricKey = sheetHeaderKeys[colIdx - (getMetricDataStartColumn() - 1)];
         if (metricKey) {
           const rawCellVal = row[colIdx];
           const numVal = Number(rawCellVal);
@@ -202,7 +202,7 @@ function fetchHistoricalRecordbookData(data?: string): string {
         liveIncluded = evaluated.length > 0;
       } catch (error: any) {
         liveError = `Current values could not be computed: ${error.message}`;
-        Logger.log(`fetchHistoricalRecordbookData: ${liveError}`);
+        log(`fetchHistoricalRecordbookData: ${liveError}`, false);
       } finally {
         if (gotLock) lock.releaseLock();
       }

@@ -52,19 +52,24 @@ const CACHE_INDEX_KEY = '__GLOBAL_CACHE_INDEX__'; // Key used to maintain insert
 // fixed-size BLOCKS of rows (anchored at the oldest row, so appending a transaction only ever touches the newest
 // block). Only the blocks around the page the admin is looking at are kept, and the window re-centres every time the
 // admin switches pages. Tune these three numbers to trade memory for fewer sheet reads.
-const TX_BLOCK_SIZE: number = 50;               // rows per cache block (~20KB each, far below the 100KB CacheService value cap)
-const TX_CACHE_MAX_BLOCKS: number = 24;         // hard ceiling on blocks held at once (24 * 50 = 1,200 rows)
-const TX_CACHE_MAX_BYTES: number = 1200000;     // soft ceiling on the combined serialized size of all cached blocks (~1.2MB)
-const TX_PREFETCH_BEHIND_PAGES: number = 1;     // pages kept behind the viewed page when the direction is unknown
-const TX_PREFETCH_AHEAD_PAGES: number = 2;      // pages kept ahead of the viewed page in the direction of travel
-const TX_MAX_PAGE_SIZE: number = 200;           // largest "Displayed" value the server will honour
-const TX_COLUMN_COUNT: number = 16;             // A..P on the Transactions sheet
-const TX_BLOCK_KEY_PREFIX: string = TRANSACTIONS_CACHED_KEY + "_blk_";   // + block number
-const TX_INDEX_KEY: string = TRANSACTIONS_CACHED_KEY + "_idx";           // block bookkeeping (JSON)
-const TX_FACETS_KEY: string = TRANSACTIONS_CACHED_KEY + "_facets";       // distinct periods / students / types
-const TX_STATS_KEY: string = TRANSACTIONS_CACHED_KEY + "_stats";         // incremental totals for the unfiltered log
+const TRANSACTION_BLOCK_SIZE: number = 50;               // rows per cache block (~20KB each, far below the 100KB CacheService value cap)
+const TRANSACTION_CACHE_MAX_BLOCKS: number = 24;         // hard ceiling on blocks held at once (24 * 50 = 1,200 rows)
+const TRANSACTION_CACHE_MAX_BYTES: number = 1200000;     // soft ceiling on the combined serialized size of all cached blocks (~1.2MB)
+const TRANSACTION_PREFETCH_BEHIND_PAGES: number = 1;     // pages kept behind the viewed page when the direction is unknown
+const TRANSACTION_PREFETCH_AHEAD_PAGES: number = 2;      // pages kept ahead of the viewed page in the direction of travel
+const TRANSACTION_MAX_PAGE_SIZE: number = 200;           // largest "Displayed" value the server will honour
+const TRANSACTION_COLUMN_COUNT: number = 16;             // A..P on the Transactions sheet
+const TRANSACTION_BLOCK_KEY_PREFIX: string = TRANSACTIONS_CACHED_KEY + "_blk_";   // + block number
+const TRANSACTION_INDEX_KEY: string = TRANSACTIONS_CACHED_KEY + "_idx";           // block bookkeeping (JSON)
+const TRANSACTION_FACETS_KEY: string = TRANSACTIONS_CACHED_KEY + "_facets";       // distinct periods / students / types
+const TRANSACTION_STATS_KEY: string = TRANSACTIONS_CACHED_KEY + "_stats";         // incremental totals for the unfiltered log
 
-// ----- Sheet layout constants (Tier 0). Sheet-driven overrides live in utils/Config.ts (Tier 1) -----
+// ----- Sheet layout DEFAULTS (Tier 0) -----
+// Every DEFAULT_* value below is only a fallback. The real value is whatever the Settings sheet says under
+// "Advanced Technical Settings", read through the matching accessor in utils/Config.ts (for example getNamesColumn()).
+// Never use a DEFAULT_* constant directly outside Config.ts: a test fails if you do.
+// Exceptions (BOOTSTRAP): DEFAULT_SETTINGS_SHEET, SETTINGS_ROW_START and SETTINGS_COLUMNS are what the loader uses to
+// find the Settings sheet in the first place, so they cannot be overridden by it (Config.ts warns if the sheet disagrees).
 
 // --- Main Sheet ---
 // The first student row is NOT a constant any more: it is user-configurable ("userStartingRow" in the Settings sheet).
@@ -75,23 +80,23 @@ const DEFAULT_USER_STARTING_ROW: number = 7;
 // this isn't in an object btw bc i'm dumb and also bc i didnt think abt it when starting this project
 // if you are maintaining this in the future, just put it in a key-value pair object
 // also bc im lazy asf so yeah i didnt do it. what are you gonna do abt it
-const NAMES_COL: number = 1 //fetchProperty("namesCol", "advancedTechnicalSettings") || 1;
-const BALANCE_COL: number = 2 //fetchProperty("balanceCol", "advancedTechnicalSettings") || 2;
-const EARNINGS_COL: number = 3 //fetchProperty("earningsCol", "advancedTechnicalSettings") || 3;
-const NET_INCOME_COL: number = 4 //fetchProperty("netIncomeCol", "advancedTechnicalSettings") || 4;
-const EXPENDITURES_COL: number = 5 //fetchProperty("expendituresCol", "advancedTechnicalSettings") || 5;
-const INVESTMENT_RETURNS_COL: number = 6 //fetchProperty("investmentReturnsCol", "advancedTechnicalSettings") || 6;
+const DEFAULT_NAMES_COL: number = 1; // default for "namesCol" (Settings sheet value wins, read it with getNamesColumn())
+const DEFAULT_BALANCE_COL: number = 2; // default for "balanceCol" (Settings sheet value wins, read it with getBalanceColumn())
+const DEFAULT_EARNINGS_COL: number = 3; // default for "earningsCol" (Settings sheet value wins, read it with getEarningsColumn())
+const DEFAULT_NET_INCOME_COL: number = 4; // default for "netIncomeCol" (Settings sheet value wins, read it with getNetIncomeColumn())
+const DEFAULT_EXPENDITURES_COL: number = 5; // default for "expendituresCol" (Settings sheet value wins, read it with getExpendituresColumn())
+const DEFAULT_INVESTMENT_RETURNS_COL: number = 6; // default for "investmentReturnsCol" (Settings sheet value wins, read it with getInvestmentReturnsColumn())
 
 // investments
-const INITIAL_DEPOSIT_COL: number = 7 //fetchProperty("initialDepositCol", "advancedTechnicalSettings") || 7;
-const DATE_DEPOSIT_COL: number = 8 //fetchProperty("timeDepositCol", "advancedTechnicalSettings") || 8;
-const GROSS_INVESTMENT_GAIN_COL: number = 9 //fetchProperty("grossInvestmentGainCol", "advancedTechnicalSettings") || 9;
-const NET_INVESTMENT_GAIN_COL: number = 10 //fetchProperty("netInvestmentGainCol", "advancedTechnicalSettings") || 10;
-const NET_PERCENTAGE_GAIN_COL: number = 11 //fetchProperty("netPercentageGainCol", "advancedTechnicalSettings") || 11;
+const DEFAULT_INITIAL_DEPOSIT_COL: number = 7; // default for "initialDepositCol" (Settings sheet value wins, read it with getInitialDepositColumn())
+const DEFAULT_DATE_DEPOSIT_COL: number = 8; // default for "timeDepositCol" (Settings sheet value wins, read it with getDepositDateColumn())
+const DEFAULT_GROSS_INVESTMENT_GAIN_COL: number = 9; // default for "grossInvestmentGainCol" (Settings sheet value wins, read it with getGrossInvestmentGainColumn())
+const DEFAULT_NET_INVESTMENT_GAIN_COL: number = 10; // default for "netInvestmentGainCol" (Settings sheet value wins, read it with getNetInvestmentGainColumn())
+const DEFAULT_NET_PERCENTAGE_GAIN_COL: number = 11; // default for "netPercentageGainCol" (Settings sheet value wins, read it with getNetPercentageGainColumn())
 
 // --- Services Sheet ---
-const DEFAULT_SERVICES_SHEET: string = "Main Services"; //fetchProperty("defaultServicesSheet", "advancedTechnicalSettings") || "Main Services";
-const SERVICES_ROW_START: number = 3 //fetchProperty("servicesRowStart", "advancedTechnicalSettings") || 3;
+const DEFAULT_SERVICES_SHEET: string = "Main Services"; // default for "defaultServicesSheet" (Settings sheet value wins, read it with getServicesSheetName())
+const DEFAULT_SERVICES_ROW_START: number = 3; // default for "servicesRowStart" (Settings sheet value wins, read it with getServicesRowStart())
 
 const SERVICES_COLUMNS: { [key: string]: number | number[] } = {
     itemName: 1,
@@ -105,8 +110,8 @@ const SERVICES_COLUMNS: { [key: string]: number | number[] } = {
 // --- Settings Sheet ---
 // -- DO NOT CHANGE THESE COLUMNS UNLESS YOU KNOW WHAT YOU ARE DOING --
 // no but really actually dont pls ty, the sheet is named settings cuz the code likes it and ppl are stupid asf :D
-const DEFAULT_SETTINGS_SHEET: string = "Settings"; //fetchProperty("defaultSettingsSheet", "advancedTechnicalSettings") || "Settings";
-const SETTINGS_ROW_START: number = 4; //fetchProperty("settingsRowStart", "advancedTechnicalSettings") || 4;
+const DEFAULT_SETTINGS_SHEET: string = "Settings"; // BOOTSTRAP: needed to find the Settings sheet itself, so it can never come from that sheet
+const SETTINGS_ROW_START: number = 4; // BOOTSTRAP: needed to read the Settings sheet itself, so it can never come from that sheet
 
 // change only if u dont want the default option which is like wai bro ts beautiful
 const SETTINGS_COLUMNS: { [key: string]: { keyCol: number; valCol: number } } = {
@@ -137,20 +142,20 @@ const SETTINGS_COLUMNS: { [key: string]: { keyCol: number; valCol: number } } = 
 }
 
 // --- Transaction Sheet ---
-const DEFAULT_TRANSACTIONS_SHEET: string = "Transactions"; //fetchProperty("defaultTransactionsSheet", "advancedTechnicalSettings") || "Transactions";
-const TRANSACTIONS_ROW_START: number = 3; //fetchProperty("transactionsRowStart", "advancedTechnicalSettings") || 3;
+const DEFAULT_TRANSACTIONS_SHEET: string = "Transactions"; // default for "defaultTransactionsSheet" (Settings sheet value wins, read it with getTransactionsSheetName())
+const DEFAULT_TRANSACTIONS_ROW_START: number = 3; // default for "transactionsRowStart" (Settings sheet value wins, read it with getTransactionsRowStart())
 
 // -- Fill Names Utils ---
-const STARTING_CELL: string = "A7"; //fetchProperty("fillStartingCell", "advancedTechnicalSettings") || "A7";
-const SHEET_CELL_NAME: string = "A2"; //fetchProperty("fillSheetCellName", "advancedTechnicalSettings") || "A2";
+const DEFAULT_STARTING_CELL: string = "A7"; // default for "fillStartingCell" (Settings sheet value wins, read it with getFillStartingCell())
+const DEFAULT_SHEET_CELL_NAME: string = "A2"; // default for "fillSheetCellName" (Settings sheet value wins, read it with getFillSheetCellName())
 
 // -- Historical Records Sheet ---
-const DEFAULT_HISTORICAL_RECORDS_SHEET: string = "Historical Records"; //fetchProperty("defaultHistoricalRecordsSheet", "advancedTechnicalSettings") || "Historical Records";
-const HISTORICAL_RECORDS_ROW_START: number = 11; //fetchProperty("historicalRecordsRowStart", "advancedTechnicalSettings") || 11;
-const METRIC_DATA_START_COL: number = 3; //fetchProperty("metricDataStartCol", "advancedTechnicalSettings") || 3;
-const PERIOD_COL_INDEX: number = 2; //fetchProperty("periodColIndex", "advancedTechnicalSettings") || 2;
-const HEADER_ROW_INDEX: number = 2; //fetchProperty("headerRowIndex", "advancedTechnicalSettings") || 2;
-const SHEET_NAME_PATTERN: string = "records"; //fetchProperty("sheetNamePattern", "advancedTechnicalSettings") || "records";
+const DEFAULT_HISTORICAL_RECORDS_SHEET: string = "Historical Records"; // default for "defaultHistoricalRecordsSheet" (Settings sheet value wins, read it with getHistoricalRecordsSheetName())
+const DEFAULT_HISTORICAL_RECORDS_ROW_START: number = 11; // default for "historicalRecordsRowStart" (Settings sheet value wins, read it with getHistoricalRecordsRowStart())
+const DEFAULT_METRIC_DATA_START_COL: number = 3; // default for "metricDataStartColumn" (Settings sheet value wins, read it with getMetricDataStartColumn())
+const DEFAULT_PERIOD_COL_INDEX: number = 2; // default for "periodColIndex" (Settings sheet value wins, read it with getPeriodColumnIndex())
+const DEFAULT_HEADER_ROW_INDEX: number = 2; // default for "headerRowIndex" (Settings sheet value wins, read it with getHeaderRowIndex())
+const DEFAULT_SHEET_NAME_PATTERN: string = "records"; // default for "sheetNamePattern" (Settings sheet value wins, read it with getSheetNamePattern())
 
 // -- Timestamp Sheets --
 const TIMESTAMP_LIST: string[] = [
@@ -168,4 +173,4 @@ const TIMESTAMP_LIST: string[] = [
     "Testing"
 ];
 
-const TIMESTAMP_CELL: string = "A5"; //fetchProperty("timestampCell", "advancedTechnicalSettings") || "A5";
+const DEFAULT_TIMESTAMP_CELL: string = "A5"; // default for "timestampCell" (Settings sheet value wins, read it with getTimestampCell())

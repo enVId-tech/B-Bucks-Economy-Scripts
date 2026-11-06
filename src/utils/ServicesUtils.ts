@@ -79,7 +79,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 
 /**
  * Fetches services data from the "Services" sheet in the active spreadsheet. It reads a predefined range of rows and columns to extract various details about services, including item names, categories, pricing for each quarter, and limits for each quarter. The function processes the raw grid data to construct structured objects for each service item, handling type conversions for numbers as needed. If the sheet is not found or an error occurs during processing, it returns an error message.
- * @param sheetName The name of the sheet to fetch services data from. Defaults to the constant DEFAULT_SERVICES_SHEET, which is "Services". This allows for flexibility in case there are multiple services sheets or if the sheet name changes in the future.
+ * @param sheetName The name of the sheet to fetch services data from. Defaults to the constant getServicesSheetName(), which is "Services". This allows for flexibility in case there are multiple services sheets or if the sheet name changes in the future.
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
 function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): ItemData[] | { error: string } {
@@ -101,7 +101,7 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
         }
 
         const lastRow = servicesSheet.getLastRow();
-        if (lastRow < SERVICES_ROW_START) {
+        if (lastRow < getServicesRowStart()) {
             log("No services data found.", true);
             return { error: "No services data found." };
         }
@@ -109,7 +109,7 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
         const servicesData: ItemData[] = [];
 
         // Extract data from each row
-        for (let row = SERVICES_ROW_START; row <= lastRow; row++) {
+        for (let row = getServicesRowStart(); row <= lastRow; row++) {
             const itemName = servicesSheet.getRange(row, SERVICES_COLUMNS.itemName as number).getValue().toString().trim();
             const category = servicesSheet.getRange(row, SERVICES_COLUMNS.category as number).getValue().toString().trim() as "Income" | "Expense";
             const pricing: QuarterlyData = {};
@@ -222,9 +222,9 @@ function executeServiceAction(payloadStr: string): string | void {
 
                     row.forEach((cell) => {
                         if (typeof cell === 'number' && !isNaN(cell)) {
-                            const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
+                            const balance = sheet.getRange(absoluteRowIndex, getBalanceColumn()).getValue();
 
-                            const nameValue = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+                            const nameValue = sheet.getRange(absoluteRowIndex, getNamesColumn()).getValue();
                             const individualName = typeof nameValue === "string" ? nameValue.trim() : "";
                             const personLabel = individualName || `row ${absoluteRowIndex}`;
 
@@ -256,8 +256,8 @@ function executeServiceAction(payloadStr: string): string | void {
             }
         }
 
-        // If the operation is additive, always add to EARNINGS_COL
-        // If the operation is subtractive, always add to EXPENDITURES_COL
+        // If the operation is additive, always add to getEarningsColumn()
+        // If the operation is subtractive, always add to getExpendituresColumn()
         if (operation === "ADD" || operation === "MULTIPLY") {
             return applyMathToSelection(
                 operation,
@@ -268,10 +268,10 @@ function executeServiceAction(payloadStr: string): string | void {
                 undefined,
                 false,
                 undefined,
-                EARNINGS_COL
+                getEarningsColumn()
             ).toString();
         } else if (operation === "SUBTRACT" || operation === "DIVIDE") {
-            // For subtractive operations, we will add to the EXPENDITURES_COL instead of removing from the EARNINGS_COL, as this is a more accurate representation of the financial action being taken.
+            // For subtractive operations, we will add to the getExpendituresColumn() instead of removing from the getEarningsColumn(), as this is a more accurate representation of the financial action being taken.
             // Divide stays the same since we are still applying the same logic of adding to expenditures, just with a different operation.
             return applyMathToSelection(
                 operation == "SUBTRACT" ? "ADD" : "DIVIDE",
@@ -282,7 +282,7 @@ function executeServiceAction(payloadStr: string): string | void {
                 undefined,
                 true,
                 undefined,
-                EXPENDITURES_COL
+                getExpendituresColumn()
             ).toString();
         }
 
@@ -314,8 +314,8 @@ function fetchServicesSheetNames(): string[] | { error: string } {
 
         // The first option in the dropdown should be the default services sheet, if it exists, followed by any other services sheets found
 
-        if (servicesSheetNames.includes(DEFAULT_SERVICES_SHEET)) {
-            servicesSheetNames = [DEFAULT_SERVICES_SHEET, ...servicesSheetNames.filter(name => name !== DEFAULT_SERVICES_SHEET)];
+        if (servicesSheetNames.includes(getServicesSheetName())) {
+            servicesSheetNames = [getServicesSheetName(), ...servicesSheetNames.filter(name => name !== getServicesSheetName())];
         }
 
         return servicesSheetNames;
