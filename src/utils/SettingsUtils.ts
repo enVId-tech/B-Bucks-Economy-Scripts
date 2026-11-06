@@ -73,7 +73,7 @@ interface AdvancedTechnicalSettings {
     fillSheetCellName: string;
     defaultHistoricalRecordsSheet: string;
     historicalRecordsRowStart: number;
-    metricDataStartCol: number;
+    metricDataStartColumn: number;
     periodColIndex: number;
     headerRowIndex: number;
     sheetNamePattern: string;
@@ -428,7 +428,7 @@ function applyIncomeTaxRateToAll(): boolean {
                 return [`=C${rowNumber}*(1-${incomeTaxRate})`];
             });
 
-            sheet.getRange(getUserStartingRow(), NET_INCOME_COL, numRows, 1).setFormulas(formulas);
+            sheet.getRange(getUserStartingRow(), getNetIncomeColumn(), numRows, 1).setFormulas(formulas);
         });
 
         return true;

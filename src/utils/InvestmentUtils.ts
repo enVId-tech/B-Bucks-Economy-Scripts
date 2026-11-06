@@ -181,7 +181,7 @@ function refreshAllInvestments(): boolean {
 
             const totalRowsToProcess = (lastRow - getUserStartingRow()) + 1;
             // Grab current values I, J and K
-            const range = sheet.getRange(getUserStartingRow(), GROSS_INVESTMENT_GAIN_COL || 9, totalRowsToProcess, 3);
+            const range = sheet.getRange(getUserStartingRow(), getGrossInvestmentGainColumn(), totalRowsToProcess, 3);
             const values = range.getValues();
 
             // match values and only modify the necessary columns
@@ -334,7 +334,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
             dateObj                                                                    // Col 8
         ]];
 
-        sheet.getRange(investmentRow, EXPENDITURES_COL, 1, 4).setValues(inputsBatchRow);
+        sheet.getRange(investmentRow, getExpendituresColumn(), 1, 4).setValues(inputsBatchRow);
 
         SpreadsheetApp.flush();
         return true;
@@ -386,7 +386,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                         dateObj
                     ]];
 
-                    sheet.getRange(targetRow, EXPENDITURES_COL, 1, 4).setValues(batchData);
+                    sheet.getRange(targetRow, getExpendituresColumn(), 1, 4).setValues(batchData);
                 }
             });
         });
@@ -441,12 +441,12 @@ function handleDeposit(data: string): boolean {
             return false;
         }
 
-        const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
+        const previousBalanceCell = sheet.getRange(studentRow, getBalanceColumn());
         let previousBalance = parseFloat(previousBalanceCell.getValue()) || 0;
 
         // The existing CoD (net investment gain) is rolled into the student's cash as part of every deposit, so it
         // counts toward the funds available. Reading the balance column alone under-reports what the student has.
-        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
+        const netCurrentAmountCell = sheet.getRange(studentRow, getNetInvestmentGainColumn());
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
         const hasRolloverCod = !isNaN(currentNetAmount) && currentNetAmount !== 0;
 
@@ -454,7 +454,7 @@ function handleDeposit(data: string): boolean {
         if (hasRolloverCod && !override) {
             const lockoutSetting = Number(fetchProperty("withdrawLockoutTimeframeDays", "mandatedPolicies"));
             const lockoutDays = Number.isFinite(lockoutSetting) && lockoutSetting >= 0 ? lockoutSetting : 14;
-            const depositDateValue = sheet.getRange(studentRow, DATE_DEPOSIT_COL).getValue();
+            const depositDateValue = sheet.getRange(studentRow, getDepositDateColumn()).getValue();
             const depositDate = depositDateValue ? new Date(depositDateValue) : null;
             const elapsedDays = depositDate && !isNaN(depositDate.getTime())
                 ? (Date.now() - depositDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -475,7 +475,7 @@ function handleDeposit(data: string): boolean {
 
         // fetch the net amount first, then add it to the returns if it exists
         if (!isNaN(currentNetAmount) && currentNetAmount !== 0) {
-            const currentReturnsCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
+            const currentReturnsCell = sheet.getRange(studentRow, getInvestmentReturnsColumn());
             const currentReturns = parseFloat(currentReturnsCell.getValue()) || 0;
             currentReturnsCell.setValue(currentReturns + currentNetAmount);
 
@@ -488,7 +488,7 @@ function handleDeposit(data: string): boolean {
                 serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
                 unitPrice: Number(currentNetAmount.toFixed(2)),
                 quantity: 1,
-                modifiedColumn: INVESTMENT_RETURNS_COL,
+                modifiedColumn: getInvestmentReturnsColumn(),
                 tenderedMoney: Number(currentNetAmount.toFixed(2)),
                 initialColumnAmount: Number(currentReturns.toFixed(2)),
                 newColumnAmount: Number((currentReturns + currentNetAmount).toFixed(2)),
@@ -504,7 +504,7 @@ function handleDeposit(data: string): boolean {
         }
 
         // Update the expenditure for the student
-        const expenditureCell = sheet.getRange(studentRow, EXPENDITURES_COL);
+        const expenditureCell = sheet.getRange(studentRow, getExpendituresColumn());
         if (isNaN(expenditureCell.getValue())) {
             expenditureCell.setValue(Number(amount.toFixed(2)));
         } else {
@@ -512,12 +512,12 @@ function handleDeposit(data: string): boolean {
             expenditureCell.setValue(Number((currentExpenditure + amount).toFixed(2)));
         }
 
-        const initDepositCell = sheet.getRange(studentRow, INITIAL_DEPOSIT_COL);
+        const initDepositCell = sheet.getRange(studentRow, getInitialDepositColumn());
         initDepositCell.setValue(Number(amount.toFixed(2)));
 
         // Update the date for the student to the current date (which is also the transaction date)
         const today = new Date();
-        sheet.getRange(studentRow, DATE_DEPOSIT_COL).setValue(today);
+        sheet.getRange(studentRow, getDepositDateColumn()).setValue(today);
 
         // Add a comment to the expenditure cell with the transaction details
         const dateString = today.toLocaleDateString("en-US");
@@ -534,7 +534,7 @@ function handleDeposit(data: string): boolean {
             serviceProvided: `Deposit ${override ? '(Override)' : ''}`,
             unitPrice: Number(amount.toFixed(2)),
             quantity: 1,
-            modifiedColumn: INITIAL_DEPOSIT_COL,
+            modifiedColumn: getInitialDepositColumn(),
             tenderedMoney: Number(amount.toFixed(2)),
             initialColumnAmount: 0,
             newColumnAmount: Number(amount.toFixed(2)),
@@ -594,7 +594,7 @@ function handleWithdraw(data: string): boolean {
             return false;
         }
 
-        const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
+        const previousBalanceCell = sheet.getRange(studentRow, getBalanceColumn());
         let previousBalance = parseFloat(previousBalanceCell.getValue());
         if (isNaN(previousBalance)) {
             log(`Invalid balance for student "${student}". Please check the balance value in the sheet.`, true);
@@ -603,7 +603,7 @@ function handleWithdraw(data: string): boolean {
         previousBalance = Number(previousBalance.toFixed(2));
 
         // fetch the net value of the student's account
-        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
+        const netCurrentAmountCell = sheet.getRange(studentRow, getNetInvestmentGainColumn());
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
         if (isNaN(currentNetAmount)) {
             log(`Invalid net amount for student "${student}". Please check the net investment gain value in the sheet.`, true);
@@ -611,7 +611,7 @@ function handleWithdraw(data: string): boolean {
         }
 
         // add net amount to returns
-        const returnsAmountCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
+        const returnsAmountCell = sheet.getRange(studentRow, getInvestmentReturnsColumn());
         const currentReturnsAmount = parseFloat(returnsAmountCell.getValue());
         if (isNaN(currentReturnsAmount)) {
             log(`Invalid returns amount for student "${student}". Please check the investment returns value in the sheet.`, true);
@@ -622,7 +622,7 @@ function handleWithdraw(data: string): boolean {
         returnsAmountCell.setValue(Number(newReturnsAmount.toFixed(2)));
 
         // clear the initial dep, date, gross value, net value and percentage gain
-        sheet.getRange(studentRow, INITIAL_DEPOSIT_COL, 1, 5).setValues([[0, '', 0, 0, 0]]);
+        sheet.getRange(studentRow, getInitialDepositColumn(), 1, 5).setValues([[0, '', 0, 0, 0]]);
 
         refreshSingleInvestment(student, period);
 
@@ -635,7 +635,7 @@ function handleWithdraw(data: string): boolean {
             serviceProvided: `Withdrawal ${override ? '(Override)' : ''}`,
             unitPrice: Number(currentNetAmount.toFixed(2)),
             quantity: 1,
-            modifiedColumn: NET_INVESTMENT_GAIN_COL,
+            modifiedColumn: getNetInvestmentGainColumn(),
             tenderedMoney: Number(currentNetAmount.toFixed(2)),
             initialColumnAmount: Number(currentNetAmount.toFixed(2)),
             newColumnAmount: 0,

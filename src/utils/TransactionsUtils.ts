@@ -47,11 +47,11 @@ interface TransactionRecord {
 function addTransactionRecords(records: TransactionRecord[]): boolean {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
+    const sheet = spreadsheet.getSheetByName(getTransactionsSheetName());
 
     // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
     if (!sheet) {
-      log(`Sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
+      log(`Sheet "${getTransactionsSheetName()}" not found.`, true);
       return false;
     }
 
@@ -65,13 +65,13 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
     const currentMaxRows = sheet.getMaxRows();
     let biggestId = 0;
 
-    if (lastRowWithData >= (TRANSACTIONS_ROW_START - 1) && lastRowWithData > 0) {
+    if (lastRowWithData >= (getTransactionsRowStart() - 1) && lastRowWithData > 0) {
       const rawIdValue = sheet.getRange(lastRowWithData, 1).getValue();
       const parsedId = parseInt(rawIdValue, 10);
       biggestId = isNaN(parsedId) ? 0 : parsedId;
     }
 
-    const insertStartRow = Math.max(lastRowWithData + 1, TRANSACTIONS_ROW_START);
+    const insertStartRow = Math.max(lastRowWithData + 1, getTransactionsRowStart());
     const rowsNeeded = records.length;
 
     // Expand the sheet grid at the very last moment if required
@@ -197,7 +197,7 @@ function undoTransactions(data?: string): boolean {
         }
 
         const names = targetSheet
-          .getRange(getUserStartingRow(), NAMES_COL, lastRow - getUserStartingRow() + 1, 1)
+          .getRange(getUserStartingRow(), getNamesColumn(), lastRow - getUserStartingRow() + 1, 1)
           .getValues();
         const studentRowOffset = names.findIndex(row => String(row[0]).trim() === String(record.individual).trim());
         if (studentRowOffset < 0) {
@@ -207,7 +207,7 @@ function undoTransactions(data?: string): boolean {
         targetRow = getUserStartingRow() + studentRowOffset;
       }
 
-      const rowName = String(targetSheet.getRange(targetRow, NAMES_COL).getValue()).trim();
+      const rowName = String(targetSheet.getRange(targetRow, getNamesColumn()).getValue()).trim();
       if (rowName !== String(record.individual).trim()) {
         log(`Transaction ID ${record.id} row ${targetRow} belongs to "${rowName}", not "${record.individual}".`, true);
         return false;
@@ -263,7 +263,7 @@ function undoTransactions(data?: string): boolean {
       targetRange.setValue(restoredValue);
       SpreadsheetApp.flush();
 
-      const updatedBalance = Number(targetSheet.getRange(targetRow, BALANCE_COL).getValue());
+      const updatedBalance = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
       addTransactionRecords([{
         individual: record.individual,
         period: Number(record.period),
@@ -295,17 +295,17 @@ function undoTransactions(data?: string): boolean {
 function resetAllTransactionRecords(): boolean {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
+    const sheet = spreadsheet.getSheetByName(getTransactionsSheetName());
 
     if (!sheet) {
-      log(`Transactions sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
+      log(`Transactions sheet "${getTransactionsSheetName()}" not found.`, true);
       return false;
     }
 
     const lastRowWithData = sheet.getLastRow();
     
-    if (lastRowWithData >= TRANSACTIONS_ROW_START) {
-      sheet.deleteRows(TRANSACTIONS_ROW_START, lastRowWithData - TRANSACTIONS_ROW_START + 1);
+    if (lastRowWithData >= getTransactionsRowStart()) {
+      sheet.deleteRows(getTransactionsRowStart(), lastRowWithData - getTransactionsRowStart() + 1);
     }
 
     invalidateTransactionCache();

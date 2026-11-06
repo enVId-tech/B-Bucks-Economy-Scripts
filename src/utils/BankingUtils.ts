@@ -130,10 +130,10 @@ function applyMathToSelection(
     const operationFunc = operations[normalMapping];
     const transactionRecords: TransactionRecord[] = [];
     const NOT_ALLOWED_COLS: number[] = [
-      NAMES_COL,
-      BALANCE_COL,
-      NET_INCOME_COL,
-      DATE_DEPOSIT_COL
+      getNamesColumn(),
+      getBalanceColumn(),
+      getNetIncomeColumn(),
+      getDepositDateColumn()
     ];
 
     // Primary Execution Method: Batch via Sheets API
@@ -181,8 +181,8 @@ function applyMathToSelection(
         const values = targetRange.getValues();
 
         // Fetch Names and Balances in bulk for the affected row range to prevent API quota exhaustion
-        const namesInSheet = sheet.getRange(startRow, NAMES_COL, numRows, 1).getValues();
-        const balancesInSheet = sheet.getRange(startRow, BALANCE_COL, numRows, 1).getValues();
+        const namesInSheet = sheet.getRange(startRow, getNamesColumn(), numRows, 1).getValues();
+        const balancesInSheet = sheet.getRange(startRow, getBalanceColumn(), numRows, 1).getValues();
 
         log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
 
@@ -275,7 +275,7 @@ function applyMathToSelection(
           const recordRow = Number(record.row);
 
           if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
-            const updatedBalance = Number(recordSheet.getRange(recordRow, BALANCE_COL).getValue());
+            const updatedBalance = Number(recordSheet.getRange(recordRow, getBalanceColumn()).getValue());
             if (Number.isFinite(updatedBalance)) {
               record.newBalance = Number(updatedBalance.toFixed(2));
             }
@@ -329,8 +329,8 @@ function applyMathToSelection(
               }
 
               if (typeof cell === 'number' && !isNaN(cell)) {
-                const balance = sheet.getRange(absoluteRowIndex, BALANCE_COL).getValue();
-                const individualName = sheet.getRange(absoluteRowIndex, NAMES_COL).getValue();
+                const balance = sheet.getRange(absoluteRowIndex, getBalanceColumn()).getValue();
+                const individualName = sheet.getRange(absoluteRowIndex, getNamesColumn()).getValue();
 
                 if (!individualName || balance === undefined || isNaN(balance)) {
                   return cell;
@@ -375,7 +375,7 @@ function applyMathToSelection(
             const recordRow = Number(record.row);
 
             if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
-              const updatedBalance = Number(recordSheet.getRange(recordRow, BALANCE_COL).getValue());
+              const updatedBalance = Number(recordSheet.getRange(recordRow, getBalanceColumn()).getValue());
               if (Number.isFinite(updatedBalance)) {
                 record.newBalance = Number(updatedBalance.toFixed(2));
               }
@@ -429,11 +429,11 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
 
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     for (const row of rows) {
-      const currentNote = sheet.getRange(row, EXPENDITURES_COL).getNote();
+      const currentNote = sheet.getRange(row, getExpendituresColumn()).getNote();
       if (currentNote) {
-        sheet.getRange(row, EXPENDITURES_COL).setNote(currentNote + "\n" + comment);
+        sheet.getRange(row, getExpendituresColumn()).setNote(currentNote + "\n" + comment);
       } else {
-        sheet.getRange(row, EXPENDITURES_COL).setNote(comment);
+        sheet.getRange(row, getExpendituresColumn()).setNote(comment);
       }
     }
     return true;
@@ -462,7 +462,7 @@ function resetAllMoney(): boolean {
       for (let row = getUserStartingRow(); row <= lastRow; row++) {
         requests.push({
           range: `${sheet.getName()}!${row}:${row}`,
-          values: [[0, 0, 0, 0]] // Set EARNINGS_COL, EXPENDITURES_COL, INVESTMENT_RETURNS_COL to 0
+          values: [[0, 0, 0, 0]] // Set getEarningsColumn(), getExpendituresColumn(), getInvestmentReturnsColumn() to 0
         });
       }
 
@@ -482,9 +482,9 @@ function resetAllMoney(): boolean {
 
       // Reset all monetary columns to 0 for all rows starting from the configured starting row
       for (let row = getUserStartingRow(); row <= lastRow; row++) {
-        sheet.getRange(row, EARNINGS_COL).setValue(0);
-        sheet.getRange(row, EXPENDITURES_COL).setValue(0);
-        sheet.getRange(row, INVESTMENT_RETURNS_COL).setValue(0);
+        sheet.getRange(row, getEarningsColumn()).setValue(0);
+        sheet.getRange(row, getExpendituresColumn()).setValue(0);
+        sheet.getRange(row, getInvestmentReturnsColumn()).setValue(0);
       }
 
       return true;
@@ -554,10 +554,10 @@ function resetColumn(data: any): boolean {
     }
 
     const columnMapping: { [key: string]: number } = {
-      "EARNINGS": EARNINGS_COL,
-      "EXPENDITURES": EXPENDITURES_COL,
-      "INVESTMENT_RETURNS": INVESTMENT_RETURNS_COL,
-      "INITIAL_DEPOSIT": INITIAL_DEPOSIT_COL
+      "EARNINGS": getEarningsColumn(),
+      "EXPENDITURES": getExpendituresColumn(),
+      "INVESTMENT_RETURNS": getInvestmentReturnsColumn(),
+      "INITIAL_DEPOSIT": getInitialDepositColumn()
     };
 
     const targetColumn = columnMapping[column.toUpperCase()];

@@ -56,7 +56,7 @@ function fillSheetsWithData(data: string): boolean {
 
         // Attempt to add with the Google Sheets API first, only if it fails run the fallback
         try {
-            const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
+            const startRow = targetSheet.getRange(getFillStartingCell()).getRow(); // Row 7
             const lengthParsed = entry.individuals.length;
             if (lengthParsed === 0) {
                 log("Length parsed is 0 for identifier: " + entry.identifier + ". Clearing existing data and skipping filling.", false);
@@ -89,7 +89,7 @@ function fillSheetsWithData(data: string): boolean {
             }
 
             valueUpdates.push({
-                range: `${targetSheet.getName()}!${SHEET_CELL_NAME}`,
+                range: `${targetSheet.getName()}!${getFillSheetCellName()}`,
                 values: [[`Period ${entry.identifier}`]]
             });
 
@@ -143,10 +143,10 @@ function fillSheetsWithData(data: string): boolean {
             return true;
         } catch (err: any) {
             log(`Error occurred in fillSheetWithEntry: ${err.message}`, true);
-            const startRow = targetSheet.getRange(STARTING_CELL).getRow(); // Row 7
+            const startRow = targetSheet.getRange(getFillStartingCell()).getRow(); // Row 7
             let lengthParsed = entry.individuals.length;
 
-            targetSheet.getRange(SHEET_CELL_NAME).setValue("Period " + entry.identifier);
+            targetSheet.getRange(getFillSheetCellName()).setValue("Period " + entry.identifier);
 
             targetSheet.showSheet();
 
@@ -194,7 +194,7 @@ function fillSheetsWithData(data: string): boolean {
         return true;
     } catch (err: any) {
 
-        console.error(`An error occurred in function fillSheetsWithData: ${err as string}`);
+        log(`An error occurred in function fillSheetsWithData: ${err as string}`, false);
         return false;
     }
 }
@@ -290,9 +290,9 @@ function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): vo
 
         if (TIMESTAMP_LIST.includes(sheet.getName())) {
             // Avoid infinite trigger loops: don't re-stamp if the edit happened on the timestamp cell itself
-            if (typeof TIMESTAMP_CELL !== 'undefined' && targetSheet) {
+            if (targetSheet) {
                 const activeCell = targetSheet.getActiveCell();
-                if (activeCell && activeCell.getA1Notation() === TIMESTAMP_CELL) {
+                if (activeCell && activeCell.getA1Notation() === getTimestampCell()) {
                     return;
                 }
             }
@@ -300,7 +300,7 @@ function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): vo
             const email = Session.getActiveUser().getEmail();
             const userIdentifier = email ? email : "Authorized User";
             
-            sheet.getRange(TIMESTAMP_CELL).setValue(`Last Modified by: ${userIdentifier} on ${new Date().toLocaleString()}`);
+            sheet.getRange(getTimestampCell()).setValue(`Last Modified by: ${userIdentifier} on ${new Date().toLocaleString()}`);
         }
     } catch (err: any) {
         log(`Error in stampLastModified: ${err.message}`, true);

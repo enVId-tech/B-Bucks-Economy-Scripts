@@ -258,7 +258,7 @@ function bulkUpdateTimestamps(): void {
         const timestampText = `Last updated: ${new Date().toLocaleString()}${lastModifiedBy}`;
 
         sheetsToUpdate.forEach(sheet => {
-            sheet.getRange(TIMESTAMP_CELL).setValue(timestampText);
+            sheet.getRange(getTimestampCell()).setValue(timestampText);
         });
     } catch (error: any) {
         log(`Error in bulkUpdateTimestamps: ${error.message}`, true);
@@ -271,7 +271,7 @@ function updateTimestampForSheet(): void {
         if (TIMESTAMP_LIST.includes(activeSheet.getName())) {
             const currentUser = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
             const lastModifiedBy = currentUser ? ` by ${currentUser}` : '';
-            activeSheet.getRange(TIMESTAMP_CELL).setValue(`Last updated: ${new Date().toLocaleString()}${lastModifiedBy}`);
+            activeSheet.getRange(getTimestampCell()).setValue(`Last updated: ${new Date().toLocaleString()}${lastModifiedBy}`);
         }
     } catch (error: any) {
         log(`Error in updateTimestampForSheet: ${error.message}`, true);
@@ -394,9 +394,7 @@ function recordDailyData(): void {
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
-        ? DEFAULT_HISTORICAL_RECORDS_SHEET
-        : "Economic Records";
+    const sheetName = getHistoricalRecordsSheetName();
 
     const historySheet = ss.getSheetByName(sheetName);
     if (!historySheet) {
@@ -412,9 +410,7 @@ function recordDailyData(): void {
 
         const outputRows: (string | number | Date | null)[][] = evaluated.map(row => [timestamp, row.name, ...row.values]);
 
-        const historicalStartRow = typeof HISTORICAL_RECORDS_ROW_START !== 'undefined'
-            ? HISTORICAL_RECORDS_ROW_START
-            : 11;
+        const historicalStartRow = getHistoricalRecordsRowStart();
 
         const numNewRows = outputRows.length;
         const numNewCols = outputRows[0].length;
@@ -452,9 +448,7 @@ function recordDailyData(): void {
 
 function saveHistoricalRecords(): boolean {
     try {
-        const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
-            ? DEFAULT_HISTORICAL_RECORDS_SHEET
-            : "Economic Records";
+        const sheetName = getHistoricalRecordsSheetName();
 
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
         if (!sheet) {
@@ -477,9 +471,7 @@ function saveHistoricalRecords(): boolean {
 
 function resetHistoricalRecords(): boolean {
     try {
-        const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
-            ? DEFAULT_HISTORICAL_RECORDS_SHEET
-            : "Economic Records";
+        const sheetName = getHistoricalRecordsSheetName();
 
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
         if (!sheet) {
@@ -491,9 +483,7 @@ function resetHistoricalRecords(): boolean {
         const maxCols = sheet.getMaxColumns();
         const lastRow = sheet.getLastRow();
 
-        const startRow = typeof HISTORICAL_RECORDS_ROW_START !== 'undefined'
-            ? HISTORICAL_RECORDS_ROW_START
-            : 11;
+        const startRow = getHistoricalRecordsRowStart();
 
         // Guard against out of bounds or empty target ranges
         if (lastRow < startRow) {
