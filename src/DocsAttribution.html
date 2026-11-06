@@ -356,6 +356,7 @@
                         <tr><td>Manually Update All Timestamps</td><td><span class="pill-ok">safe</span></td><td>Stamps "last updated" on every Period tab.</td></tr>
                         <tr><td>Record Daily Data Snapshot</td><td><span class="pill-ok">safe</span></td><td>Adds today's totals to the Historical Records sheet.</td></tr>
                         <tr><td>Clear Client Cache</td><td><span class="pill-ok">safe</span></td><td>Throws away saved copies of settings, services, investments and transactions so they reload. Use it if a window seems out of date.</td></tr>
+                        <tr><td>Enable / Disable Background Cache Warming</td><td><span class="pill-ok">safe</span></td><td>Optional. Every 10 minutes the system quietly refills any saved copies that have expired, so the first window you open after a quiet period opens quickly. It never changes any sheet data.</td></tr>
                         <tr><td>Refresh All Investments Data</td><td><span class="pill-ok">safe</span></td><td>Recalculates every CoD's current value.</td></tr>
                         <tr><td>Import All Students</td><td><span class="pill-bad">destructive</span></td><td>Rebuilds Period tabs from a roster file. See <a href="#" onclick="openDoc('u-setup');return false;">First-Time Setup</a>.</td></tr>
                         <tr><td>Save to New Sheet Tab</td><td><span class="pill-ok">safe</span></td><td>Copies the Historical Records sheet to a new "Records_…" tab (a backup; it stays in the charts).</td></tr>
@@ -853,6 +854,42 @@ CoD      = net   (stored in NET_INVESTMENT_GAIN_COL)</code></pre>
                         <li>The Services UI labels refer to "Column D" and "Column G", but the code uses <code>EARNINGS_COL = 3</code> and <code>EXPENDITURES_COL = 5</code>.</li>
                         <li>The latest changes have not been verified against a real spreadsheet; smoke-test in a copy first.</li>
                     </ul>
+                </div>
+            </div>
+
+            <!-- D14b. PERFORMANCE -->
+            <div id="d-perf" class="doc-section" data-audience="dev" data-title="Performance Notes" data-icon="⚡">
+                <div class="section-card">
+                    <h2>Performance Notes</h2>
+                    <p class="lead">Almost all run time in Apps Script is per-call overhead (each range read/write, each spreadsheet lookup, each client→server round trip). These are the rules the code follows to keep that low.</p>
+
+                    <h3 id="d-perf-sheetio">Batch every range operation</h3>
+                    <ul>
+                        <li>Read a table with one <code>getValues()</code> and index into the array; write with one <code>setValues()</code>. Never call <code>getRange(...).getValue()</code> in a loop.</li>
+                        <li><code>fetchServicesData</code> reads the whole price table in one call; <code>writeInvestmentsDataToSheet</code> reads and writes each period's input block once and keeps formulas in rows it does not change.</li>
+                        <li>When you only need names, read the names column, not <code>getDataRange()</code>.</li>
+                    </ul>
+
+                    <h3 id="d-perf-handles">Per-execution sheet handles</h3>
+                    <p><code>SheetMemo.ts</code> provides <code>getSS()</code>, <code>getAllSheets()</code> and <code>getSheetNamed(name)</code>, which fetch from the spreadsheet once per execution. Never call <code>SpreadsheetApp.getActiveSpreadsheet()</code> directly. <strong>Any code that adds, deletes, renames or copies a sheet must call <code>resetSheetMemo()</code> afterwards.</strong></p>
+
+                    <h3 id="d-perf-cache">Targeted cache refresh</h3>
+                    <ul>
+                        <li><code>fetchInvestmentsDataCached({ forceRefresh: true, periods: ['Period 3'] })</code> re-reads only those sheets and serves the other periods from cache. It silently falls back to a full refresh when the cache is cold or a period is unknown.</li>
+                        <li>Cache reads and writes for several keys use <code>getAll</code> / <code>putAll</code>. <code>setCachedData</code> skips the property write when the stored copy is identical.</li>
+                        <li><code>clearServerCacheValues(keys)</code> is the batched version of <code>clearServerCacheValue</code>; the client sends it once, a couple of seconds after a dialog opens.</li>
+                    </ul>
+
+                    <h3 id="d-perf-warm">Background cache warming</h3>
+                    <p><code>WarmCache.ts</code>: <code>enableCacheWarming()</code> installs a 10-minute time trigger for <code>warmCaches()</code>; <code>disableCacheWarming()</code> removes it. <code>warmCaches()</code> calls the normal cached fetchers <em>without</em> <code>forceRefresh</code>, so it only reads what has expired, skips when another operation holds the script lock, and never writes to a sheet.</p>
+
+                    <h3 id="d-perf-client">Client start-up</h3>
+                    <ul>
+                        <li>Independent requests start together: in the Services dialog the transaction log, sheet names, quarter and price list; in Investments the ledger and settings (<code>Promise.all</code>).</li>
+                        <li><code>fetchClientData</code> makes one server call per cache miss; the old write-back call to <code>setServerCacheValue</code> was removed because the server fetchers already store what they return.</li>
+                        <li>Analytics draws stored history first (<code>fetchHistoricalRecordbookData</code> with <code>includeLive:false</code>), then adds the live point from <code>fetchLiveHistoricalPoint</code>. Transaction Records requests the first page before the filter facets.</li>
+                    </ul>
+
                 </div>
             </div>
 
