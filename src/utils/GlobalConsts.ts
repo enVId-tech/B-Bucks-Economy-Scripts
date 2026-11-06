@@ -9,8 +9,27 @@
  * This file contains global constants used throughout the B-Bucks Economy Scripts project.
  */
 
-// TODO FIX: Fix the fetchProperty function to properly fetch properties from the settings sheet, and ensure that the default values are used when the properties are not set or are invalid. This will help maintain consistency and prevent errors in the application.
-// Current behavior: Works fine in the copy sheet, however the production sheet has issues with fetching certain important fixed properties such as sheet names.
+// ---------------------------------------------------------------------------------------------------------
+// LOAD-ORDER CONTRACT (read before editing this file)
+//
+// Apps Script evaluates every file's top-level statements before any entry point runs, in the order the files
+// were pushed. Anything executed at the top level of this file therefore runs BEFORE the functions and constants
+// of files that load after it. To keep initialisation deterministic this file follows two strict rules:
+//
+//   TIER 0 (this file): "bootstrap" constants. Pure literals, or expressions built ONLY from constants declared
+//   earlier in this same file. They must never call a function, read a sheet, or touch CacheService/PropertiesService.
+//   Everything else in the project (including the settings loader itself) depends on these, so they have no
+//   dependencies of their own.
+//
+//   TIER 1 (utils/Config.ts): values that come from the Settings sheet (e.g. userStartingRow). They are resolved
+//   lazily through getConfig() the first time they are needed, memoised for the rest of that execution, and fall
+//   back to a hard-coded default if the sheet cannot be read. See getUserStartingRow().
+//
+// The old design evaluated `fetchProperty()` at the top level of this file to populate USER_STARTING_ROW. That call
+// needed DEFAULT_SETTINGS_SHEET, SETTINGS_COLUMNS, SETTINGS_ROW_START and the cache keys, which were declared further
+// down this very file (still in the temporal dead zone), so settings loading was circular and could fail or return
+// an error object. Do not reintroduce a top-level call here.
+// ---------------------------------------------------------------------------------------------------------
 
 // ---- ADVANCED SETTINGS - Don't modify these values unless you know what you're doing (or you're me) -----
 const WAIT_LOCK_TIME: number = 5000; // in ms
@@ -28,10 +47,29 @@ const MAX_CACHE_ENTRIES = 50; // Maximum number of distinct key entries tracked
 const MAX_PROPERTY_BYTES = 8500; // ~8.5KB safety cap for PropertiesService (Quota is 9KB)
 const CACHE_INDEX_KEY = '__GLOBAL_CACHE_INDEX__'; // Key used to maintain insertion order / LRU
 
-// ----- Dynamic Settings - These values are fetched from the settings sheet and can be modified by the user -----
+// ----- Rolling transaction cache (see utils/TransactionCache.ts) -----
+// The transaction log grows without bound, so it is never cached as one payload. Instead the sheet is split into
+// fixed-size BLOCKS of rows (anchored at the oldest row, so appending a transaction only ever touches the newest
+// block). Only the blocks around the page the admin is looking at are kept, and the window re-centres every time the
+// admin switches pages. Tune these three numbers to trade memory for fewer sheet reads.
+const TX_BLOCK_SIZE: number = 50;               // rows per cache block (~20KB each, far below the 100KB CacheService value cap)
+const TX_CACHE_MAX_BLOCKS: number = 24;         // hard ceiling on blocks held at once (24 * 50 = 1,200 rows)
+const TX_CACHE_MAX_BYTES: number = 1200000;     // soft ceiling on the combined serialized size of all cached blocks (~1.2MB)
+const TX_PREFETCH_BEHIND_PAGES: number = 1;     // pages kept behind the viewed page when the direction is unknown
+const TX_PREFETCH_AHEAD_PAGES: number = 2;      // pages kept ahead of the viewed page in the direction of travel
+const TX_MAX_PAGE_SIZE: number = 200;           // largest "Displayed" value the server will honour
+const TX_COLUMN_COUNT: number = 16;             // A..P on the Transactions sheet
+const TX_BLOCK_KEY_PREFIX: string = TRANSACTIONS_CACHED_KEY + "_blk_";   // + block number
+const TX_INDEX_KEY: string = TRANSACTIONS_CACHED_KEY + "_idx";           // block bookkeeping (JSON)
+const TX_FACETS_KEY: string = TRANSACTIONS_CACHED_KEY + "_facets";       // distinct periods / students / types
+const TX_STATS_KEY: string = TRANSACTIONS_CACHED_KEY + "_stats";         // incremental totals for the unfiltered log
+
+// ----- Sheet layout constants (Tier 0). Sheet-driven overrides live in utils/Config.ts (Tier 1) -----
 
 // --- Main Sheet ---
-const USER_STARTING_ROW: number = fetchProperty("userStartingRow", "advancedTechnicalSettings") || 7;
+// The first student row is NOT a constant any more: it is user-configurable ("userStartingRow" in the Settings sheet).
+// Use getUserStartingRow() (utils/Config.ts), which resolves it lazily and always returns a validated integer.
+const DEFAULT_USER_STARTING_ROW: number = 7;
 
 // -- columns --
 // this isn't in an object btw bc i'm dumb and also bc i didnt think abt it when starting this project

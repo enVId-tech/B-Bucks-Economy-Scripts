@@ -449,17 +449,17 @@ function resetAllMoney(): boolean {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const lastRow = sheet.getLastRow();
 
-    if (lastRow < USER_STARTING_ROW) {
+    if (lastRow < getUserStartingRow()) {
       log("No data rows found to reset.", true);
       return false;
     }
 
     try {
-      // Use the Google Sheets API to batch update the monetary columns to 0 for all rows starting from USER_STARTING_ROW
+      // Use the Google Sheets API to batch update the monetary columns to 0 for all rows starting from the configured starting row
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
       // Create a request for each row to update the monetary columns to 0
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         requests.push({
           range: `${sheet.getName()}!${row}:${row}`,
           values: [[0, 0, 0, 0]] // Set EARNINGS_COL, EXPENDITURES_COL, INVESTMENT_RETURNS_COL to 0
@@ -480,8 +480,8 @@ function resetAllMoney(): boolean {
     } catch (error: any) {
       log(`Error occurred in resetAllMoney: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
 
-      // Reset all monetary columns to 0 for all rows starting from USER_STARTING_ROW
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      // Reset all monetary columns to 0 for all rows starting from the configured starting row
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         sheet.getRange(row, EARNINGS_COL).setValue(0);
         sheet.getRange(row, EXPENDITURES_COL).setValue(0);
         sheet.getRange(row, INVESTMENT_RETURNS_COL).setValue(0);
@@ -500,17 +500,17 @@ function resetAccountHolders(): boolean {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const lastRow = sheet.getLastRow();
 
-    if (lastRow < USER_STARTING_ROW) {
+    if (lastRow < getUserStartingRow()) {
       log("No data rows found to reset.", true);
       return false;
     }
 
     try {
-      // Use the Google Sheets API to batch update the account holder names to empty strings for all rows starting from USER_STARTING_ROW
+      // Use the Google Sheets API to batch update the account holder names to empty strings for all rows starting from the configured starting row
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
       // Create a request for each row to update the account holder names to empty strings
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         requests.push({
           range: `${sheet.getName()}!${row}:${row}`,
           values: [[""]] // Set account holder names to empty strings
@@ -531,8 +531,8 @@ function resetAccountHolders(): boolean {
     } catch (error: any) {
       log(`Error occurred in resetAccountHolders: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
 
-      // Reset all account holder names to empty strings for all rows starting from USER_STARTING_ROW
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      // Reset all account holder names to empty strings for all rows starting from the configured starting row
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         sheet.getRange(row, 1).setValue(""); // Assuming account holder names are in column 1
       }
 
@@ -569,17 +569,17 @@ function resetColumn(data: any): boolean {
 
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const lastRow = sheet.getLastRow();
-    if (lastRow < USER_STARTING_ROW) {
+    if (lastRow < getUserStartingRow()) {
       log("No data rows found to reset.", true);
       return false;
     }
 
     try {
-      // Use the Google Sheets API to batch update the earnings column to 0 for all rows starting from USER_STARTING_ROW
+      // Use the Google Sheets API to batch update the earnings column to 0 for all rows starting from the configured starting row
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
 
       // Create a request for each row to update the target column to 0
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         const rangeA1 = `${sheet.getName()}!${row}:${row}`;
         const values = Array(sheet.getLastColumn()).fill(0); // Create an array filled with 0s for all columns
         values[targetColumn - 1] = 0; // Set the target column to 0 (adjusting for 0-based index)
@@ -603,8 +603,8 @@ function resetColumn(data: any): boolean {
     } catch (error: any) {
       log(`Error occurred in resetColumn: ${error.message}, resorting to slower method. If this error persists, please contact the developer.`, true);
 
-      // Reset all earnings to 0 for all rows starting from USER_STARTING_ROW
-      for (let row = USER_STARTING_ROW; row <= lastRow; row++) {
+      // Reset all earnings to 0 for all rows starting from the configured starting row
+      for (let row = getUserStartingRow(); row <= lastRow; row++) {
         sheet.getRange(row, targetColumn).setValue(0);
       }
 

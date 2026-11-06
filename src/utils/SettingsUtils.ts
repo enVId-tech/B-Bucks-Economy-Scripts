@@ -216,10 +216,12 @@ function fetchSettingsData(): SettingsData | { error: string } {
 }
 
 /**
- * Fetches a specific property from the settings data.
+ * Fetches a specific property from the settings data. Values keep their native type (number, boolean, ISO date string or
+ * string) exactly as parsed from the sheet. They are NOT stringified, so `fetchProperty("logBankingDaily") === false`
+ * and arithmetic on numeric settings behave as expected.
  * @param propertyKey The key of the property to fetch.
- * @param propertySection The section of the settings data to search in.
- * @returns The value of the property or an error object if it's not found.
+ * @param propertySection The section of the settings data to search in. When omitted every section is searched.
+ * @returns The value of the property, or an `{ error }` object if it can't be read or isn't found.
  */
 function fetchProperty(propertyKey: SettingsPropertyKey, propertySection?: keyof SettingsData): any {
     try {
@@ -227,30 +229,26 @@ function fetchProperty(propertyKey: SettingsPropertyKey, propertySection?: keyof
 
         if ('error' in settings) {
             log(`Failed to fetch settings data: ${settings.error}`, false);
+            return { error: settings.error };
         }
 
         // If a specific section is provided, check that section first
         if (propertySection) {
             const section = settings[propertySection];
             if (section && typeof section === 'object' && propertyKey in section) {
-                return String((section as any)[propertyKey]);
+                return (section as any)[propertyKey];
             }
         }
 
         // Search through each inner configuration section group
-        let propertyValue: any = undefined;
         for (const section of Object.values(settings)) {
             if (section && typeof section === 'object' && propertyKey in section) {
-                propertyValue = (section as any)[propertyKey];
-                break;
+                return (section as any)[propertyKey];
             }
         }
 
-        if (propertyValue === undefined) {
-            log(`Property key "${propertyKey}" not found in any settings section.`, false);
-            return { error: `Property key "${propertyKey}" not found in any settings section.` };
-        }
-        return String(propertyValue);
+        log(`Property key "${propertyKey}" not found in any settings section.`, false);
+        return { error: `Property key "${propertyKey}" not found in any settings section.` };
     } catch (error: any) {
         log(`Error in fetchProperty for key ${propertyKey}: ${error.message}`, true);
         return { error: `Error in fetchProperty for key ${propertyKey}: ${error.message}` };
@@ -339,6 +337,8 @@ function setSettingsProperty(data: any): boolean {
             }
         });
 
+        resetConfigMemo(); // later reads in this execution must see the value that was just written
+
         // apply the income tax rate to all users if the standardPercentages property was updated and contains an incomeTaxRate key
         if (propertyKey === "standardPercentages" && "incomeTaxRate" in propertyValue) {
             const applyResult = applyIncomeTaxRateToAll();
@@ -385,19 +385,19 @@ function applyIncomeTaxRateToAll(): boolean {
         periodSheets.forEach(sheet => {
             const lastRow = sheet.getLastRow();
 
-            if (lastRow < USER_STARTING_ROW) {
+            if (lastRow < getUserStartingRow()) {
                 return;
             }
 
-            const numRows = (lastRow - USER_STARTING_ROW) + 1;
+            const numRows = (lastRow - getUserStartingRow()) + 1;
             const formulas = Array.from({ length: numRows }, (_, index) => {
-                const rowNumber = USER_STARTING_ROW + index;
+                const rowNumber = getUserStartingRow() + index;
                 return [`=C${rowNumber}*(1-${incomeTaxRate})`];
             });
 
             nativeFallbackUpdates.push({ sheet, numRows });
             valueUpdates.push({
-                range: `${sheet.getName()}!D${USER_STARTING_ROW}:D${lastRow}`,
+                range: `${sheet.getName()}!D${getUserStartingRow()}:D${lastRow}`,
                 values: formulas,
             });
         });
@@ -424,11 +424,11 @@ function applyIncomeTaxRateToAll(): boolean {
 
         nativeFallbackUpdates.forEach(({ sheet, numRows }) => {
             const formulas = Array.from({ length: numRows }, (_, index) => {
-                const rowNumber = USER_STARTING_ROW + index;
+                const rowNumber = getUserStartingRow() + index;
                 return [`=C${rowNumber}*(1-${incomeTaxRate})`];
             });
 
-            sheet.getRange(USER_STARTING_ROW, NET_INCOME_COL, numRows, 1).setFormulas(formulas);
+            sheet.getRange(getUserStartingRow(), NET_INCOME_COL, numRows, 1).setFormulas(formulas);
         });
 
         return true;
