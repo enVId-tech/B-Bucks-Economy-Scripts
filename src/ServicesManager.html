@@ -208,11 +208,18 @@
             document.getElementById('quarterSelectIncome').addEventListener('change', () => { quarterManuallyChosen.Income = true; });
             document.getElementById('quarterSelectSpending').addEventListener('change', () => { quarterManuallyChosen.Spending = true; });
 
-            await autoConfigureCurrentQuarter();
-            startQuarterWatcher();
-            loadServicesSheetOptions();
-            await populateLists(null, false, null);
+            // These three requests do not depend on each other, so they all start right away instead of one after another:
+            //   1. the transaction log (own server call, own loading indicator)
+            //   2. the services sheet names for the sheet drop-down
+            //   3. today's quarter AND the services price list (the lists need both, but neither needs the other)
             loadTransactionData(false);
+            loadServicesSheetOptions();
+            const servicesPrefetch = fetchClientData('cachedServices', 'fetchServicesDataCached', false, ["servicesSheet", null])
+                .catch((e) => { console.warn('Services prefetch failed, populateLists will retry:', e); });
+            await Promise.all([autoConfigureCurrentQuarter(), servicesPrefetch]);
+            startQuarterWatcher();
+            // Served from the in-memory layer filled by the prefetch above
+            await populateLists(null, false, null);
         });
 
         document.addEventListener('click', () => {

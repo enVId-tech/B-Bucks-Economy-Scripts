@@ -226,9 +226,10 @@
       document.getElementById('loadingInvestmentsIndicator').style.display = 'flex'; // Show loading indicator
 
       wireProjectionTabs();
-      const investmentsData = await fetchInitialData();
+      // Investments ledger and settings are independent: request both at once
+      const [investmentsData, settingsData] = await Promise.all([fetchInitialData(), fetchSettingsData()]);
       window.appStateCache['investmentsData'] = investmentsData;
-      window.appStateCache['settingsData'] = await fetchSettingsData();
+      window.appStateCache['settingsData'] = settingsData;
       populatePeriodSelect(investmentsData || []);
       syncProjectionModeInputs();
 
