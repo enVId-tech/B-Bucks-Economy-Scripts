@@ -337,4 +337,198 @@
     a:hover {
         text-decoration: underline;
     }
+
+    /* ------------------------------------------------------------------ */
+    /* Documentation system additions: audience tabs, search, richer content */
+    /* ------------------------------------------------------------------ */
+
+    .docs-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-width: 0;
+    }
+
+    .audience-tabs {
+        display: flex;
+        gap: 2px;
+        background: var(--tree-hover);
+        padding: 2px;
+        border-radius: 7px;
+    }
+
+    .audience-tab {
+        border: none;
+        background: transparent;
+        padding: 5px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .audience-tab:hover { color: var(--text-primary); }
+
+    .audience-tab.active {
+        background: var(--bg-card);
+        color: var(--accent-blue);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .docs-search {
+        padding: 8px 10px 4px;
+    }
+
+    .docs-search input {
+        width: 100%;
+        padding: 6px 8px;
+        font-size: 11px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: var(--bg-main);
+        user-select: text;
+        outline: none;
+    }
+
+    .docs-search input:focus { border-color: var(--accent-blue); background: #fff; }
+
+    .search-empty {
+        padding: 10px 12px;
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .tree-badge {
+        margin-left: auto;
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    /* Text in the reading panel must be selectable/copyable (the base stylesheet disables selection app-wide). */
+    .docs-panel, .docs-panel * { user-select: text; }
+
+    .section-card h4 {
+        font-size: 11px;
+        color: var(--text-primary);
+        margin: 12px 0 2px;
+    }
+
+    .lead {
+        font-size: 12px !important;
+        color: var(--text-primary) !important;
+    }
+
+    .callout-danger {
+        border-left-color: #dc2626;
+        background: #fef2f2;
+    }
+
+    .callout-success {
+        border-left-color: #16a34a;
+        background: #f0fdf4;
+    }
+
+    .doc-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 8px 0 14px;
+        font-size: 10.5px;
+    }
+
+    .doc-table th,
+    .doc-table td {
+        border: 1px solid var(--border-color);
+        padding: 5px 8px;
+        text-align: left;
+        vertical-align: top;
+        line-height: 1.5;
+        color: var(--text-secondary);
+    }
+
+    .doc-table th {
+        background: var(--tree-hover);
+        color: var(--text-primary);
+        font-weight: 700;
+    }
+
+    .doc-table td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+
+    .doc-table code { white-space: nowrap; }
+
+    .steps {
+        counter-reset: step;
+        list-style: none;
+        padding-left: 0 !important;
+    }
+
+    .steps > li {
+        counter-increment: step;
+        position: relative;
+        padding: 4px 0 4px 30px;
+    }
+
+    .steps > li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--accent-blue);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .kbd {
+        display: inline-block;
+        padding: 1px 6px;
+        border: 1px solid var(--border-hover);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        background: #fff;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    pre.diagram {
+        margin: 8px 0 14px;
+        padding: 10px 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+        border-radius: var(--radius-sm);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 10px;
+        line-height: 1.45;
+        overflow-x: auto;
+    }
+
+    .pill-ok, .pill-warn, .pill-bad {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .pill-ok { background: #dcfce7; color: #166534; }
+    .pill-warn { background: #fef3c7; color: #92400e; }
+    .pill-bad { background: #fee2e2; color: #991b1b; }
+
+    .doc-meta {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin: -4px 0 10px;
+    }
 </style>
