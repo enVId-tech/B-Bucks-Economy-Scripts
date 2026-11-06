@@ -444,16 +444,36 @@ function handleDeposit(data: string): boolean {
         const previousBalanceCell = sheet.getRange(studentRow, BALANCE_COL);
         let previousBalance = parseFloat(previousBalanceCell.getValue()) || 0;
 
-        // Add a check to ensure that the deposit does not cause the balance to go negative unless override is true
-        if (!override && (previousBalance - amount) < 0) {
-            log(`Deposit of ${amount} would result in a negative balance for student "${student}". Current balance: ${previousBalance}. Override not enabled.`, true);
+        // The existing CoD (net investment gain) is rolled into the student's cash as part of every deposit, so it
+        // counts toward the funds available. Reading the balance column alone under-reports what the student has.
+        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
+        const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
+        const hasRolloverCod = !isNaN(currentNetAmount) && currentNetAmount !== 0;
+
+        // Rolling the CoD over is only allowed once the withdrawal window is open, or when the admin overrides it.
+        if (hasRolloverCod && !override) {
+            const lockoutSetting = Number(fetchProperty("withdrawLockoutTimeframeDays", "mandatedPolicies"));
+            const lockoutDays = Number.isFinite(lockoutSetting) && lockoutSetting >= 0 ? lockoutSetting : 14;
+            const depositDateValue = sheet.getRange(studentRow, DATE_DEPOSIT_COL).getValue();
+            const depositDate = depositDateValue ? new Date(depositDateValue) : null;
+            const elapsedDays = depositDate && !isNaN(depositDate.getTime())
+                ? (Date.now() - depositDate.getTime()) / (1000 * 60 * 60 * 24)
+                : Infinity;
+
+            if (elapsedDays < lockoutDays) {
+                log(`Deposit blocked for "${student}": their existing CoD ($${currentNetAmount.toFixed(2)}) is still inside the ${lockoutDays}-day withdrawal window (${Math.floor(elapsedDays)} day(s) elapsed). Wait for the window to close or use Admin Override.`, true);
+                return false;
+            }
+        }
+
+        // Funds available = cash in the balance column + the CoD that is rolled over, unless the admin overrides.
+        const availableFunds = Number((previousBalance + (hasRolloverCod ? currentNetAmount : 0)).toFixed(2));
+        if (!override && (availableFunds - amount) < -0.005) {
+            log(`Depositing $${amount.toFixed(2)} isn't possible for "${student}". Cash: $${previousBalance.toFixed(2)}, CoD: $${(hasRolloverCod ? currentNetAmount : 0).toFixed(2)}, total available: $${availableFunds.toFixed(2)}. Lower the amount or use Admin Override.`, true);
             return false;
         }
 
         // fetch the net amount first, then add it to the returns if it exists
-        const netCurrentAmountCell = sheet.getRange(studentRow, NET_INVESTMENT_GAIN_COL);
-        const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
-
         if (!isNaN(currentNetAmount) && currentNetAmount !== 0) {
             const currentReturnsCell = sheet.getRange(studentRow, INVESTMENT_RETURNS_COL);
             const currentReturns = parseFloat(currentReturnsCell.getValue()) || 0;
