@@ -241,9 +241,11 @@
      * @param forceRefresh Whether to force a refresh of the data.
      * @returns A promise resolving to the initial investments data.
      */
-    async function fetchInitialData(forceRefresh = false) {
+    async function fetchInitialData(forceRefresh = false, onlyPeriod = null) {
       try {
-        const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', forceRefresh);
+        // With onlyPeriod set, the server re-reads just that period's sheet and serves every other period from cache
+        const extra = onlyPeriod ? [["periods", [onlyPeriod]]] : [];
+        const investmentsData = await fetchClientData('cachedInvestmentsLedger', 'fetchInvestmentsDataCached', forceRefresh, ...extra);
         console.log("Initial Investments Ledger Data:", investmentsData);
         return investmentsData;
         // populatePeriodSelect(investmentsData);
@@ -624,7 +626,7 @@
         }
 
         // Actually update the data to reflect true values
-        const freshData = await fetchInitialData(true);
+        const freshData = await fetchInitialData(true, periodSelected);
         console.log("Fresh Investments Ledger Data after force refresh:", freshData);
         targetPeriod = freshData.find(p => p.periodName === periodSelected);
         targetStudent = targetPeriod?.investments.find(s => s.individualName === studentSelected);

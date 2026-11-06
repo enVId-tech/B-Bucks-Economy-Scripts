@@ -140,7 +140,11 @@ function setCachedData(cacheKey: string, data: any): boolean {
         try {
             // Save payload to CacheService and PropertiesService
             CacheService.getScriptCache().put(cacheKey, safePayload, SERVER_SIDE_CACHE_AGE);
-            PropertiesService.getScriptProperties().setProperty(cacheKey, safePayload);
+            // Property writes are the slowest storage call: skip it when the durable copy is already identical
+            const durableProps = PropertiesService.getScriptProperties();
+            if (durableProps.getProperty(cacheKey) !== safePayload) {
+                durableProps.setProperty(cacheKey, safePayload);
+            }
 
             // Maintain key index and evict oldest keys if entry limit is exceeded
             touchCacheIndex(cacheKey);
