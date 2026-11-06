@@ -6,6 +6,14 @@
 <!-- This HTML file provides a utility function for client-side code to call server-side functions in Google Apps Script. It includes error handling and a fallback for local development. -->
 
 <script>
+    // Shows or hides an element by swapping the display-* state classes defined in styles/DisplayState.html.
+    // displayMode is 'none', 'flex' or 'block'. Never write element.style directly: styles live in src/styles/.
+    function setElementDisplay(element, displayMode) {
+        if (!element) return;
+        element.classList.remove('is-hidden', 'display-none', 'display-flex', 'display-block');
+        element.classList.add('display-' + displayMode);
+    }
+
     // Use to call server functions from client-side with optional success and failure handlers
     function callServer(serverFunctionName, data = null, onSuccess = null, onFailure = null) {
         if (typeof google !== 'undefined' && google.script && google.script.run) {

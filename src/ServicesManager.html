@@ -17,6 +17,7 @@
     <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
     <!-- These lines MUST be included for the application to function correctly -->
     <?!= include('styles/ServicesManager'); ?>
+    <?!= include('styles/DisplayState'); ?>
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
@@ -202,7 +203,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
-            document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
+            setElementDisplay(document.getElementById("loadingIndicatorTransactions"), 'flex'); // Show loading indicator
 
             // Remember when the admin picks a quarter themselves, so the automatic updates never fight them.
             document.getElementById('quarterSelectIncome').addEventListener('change', () => { quarterManuallyChosen.Income = true; });
@@ -281,7 +282,7 @@
                     </div>
                 `;
                 updateUndoButtonState();
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
                 return;
             }
 
@@ -359,7 +360,7 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
-            document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
         }
 
         // ---- Rolling transaction log: only a window of pages is ever held in memory (see utils/TransactionWindow.html) ----
@@ -400,7 +401,7 @@
             limitInput.value = limit;
             const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
 
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex';
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'flex');
             try {
                 const result = await txLog.getPage({ page, pageSize: limit, filters: getLogFilters(), force });
                 if (token !== renderToken) return; // a newer request superseded this one
@@ -411,7 +412,7 @@
             } catch (error) {
                 if (token !== renderToken) return;
                 console.error('Error fetching transaction data:', error);
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
             }
         }
 
@@ -439,9 +440,9 @@
                 const multiplierId = isIncome ? 'multiplierIncome' : 'multiplierSpending';
 
                 if (isIncome) {
-                    document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show applying indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'flex'); // Show applying indicator
                 } else {
-                    document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show applying indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'flex'); // Show applying indicator
                 }
 
                 const selectElement = document.getElementById(selectId);
@@ -497,9 +498,9 @@
                     document.getElementById("submitSpendingBtn").classList.remove("disabled");
 
                     if (isIncome) {
-                        document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                        setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
                     } else {
-                        document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide applying indicator
+                        setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'none'); // Hide applying indicator
                     }
                 }
             } catch (error) {
@@ -509,20 +510,20 @@
 
         /** Submits the income form, validating inputs and then calling the server to process the transaction. */
         function submitIncome() {
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
-            document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show applying indicator
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'flex'); // Show loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'flex'); // Show applying indicator
             addBalance('Income')
-            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
-            document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
         }
 
         /** Submits the spending form, validating inputs and then calling the server to process the transaction. */
         function submitSpending() {
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
-            document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show applying indicator
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'flex'); // Show loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'flex'); // Show applying indicator
             addBalance('Spending')
-            document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
-            document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide applying indicator
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'none'); // Hide applying indicator
         }
 
         // Tracks whether the admin picked a quarter by hand. While true we never move that dropdown automatically.
@@ -646,7 +647,7 @@
         async function populateLists(targetType = null, forceRefresh = false, servicesSheet) {
             // Enable loading indicator for user feedback during async operations
             const loadingIndicator = document.getElementById('loadingIndicator');
-            loadingIndicator.style.display = 'flex'; // Show loading indicator
+            setElementDisplay(loadingIndicator, 'flex'); // Show loading indicator
 
             const quarterSelectSpending = document.getElementById('quarterSelectSpending');
             const quarterSelectIncome = document.getElementById('quarterSelectIncome');
@@ -708,12 +709,12 @@
                     expenseSelect.innerHTML = expenseHtml;
                 }
 
-                loadingIndicator.style.display = 'none'; // Hide loading indicator
-                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide loading indicator
-                document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide loading indicator
+                setElementDisplay(loadingIndicator, 'none'); // Hide loading indicator
+                setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide loading indicator
+                setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'none'); // Hide loading indicator
                 console.log(`Successfully populated income and expense lists with ${response.length} items from cache for quarter: ${quarter}`);
             } catch (error) {
-                loadingIndicator.style.display = 'none'; // Ensure loading indicator is hidden on error
+                setElementDisplay(loadingIndicator, 'none'); // Ensure loading indicator is hidden on error
                 console.error("Error populating item lists:", error);
             }
         }
@@ -722,25 +723,25 @@
           * Forces a network clear-through to refresh backend server arrays.
           */
         async function updateExpenses() {
-            document.getElementById('applyingIndicatorSpending').style.display = 'flex'; // Show loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'flex'); // Show loading indicator
             // Instant render from RAM for snappy UI response
             await populateLists('Expense');
             // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Expense');
-            document.getElementById('applyingIndicatorSpending').style.display = 'none'; // Hide loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'none'); // Hide loading indicator
         }
 
         async function updateIncomes() {
-            document.getElementById('applyingIndicatorIncome').style.display = 'flex'; // Show loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'flex'); // Show loading indicator
             // Instant render from RAM for snappy UI response
             await populateLists('Income');
             // Background round-trip updates look-aside engine safely
             await fetchClientData('cachedServices', 'fetchServicesDataCached', true);
             // Refresh with the verified backend values
             await populateLists('Income');
-            document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide loading indicator
+            setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide loading indicator
         }
 
         function updateUndoButtonState() {

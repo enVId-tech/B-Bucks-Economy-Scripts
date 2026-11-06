@@ -19,6 +19,7 @@
 
     <!-- Style import -->
     <?!= include('styles/HistoricalAnalytics'); ?>
+    <?!= include('styles/DisplayState'); ?>
 
     <!-- Include Client-to-Server HTML Utility -->
     <?!= include('utils/ClientToServer'); ?>
@@ -134,7 +135,7 @@
          *  2. the live ◆ point (slow: re-evaluates the period-sheet formulas) is added as soon as it is ready.
          */
         function loadHistoricalData() {
-            document.getElementById('loadingIndicator').style.display = 'flex';
+            setElementDisplay(document.getElementById('loadingIndicator'), 'flex');
 
             callServer('fetchHistoricalRecordbookData', JSON.stringify({ includeLive: false }), (response) => {
                 let loaded = false;
@@ -156,12 +157,12 @@
                 } catch (e) {
                     console.error("Failed to parse historical payload:", e);
                 } finally {
-                    document.getElementById('loadingIndicator').style.display = 'none';
+                    setElementDisplay(document.getElementById('loadingIndicator'), 'none');
                 }
                 if (loaded) loadLivePoint();
             }, (err) => {
                 console.error("Failed to fetch historical record data:", err);
-                document.getElementById('loadingIndicator').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicator'), 'none');
             });
         }
 
@@ -170,7 +171,7 @@
             const notice = document.getElementById('dataNotice');
             notice.textContent = 'Calculating current values…';
             notice.className = 'data-notice';
-            notice.style.display = 'block';
+            setElementDisplay(notice, 'block');
 
             callServer('fetchLiveHistoricalPoint', null, (response) => {
                 try {
@@ -256,18 +257,18 @@
          */
         function showDataNotice() {
             const el = document.getElementById('dataNotice');
-            if (!payloadMeta) { el.style.display = 'none'; return; }
+            if (!payloadMeta) { setElementDisplay(el, 'none'); return; }
 
             if (payloadMeta.liveError) {
                 el.textContent = `⚠️ ${payloadMeta.liveError} The chart shows recorded history only.`;
                 el.className = 'data-notice warn';
-                el.style.display = 'block';
+                setElementDisplay(el, 'block');
             } else if (payloadMeta.liveIncluded) {
                 el.textContent = `Live values computed at ${new Date(payloadMeta.generatedAt).toLocaleTimeString()}. The highlighted ◆ point is not stored until the next daily record.`;
                 el.className = 'data-notice';
-                el.style.display = 'block';
+                setElementDisplay(el, 'block');
             } else {
-                el.style.display = 'none';
+                setElementDisplay(el, 'none');
             }
         }
 

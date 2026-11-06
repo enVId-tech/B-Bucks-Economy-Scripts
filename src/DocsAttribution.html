@@ -596,7 +596,7 @@ const days = getConfig('withdrawLockoutTimeframeDays');</code></pre>
                     <h3 id="d-config-conventions">Code conventions</h3>
                     <ul>
                         <li><strong>Always log through <code>log()</code></strong>. Never call <code>Logger.log</code> or <code>console.*</code> in server code; only the <code>log()</code> implementation may.</li>
-                        <li><strong>Styles live in <code>src/styles/</code></strong>. No <code>&lt;style&gt;</code> blocks or <code>style=""</code> attributes elsewhere; use a class (for example <code>is-hidden</code>).</li>
+                        <li><strong>Styles live in <code>src/styles/</code></strong>. No <code>&lt;style&gt;</code> blocks, <code>style=""</code> attributes or <code>element.style…</code> in script elsewhere. Toggle visibility with <code>setElementDisplay(element, 'none' | 'flex' | 'block')</code> (classes in <code>styles/DisplayState.html</code>, included by every dialog).</li>
                         <li><strong>Readable names</strong>. Descriptive variables and functions (<code>transaction</code>, <code>blockNumber</code>, <code>timestampMs</code>), no cryptic abbreviations.</li>
                     </ul>
 

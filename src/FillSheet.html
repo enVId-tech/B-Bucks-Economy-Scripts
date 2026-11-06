@@ -56,9 +56,7 @@
         <p class="warning-text">This cannot be undone easily. Please review the preview above.</p>
       </div>
       <div id="progressBar" class="progress-container">
-        <div class="progress-track">
-          <div id="progressFill" class="progress-fill"></div>
-        </div>
+        <progress id="progressFill" class="progress-fill" max="100" value="0"></progress>
         <p id="progressText" class="progress-text">Periods processed: 0 / 0</p>
       </div>
       <div class="modal-buttons">
@@ -274,7 +272,7 @@
 
         callServer('fillSheetsWithData', stringifiedData, (response) => {
           setTimeout(() => {
-            document.getElementById('progressFill').style.width = `${((index + 1) / queue.length) * 100}%`;
+            document.getElementById('progressFill').value = ((index + 1) / queue.length) * 100;
             document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
 
             processQueueItem(queue, index + 1);

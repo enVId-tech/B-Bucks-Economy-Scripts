@@ -17,6 +17,7 @@
     <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
     <!-- These lines MUST be included for the application to function correctly -->
     <?!= include('styles/TransactionsRecords'); ?>
+    <?!= include('styles/DisplayState'); ?>
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
@@ -257,7 +258,7 @@
             limitInput.value = limit;
             const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
 
-            document.getElementById('loadingIndicator').style.display = 'flex';
+            setElementDisplay(document.getElementById('loadingIndicator'), 'flex');
             try {
                 const result = await txLog.getPage({ page, pageSize: limit, filters: getServerFilters(), force, includeStats: true });
                 if (token !== renderToken) return; // a newer request superseded this one
@@ -266,7 +267,7 @@
                 pageInput.setAttribute('max', result.totalPages);
                 updateStats(result.stats);
                 renderTransactionRecords(result.records);
-                document.getElementById('loadingIndicator').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicator'), 'none');
             } catch (error) {
                 if (token !== renderToken) return;
                 console.error('Error fetching transaction data:', error);
@@ -276,7 +277,7 @@
                         <div>Failed to load transactions. Please try again later.</div>
                     </div>
                 `;
-                document.getElementById('loadingIndicator').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicator'), 'none');
             }
         }
 
@@ -445,7 +446,7 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
-            document.getElementById('loadingIndicator').style.display = 'none'; // Hide loading indicator
+            setElementDisplay(document.getElementById('loadingIndicator'), 'none'); // Hide loading indicator
         }
 
         function updateUndoButtonState() {
