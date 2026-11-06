@@ -4,7 +4,7 @@
 
 <!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
 <!-- Documentation system for the B-Bucks Economy Scripts project. It has two audiences: a plain-language User Guide for the teacher/admins running the economy, and a Developer reference for people maintaining the code. Pages are plain <div class="doc-section"> blocks; the sidebar is generated from them at load time, so adding a page means adding one block (see "Cookbook" in the Developer docs). -->
-<!-- AUTHORING NOTE: never write a literal "<?" in this file. Apps Script evaluates it as a template tag. Escape code samples as &lt;?!= ... ?&gt; (see the sidebar-generation script at the bottom). -->
+<!-- AUTHORING NOTE: never type the two-character template opener (less-than followed by question mark) in this file, even inside comments: Apps Script evaluates it as a template tag. Escape code samples with the HTML entity for less-than. -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -407,7 +407,7 @@
 
             <!-- ===================================================================== -->
             <!-- DEVELOPER DOCS                                                        -->
-            <!-- Remember: write &lt;? for a literal "<?" inside code samples.         -->
+            <!-- Remember: escape the template opener in code samples (use the HTML entity for less-than). -->
             <!-- ===================================================================== -->
 
             <!-- D1. ARCHITECTURE -->
