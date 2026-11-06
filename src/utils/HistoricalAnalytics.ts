@@ -60,10 +60,10 @@ function toTimestampMs(raw: any): number | null {
 }
 
 /** Formats an epoch-ms timestamp in the spreadsheet's time zone (falls back to UTC if Apps Script services are unavailable). */
-function formatHistoricalDay(ms: number, tz: string): { day: string; dateStr: string } {
+function formatHistoricalDay(ms: number, timeZone: string): { day: string; dateStr: string } {
   const d = new Date(ms);
   try {
-    return { day: Utilities.formatDate(d, tz, 'yyyy-MM-dd'), dateStr: Utilities.formatDate(d, tz, 'MMM d, yyyy') };
+    return { day: Utilities.formatDate(d, timeZone, 'yyyy-MM-dd'), dateStr: Utilities.formatDate(d, timeZone, 'MMM d, yyyy') };
   } catch (e) {
     return { day: d.toISOString().split('T')[0], dateStr: d.toDateString() };
   }
@@ -90,13 +90,13 @@ function fetchHistoricalRecordbookData(data?: string): string {
     }
   } catch (e) { /* malformed payload: use defaults */ }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tz = ss.getSpreadsheetTimeZone();
+  const spreadsheet = getSS();
+  const timeZone = spreadsheet.getSpreadsheetTimeZone();
   const liveSheetName = getHistoricalRecordsSheetName();
   const patternRegex = new RegExp(getSheetNamePattern(), 'i');
 
   // Live sheet first, then archives (matched by pattern) in tab order.
-  const recordSheets = ss.getSheets().filter(sheet => sheet.getName() === liveSheetName || patternRegex.test(sheet.getName()));
+  const recordSheets = getAllSheets().filter(sheet => sheet.getName() === liveSheetName || patternRegex.test(sheet.getName()));
   recordSheets.sort((a, b) => (a.getName() === liveSheetName ? -1 : 0) - (b.getName() === liveSheetName ? -1 : 0));
 
   const globalHeadersMap = new Map<string, MetricHeader>();
@@ -162,7 +162,7 @@ function fetchHistoricalRecordbookData(data?: string): string {
         }
       }
 
-      const { day, dateStr } = formatHistoricalDay(ts, tz);
+      const { day, dateStr } = formatHistoricalDay(ts, timeZone);
       collected.push({
         day, ts, date: day, dateStr, sheet: sheetPeriod, live: false,
         source: isLiveSheet ? "live" : "archive",
@@ -176,7 +176,7 @@ function fetchHistoricalRecordbookData(data?: string): string {
   let liveError: string | undefined;
 
   if (includeLive) {
-    const liveSheet = ss.getSheetByName(liveSheetName);
+    const liveSheet = getSheetNamed(liveSheetName);
     if (!liveSheet) {
       liveError = `Sheet "${liveSheetName}" not found, so the current values can't be computed.`;
     } else {
@@ -184,10 +184,10 @@ function fetchHistoricalRecordbookData(data?: string): string {
       const gotLock = lock.tryLock(5000); // the evaluation briefly creates a scratch sheet, so don't overlap with the daily recorder
       try {
         if (!gotLock) throw new Error("Another process is updating records right now.");
-        const evaluated = evaluatePeriodFormulas(ss, liveSheet);
+        const evaluated = evaluatePeriodFormulas(spreadsheet, liveSheet);
         const keys: string[] = liveHeaderKeys || [];
         const nowMs = Date.now();
-        const { day, dateStr } = formatHistoricalDay(nowMs, tz);
+        const { day, dateStr } = formatHistoricalDay(nowMs, timeZone);
 
         evaluated.forEach(row => {
           const metricsMap: Record<string, number | null> = {};

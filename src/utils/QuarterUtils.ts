@@ -37,11 +37,11 @@ const QUARTER_IDS: QuarterId[] = ["Q1", "Q2", "Q3", "Q4"];
 // Older builds of the client looked for these names, so they are still accepted as aliases.
 const QUARTER_WORDS: string[] = ["One", "Two", "Three", "Four"];
 
-/** Parses a settings value (ISO string, Date, epoch ms or locale string) into epoch ms. Returns null when unusable. */
+/** Parses a settings value (ISO string, Date, epoch timestampMs or locale string) into epoch timestampMs. Returns null when unusable. */
 function parseQuarterBoundary(value: any): number | null {
     if (value === undefined || value === null || value === "") return null;
-    const ms = value instanceof Date ? value.getTime() : typeof value === 'number' ? value : Date.parse(String(value));
-    return Number.isFinite(ms) ? ms : null;
+    const timestampMs = value instanceof Date ? value.getTime() : typeof value === 'number' ? value : Date.parse(String(value));
+    return Number.isFinite(timestampMs) ? timestampMs : null;
 }
 
 /** Reads one boundary from the important-dates object, trying the canonical key first and then the legacy alias. */
@@ -52,15 +52,15 @@ function readQuarterBoundary(dates: { [key: string]: any }, index: number, edge:
 }
 
 /** True when a timestamp sits exactly on local midnight, i.e. the sheet cell held a date with no time-of-day. */
-function isMidnight(ms: number): boolean {
+function isMidnight(timestampMs: number): boolean {
     try {
         if (typeof Utilities !== 'undefined' && typeof SpreadsheetApp !== 'undefined') {
-            const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
-            return Utilities.formatDate(new Date(ms), tz, "HH:mm:ss") === "00:00:00";
+            const timeZone = getSS().getSpreadsheetTimeZone();
+            return Utilities.formatDate(new Date(timestampMs), timeZone, "HH:mm:ss") === "00:00:00";
         }
     } catch (e) { /* fall through to the runtime time zone */ }
-    const d = new Date(ms);
-    return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
+    const instant = new Date(timestampMs);
+    return instant.getHours() === 0 && instant.getMinutes() === 0 && instant.getSeconds() === 0;
 }
 
 /**
@@ -71,7 +71,7 @@ function isMidnight(ms: number): boolean {
  * @param nowMs The moment to evaluate. Defaults to now.
  * @param midnightCheck Injectable for tests.
  */
-function resolveCurrentQuarter(dates: { [key: string]: any } | undefined | null, nowMs: number = Date.now(), midnightCheck: (ms: number) => boolean = isMidnight): QuarterResolution {
+function resolveCurrentQuarter(dates: { [key: string]: any } | undefined | null, nowMs: number = Date.now(), midnightCheck: (timestampMs: number) => boolean = isMidnight): QuarterResolution {
     const asOf = new Date(nowMs).toISOString();
     const source = dates || {};
 

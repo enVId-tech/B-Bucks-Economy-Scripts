@@ -143,7 +143,7 @@ function applyMathToSelection(
       if (range) {
         rangesToProcess = [range];
       } else {
-        const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+        const activeRangeList = getSS().getActiveRangeList();
         if (!activeRangeList) {
           log("No active range found. Please select cells to apply the operation to.", true);
           return "No active range found. Please select cells to apply the operation to.";
@@ -151,7 +151,7 @@ function applyMathToSelection(
         rangesToProcess = activeRangeList.getRanges();
       }
 
-      const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+      const spreadsheetId = getSS().getId();
       const requests: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
       const affectedRows: number[] = [];
 
@@ -269,7 +269,7 @@ function applyMathToSelection(
       // Re-read each record's balance by its exact sheet period and row.
       if (transactionRecords.length > 0) {
         transactionRecords.forEach(record => {
-          const recordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheets().find(sheet =>
+          const recordSheet = getAllSheets().find(sheet =>
             parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
           );
           const recordRow = Number(record.row);
@@ -299,7 +299,7 @@ function applyMathToSelection(
         if (range) {
           rangesToProcess = [range];
         } else {
-          const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+          const activeRangeList = getSS().getActiveRangeList();
           if (activeRangeList) {
             rangesToProcess = activeRangeList.getRanges();
           } else {
@@ -369,7 +369,7 @@ function applyMathToSelection(
 
         if (transactionRecords.length > 0) {
           transactionRecords.forEach(record => {
-            const recordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheets().find(sheet =>
+            const recordSheet = getAllSheets().find(sheet =>
               parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
             );
             const recordRow = Number(record.row);
@@ -427,7 +427,7 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
       return false;
     }
 
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const sheet = getSS().getActiveSheet();
     for (const row of rows) {
       const currentNote = sheet.getRange(row, getExpendituresColumn()).getNote();
       if (currentNote) {
@@ -446,7 +446,7 @@ function commentExpenditureOnSelection(rows: number[], comment: string): boolean
 
 function resetAllMoney(): boolean {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const sheet = getSS().getActiveSheet();
     const lastRow = sheet.getLastRow();
 
     if (lastRow < getUserStartingRow()) {
@@ -471,7 +471,7 @@ function resetAllMoney(): boolean {
         Sheets.Spreadsheets.Values.batchUpdate({
           valueInputOption: "USER_ENTERED",
           data: requests
-        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+        }, getSS().getId());
       } else {
         log("No valid rows found to reset.", true);
         return false;
@@ -497,7 +497,7 @@ function resetAllMoney(): boolean {
 
 function resetAccountHolders(): boolean {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const sheet = getSS().getActiveSheet();
     const lastRow = sheet.getLastRow();
 
     if (lastRow < getUserStartingRow()) {
@@ -522,7 +522,7 @@ function resetAccountHolders(): boolean {
         Sheets.Spreadsheets.Values.batchUpdate({
           valueInputOption: "USER_ENTERED",
           data: requests
-        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+        }, getSS().getId());
       } else {
         log("No valid rows found to reset.", true);
         return false;
@@ -567,7 +567,7 @@ function resetColumn(data: any): boolean {
       return false;
     }
 
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const sheet = getSS().getActiveSheet();
     const lastRow = sheet.getLastRow();
     if (lastRow < getUserStartingRow()) {
       log("No data rows found to reset.", true);
@@ -594,7 +594,7 @@ function resetColumn(data: any): boolean {
         Sheets.Spreadsheets.Values.batchUpdate({
           valueInputOption: "USER_ENTERED",
           data: requests
-        }, SpreadsheetApp.getActiveSpreadsheet().getId());
+        }, getSS().getId());
       } else {
         log("No valid rows found to reset.", true);
         return false;

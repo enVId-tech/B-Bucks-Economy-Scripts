@@ -85,7 +85,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
 function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): ItemData[] | { error: string } {
     try {
         // Fetch all sheets with the name "Services" to implement multi-service sheet support in the future
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const allSheets = getAllSheets();
 
         if (allSheets.length === 0) {
             log("No sheets found in the active spreadsheet.", true);
@@ -188,7 +188,7 @@ function executeServiceAction(payloadStr: string): string | void {
             const personsNegative = new Set<string>();
 
             // Fetch all selected cells in the active sheet, if they have a balance below the minimum required to remove, return a message to the user that they cannot remove more than the minimum balance
-            const activeRangeList = SpreadsheetApp.getActiveSpreadsheet().getActiveRangeList();
+            const activeRangeList = getSS().getActiveRangeList();
             if (!activeRangeList) {
                 log("No active range found. Please select cells to apply the operation to.", true);
                 return "No active range found. Please select cells to apply the operation to.";
@@ -296,7 +296,7 @@ function executeServiceAction(payloadStr: string): string | void {
  */
 function fetchServicesSheetNames(): string[] | { error: string } {
     try {
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const allSheets = getAllSheets();
 
         if (allSheets.length === 0) {
             log("No sheets found in the active spreadsheet.", true);
