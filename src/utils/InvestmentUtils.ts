@@ -106,7 +106,7 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
 
             let investments: InvestmentRecord[] = [];
 
-            for (let row = USER_STARTING_ROW - 1; row < values.length; row++) {
+            for (let row = getUserStartingRow() - 1; row < values.length; row++) {
                 const individualName = values[row][0];
                 const balance = Number(values[row][1].toFixed(2));
                 const returnsAmount = Number(values[row][5].toFixed(2));
@@ -177,18 +177,18 @@ function refreshAllInvestments(): boolean {
 
             // read from columns 9 (I), 10 (J), and 11 (K)
             const lastRow = sheet.getLastRow();
-            if (lastRow < USER_STARTING_ROW) return;
+            if (lastRow < getUserStartingRow()) return;
 
-            const totalRowsToProcess = (lastRow - USER_STARTING_ROW) + 1;
+            const totalRowsToProcess = (lastRow - getUserStartingRow()) + 1;
             // Grab current values I, J and K
-            const range = sheet.getRange(USER_STARTING_ROW, GROSS_INVESTMENT_GAIN_COL || 9, totalRowsToProcess, 3);
+            const range = sheet.getRange(getUserStartingRow(), GROSS_INVESTMENT_GAIN_COL || 9, totalRowsToProcess, 3);
             const values = range.getValues();
 
             // match values and only modify the necessary columns
             const currentSheetValues = sheet.getDataRange().getValues();
 
             for (let i = 0; i < totalRowsToProcess; i++) {
-                const sheetRowIndex = USER_STARTING_ROW - 1 + i;
+                const sheetRowIndex = getUserStartingRow() - 1 + i;
                 const studentName = currentSheetValues[sheetRowIndex][0];
                 if (!studentName) continue;
 
@@ -270,7 +270,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             let targetRow = -1;
             const totalRows = values.length;
 
-            for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
+            for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
                 if (values[i][0] === individualName) {
                     targetRow = i + 1;
                     break;
@@ -308,7 +308,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
 
         // Locate individual row
         const totalRows = values.length;
-        for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
+        for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
             if (values[i][0] === investment.individualName) {
                 investmentRow = i + 1;
                 break;
@@ -363,7 +363,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
 
             investments.forEach(investment => {
                 let targetRow = -1;
-                for (let i = USER_STARTING_ROW - 1; i < totalRows; i++) {
+                for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
                     if (values[i][0] === investment.individualName) {
                         targetRow = i + 1;
                         break;
@@ -429,7 +429,7 @@ function handleDeposit(data: string): boolean {
         const values = dataRange.getValues();
         let studentRow = -1;
 
-        for (let i = USER_STARTING_ROW - 1; i < values.length; i++) {
+        for (let i = getUserStartingRow() - 1; i < values.length; i++) {
             if (values[i][0] === student) {
                 studentRow = i + 1;
                 break;
@@ -562,7 +562,7 @@ function handleWithdraw(data: string): boolean {
         const values = dataRange.getValues();
         let studentRow = -1;
 
-        for (let i = USER_STARTING_ROW - 1; i < values.length; i++) {
+        for (let i = getUserStartingRow() - 1; i < values.length; i++) {
             if (values[i][0] === student) {
                 studentRow = i + 1;
                 break;

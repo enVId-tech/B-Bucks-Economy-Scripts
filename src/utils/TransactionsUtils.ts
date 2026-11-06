@@ -341,22 +341,22 @@ function undoTransactions(data?: string): boolean {
       }
 
       let targetRow = Number(record.row);
-      if (!Number.isInteger(targetRow) || targetRow < USER_STARTING_ROW) {
+      if (!Number.isInteger(targetRow) || targetRow < getUserStartingRow()) {
         const lastRow = targetSheet.getLastRow();
-        if (lastRow < USER_STARTING_ROW) {
+        if (lastRow < getUserStartingRow()) {
           log(`No student rows found in Period ${record.period} for transaction ID ${record.id}.`, true);
           return false;
         }
 
         const names = targetSheet
-          .getRange(USER_STARTING_ROW, NAMES_COL, lastRow - USER_STARTING_ROW + 1, 1)
+          .getRange(getUserStartingRow(), NAMES_COL, lastRow - getUserStartingRow() + 1, 1)
           .getValues();
         const studentRowOffset = names.findIndex(row => String(row[0]).trim() === String(record.individual).trim());
         if (studentRowOffset < 0) {
           log(`Student "${record.individual}" not found in Period ${record.period} for transaction ID ${record.id}.`, true);
           return false;
         }
-        targetRow = USER_STARTING_ROW + studentRowOffset;
+        targetRow = getUserStartingRow() + studentRowOffset;
       }
 
       const rowName = String(targetSheet.getRange(targetRow, NAMES_COL).getValue()).trim();
