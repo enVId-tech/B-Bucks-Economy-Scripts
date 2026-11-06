@@ -829,8 +829,6 @@
         return;
       }
 
-      let totalAmount = 0;
-
       const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
       const msPerDay = 1000 * 60 * 60 * 24;
       const studentDate = new Date(selectedStudentData.date);
@@ -840,17 +838,9 @@
       const validDays = Number.isNaN(daysElapsed) ? Infinity : daysElapsed;
       const isPastLockout = validDays >= withdrawDays;
 
-      // Add the CoD amount to the deposit amount if the withdrawal lockout period has passed or if the override is checked
-      if (isPastLockout || isOverrideChecked) {
-        const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
-        const codAmount = parseFloat(codAmountText);
-
-        if (!isNaN(codAmount) && codAmount >= 0) {
-          totalAmount = codAmount + depositAmount;
-        } else {
-          totalAmount = depositAmount;
-        }
-      } else {
+      // Depositing rolls the existing CoD into the student's cash, so it may only happen once the withdrawal
+      // window is open or the admin has explicitly overridden it.
+      if (!isPastLockout && !isOverrideChecked) {
         alert("The withdrawal period is still active. Please wait until the lockout period has passed or check the override box to proceed.");
         return;
       }
@@ -858,9 +848,19 @@
       const selectedStudent = document.getElementById('studentSelect').value;
       const selectedPeriod = document.getElementById('periodSelect').value;
 
-      // If the amount to deposit would cause the balance to go negative, and the override is not checked, prevent the deposit and alert the user. This ensures that the system maintains integrity and prevents users from depositing amounts that would result in a negative balance, which could lead to inconsistencies in the investment ledger.
-      if (!isOverrideChecked && (selectedStudentData.balance - totalAmount) < 0) {
-        alert("Deposit would result in a negative balance. Please check the amount or use Admin Override. The current balance is $" + selectedStudentData.balance.toFixed(2) + " and the total deposit amount is $" + totalAmount.toFixed(2) + ".");
+      // Funds available to this deposit = cash in the balance column + the CoD that is rolled over into it.
+      // Looking at the balance column alone under-reports what the student really has when "Deposit Cash w/ CoD" is used.
+      const availableFunds = getAvailableDepositFunds(selectedStudentData);
+      const availableCod = availableFunds - selectedStudentData.balance;
+
+      if (!isOverrideChecked && depositAmount > availableFunds + 0.005) {
+        alert(
+          "Depositing $" + depositAmount.toFixed(2) + " isn't possible.\n\n" +
+          "Cash (balance): $" + selectedStudentData.balance.toFixed(2) + "\n" +
+          "Current CoD: $" + availableCod.toFixed(2) + "\n" +
+          "Total available: $" + availableFunds.toFixed(2) + "\n\n" +
+          "Lower the amount, or check Admin Override to allow a negative balance."
+        );
         return;
       }
 
@@ -951,22 +951,55 @@
     }
 
     /**
-     * Handles the deposit of cash with CoD.
+     * Total funds a deposit can draw on: the balance column plus the CoD that rolls into it during a deposit.
+     * The CoD is only counted when the withdrawal window is open (or the admin override is on), because otherwise
+     * the server refuses to roll it over.
+     * @param {Object} studentData - The selected student's data (balance, netCurrentAmount, date).
+     * @returns {number} Spendable funds for a deposit.
+     */
+    function getAvailableDepositFunds(studentData) {
+      const balance = Number(studentData?.balance) || 0;
+      const cod = Number(studentData?.netCurrentAmount);
+      const codAmount = Number.isFinite(cod) && cod > 0 ? cod : 0;
+
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
+      const elapsedDays = (new Date() - new Date(studentData?.date)) / (1000 * 60 * 60 * 24);
+      const isPastLockout = Number.isNaN(elapsedDays) ? true : elapsedDays >= withdrawDays;
+      const isOverride = !!document.getElementById('overrideCheck')?.checked;
+
+      return Number((balance + ((isPastLockout || isOverride) ? codAmount : 0)).toFixed(2));
+    }
+
+    /**
+     * Handles the deposit of cash with CoD: fills the deposit box with the balance plus the CoD, but only when the
+     * CoD is actually accessible. Otherwise the admin is warned that depositing everything isn't possible.
      */
     function handleDepositCashWithCoD() {
-      const cashAmountText = document.getElementById('cashAmount').textContent.split('$')[1];
-      const cashAmount = parseFloat(cashAmountText);
-      if (isNaN(cashAmount) || cashAmount <= 0) {
+      const selectedStudentData = window.appStateCache['selectedStudentData'];
+      if (!selectedStudentData) return;
+
+      const cashAmount = Number(selectedStudentData.balance) || 0;
+      const rawCod = Number(selectedStudentData.netCurrentAmount);
+      const codAmount = Number.isFinite(rawCod) && rawCod > 0 ? rawCod : 0;
+
+      const withdrawDays = window.appStateCache['settingsData']?.mandatedPolicies.withdrawLockoutTimeframeDays || 14;
+      const elapsedDays = (new Date() - new Date(selectedStudentData.date)) / (1000 * 60 * 60 * 24);
+      const isPastLockout = Number.isNaN(elapsedDays) ? true : elapsedDays >= withdrawDays;
+      const isOverride = !!document.getElementById('overrideCheck')?.checked;
+
+      if (!isPastLockout && !isOverride) {
+        alert("Can't deposit all cash with the CoD: the withdrawal period is still active, so the $" + codAmount.toFixed(2) +
+          " CoD is locked. Wait until the lockout ends or check Admin Override.");
         return;
       }
 
-      const codAmountText = document.getElementById('codAmount').textContent.split('$')[1];
-      const codAmount = parseFloat(codAmountText);
-      if (isNaN(codAmount) || codAmount <= 0) {
+      const total = Number((cashAmount + codAmount).toFixed(2));
+      if (total <= 0) {
+        alert("Nothing to deposit: cash is $" + cashAmount.toFixed(2) + " and the CoD is $" + codAmount.toFixed(2) + ".");
         return;
       }
 
-      document.getElementById('depositAmount').value = (cashAmount + codAmount).toFixed(2);
+      document.getElementById('depositAmount').value = total.toFixed(2);
       syncProjectionModeInputs();
     }
 
