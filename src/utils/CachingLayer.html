@@ -18,10 +18,12 @@
         });
         console.log("Volatile RAM Layer Synchronized:", Object.keys(window.appStateCache));
 
-        // Clear duplicate payload from server cache layer to free up memory, since it's now safely stored in local RAM and accessible to all child scopes without additional parsing
-        Object.keys(initialPayload).forEach(key => {
-            callServer('clearServerCacheValue', key);
-        });
+        // Clear duplicate payload from server cache layer to free up memory, since it's now safely stored in local RAM and accessible to all child scopes without additional parsing.
+        // One batched call, sent after the dialog has had time to load its own data, so it never competes with the first requests.
+        const payloadKeys = Object.keys(initialPayload);
+        if (payloadKeys.length > 0) {
+            setTimeout(() => callServer('clearServerCacheValues', payloadKeys), 2500);
+        }
     } catch (e) {
         console.error("Failed primary compilation payload sync:", e);
     }
@@ -80,22 +82,8 @@
                         // Double check that the data isn't about to overwrite good, existing data
                         if (serializedData !== 'null' && serializedData !== '[null]' && serializedData !== '{}') {
 
-                            if (cacheKey !== 'cachedInvestmentsLedger') {
-                                const cachePayload = JSON.stringify({
-                                    key: cacheKey,
-                                    value: serializedData
-                                });
-
-                                callServer('setServerCacheValue', cachePayload, (cacheSetSuccess) => {
-                                    if (cacheSetSuccess) {
-                                        console.log(`Successfully updated server cache for ${cacheKey}.`);
-                                    } else {
-                                        console.warn(`Server cache update failed validation for ${cacheKey}.`);
-                                    }
-                                }, (cacheSetError) => {
-                                    console.error(`Failed to update server cache for ${cacheKey}:`, cacheSetError);
-                                });
-                            }
+                            // The server-side fetchers (fetchSettingsDataCached, fetchServicesDataCached…) already store what they return,
+                            // so there is no second "write it back" round trip here any more.
                             console.log(`Successfully updated cache for ${cacheKey} across all layers.`);
                         } else {
                             console.warn(`Aborting cache update for ${cacheKey} due to invalid data format:`, serverData);
