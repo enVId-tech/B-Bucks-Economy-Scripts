@@ -31,76 +31,12 @@ interface TransactionRecord {
   timestamp?: string;
 }
 
-/**
- * Fetches transactions data with caching. It first checks for cached data to minimize latency, and if not found or if a force refresh is requested, it reads the transactions data from the sheet and updates the cache with the new data. This function ensures that the application can quickly access transactions data while also providing a mechanism to refresh the data when necessary.
- * @param data A string containing the data for the function, including a forceRefresh flag. Defaults to undefined, meaning it will use cached data if available for faster access.
- * @returns {TransactionRecord[] | { error: string }} An array of transaction records or an error message if the sheet is not found or an error occurs.
- */
-function fetchTransactionsDataCached(data?: string): TransactionRecord[] | { error: string } {
-  try {
-    if (data && typeof data === 'string') {
-      log(`Received data for fetchTransactionsDataCached: ${data}`, false);
-    } else {
-      log("No data received for fetchTransactionsDataCached, proceeding with default cache retrieval.", false);
-      data = JSON.stringify({ forceRefresh: false });
-    }
-
-    const parsedData = data ? JSON.parse(data) : null;
-    const forceRefresh = parsedData?.forceRefresh || false;
-
-    const cache = CacheService.getScriptCache();
-    const cacheMetaKey = `${TRANSACTIONS_CACHED_KEY}_meta`;
-    const cacheChunkSize = 64 * 1024;
-
-    if (!forceRefresh) {
-      const cachedChunkCount = Number(cache.get(cacheMetaKey));
-      if (Number.isInteger(cachedChunkCount) && cachedChunkCount > 0) {
-        const chunkKeys = Array.from(
-          { length: cachedChunkCount },
-          (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`
-        );
-        const cachedChunks = cache.getAll(chunkKeys);
-        const cachedString = chunkKeys.map(key => cachedChunks[key]).join('');
-
-        if (cachedChunks && cachedString.length > 0 && chunkKeys.every(key => cachedChunks[key])) {
-          log(`Cache hit: Loaded ${cachedChunkCount} transaction cache chunks.`, false);
-          return cachedString as unknown as TransactionRecord[];
-        }
-      }
-    }
-
-    log(`Cache miss: Re-extracting transactions from sheet rows...`, false);
-    const freshTransactions = fetchTransactionsData();
-    if (!Array.isArray(freshTransactions)) throw new Error("Failed to fetch transactions data from sheet.");
-    const serializedTransactions = JSON.stringify(freshTransactions);
-    const previousChunkCount = Number(cache.get(cacheMetaKey));
-    const chunkCount = Math.max(1, Math.ceil(serializedTransactions.length / cacheChunkSize));
-    const chunkEntries: { [key: string]: string } = {};
-
-    for (let index = 0; index < chunkCount; index++) {
-      chunkEntries[`${TRANSACTIONS_CACHED_KEY}_${index}`] = serializedTransactions.slice(
-        index * cacheChunkSize,
-        (index + 1) * cacheChunkSize
-      );
-    }
-
-    if (Number.isInteger(previousChunkCount) && previousChunkCount > 0) {
-      const obsoleteKeys = Array.from(
-        { length: previousChunkCount },
-        (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`
-      ).filter(key => !Object.prototype.hasOwnProperty.call(chunkEntries, key));
-      if (obsoleteKeys.length > 0) cache.removeAll(obsoleteKeys);
-    }
-
-    cache.putAll(chunkEntries, SERVER_SIDE_CACHE_AGE);
-    cache.put(cacheMetaKey, String(chunkCount), SERVER_SIDE_CACHE_AGE);
-    return serializedTransactions as unknown as TransactionRecord[];
-  } catch (error: any) {
-    log(`Error in fetchTransactionsDataCached: ${error.message}`, true);
-    return { error: `Error in fetchTransactionsDataCached: ${error.message}` };
-  }
-}
-
+// NOTE: fetchTransactionsDataCached() / fetchTransactionsData() were removed. They loaded the ENTIRE log into one cached
+// payload, which cannot scale. Use the rolling cache in utils/TransactionCache.ts instead:
+//   fetchTransactionsPage()   - unfiltered paging with a rolling window
+//   queryTransactions()       - searched / filtered paging
+//   fetchTransactionFacets()  - distinct values for filter drop-downs
+//   fetchTransactionsByIds()  - direct lookup (used by undo)
 
 /**
  * Adds a transaction record to the "Transactions Records" sheet with the provided details, ensuring that all required information is valid and properly formatted.
@@ -190,7 +126,7 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
         values[0].length
       ).setValues(values);
 
-      clearGlobalCache([TRANSACTIONS_CACHED_KEY]);
+      onTransactionsAppended();
       return true;
     } catch (apiError: any) {
       log(`Failed to write transaction records at row ${insertStartRow}: ${apiError.message}`, true);
@@ -198,68 +134,6 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
     }
   } catch (error: any) {
     log(`Error occurred in addTransactionRecords: ${error.message}`, true);
-    return false;
-  }
-}
-
-/**
- * Fetches transaction records from the spreadsheet and returns them as an array of TransactionRecord objects. 
- * If the transactions sheet is not found or an error occurs during the fetch operation, it returns false.
- * @param {string} transactionId - The ID of the transaction to fetch. If not provided, all transactions will be fetched.
- * @returns {TransactionRecord[] | boolean} - An array of TransactionRecord objects if successful, or false if an error occurs or the sheet is not found.
- */
-function fetchTransactionsData(): TransactionRecord[] | boolean {
-  try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(DEFAULT_TRANSACTIONS_SHEET);
-    let sheetData: any | undefined = undefined;
-
-    if (!spreadsheet || !sheet || sheet === undefined || sheet === null) {
-      log(`Transactions sheet "${DEFAULT_TRANSACTIONS_SHEET}" not found.`, true);
-      return false;
-    }
-
-    try {
-      if (typeof Sheets === 'undefined' || !Sheets.Spreadsheets || !Sheets.Spreadsheets.Values) {
-        throw new Error("Advanced Sheets API service not enabled in script settings")
-      }
-      // Use the Sheets API to efficiently fetch all transaction records in one request, with error handling to fall back to the slower method if the API call fails
-      sheetData = Sheets.Spreadsheets.Values.get(spreadsheet.getId(), `${DEFAULT_TRANSACTIONS_SHEET}!A${TRANSACTIONS_ROW_START}:P`);
-
-      if (!sheetData.values || sheetData.values.length <= 0) return [];
-    } catch (err: any) {
-      log(`Advanced API pipeline bypassed/failed. Error: ${err.message}. Running native fallback setup...`, true);
-
-      // Fall back to the slower method of fetching all transaction records using the native SpreadsheetApp service
-      const lastRow = sheet.getLastRow();
-      if (lastRow < TRANSACTIONS_ROW_START) return [];
-      sheetData = { values: sheet.getRange(TRANSACTIONS_ROW_START, 1, lastRow - TRANSACTIONS_ROW_START + 1, 16).getValues() };
-    }
-
-    const transactionRecords: TransactionRecord[] = sheetData.values.map((row: any[]) => {
-      return {
-        id: row[0] as number | 0,
-        individual: row[1] as string | "",
-        period: row[2] as number | 0,
-        type: row[3] as TransactionType | "Unknown",
-        serviceProvided: row[4] as string | "",
-        unitPrice: row[5] as number | 0,
-        quantity: row[6] as number | 0,
-        modifiedColumn: row[7] as number | 0,
-        tenderedMoney: row[8] as number | 0,
-        initialColumnAmount: row[9] as number | 0,
-        newColumnAmount: row[10] as number | 0,
-        initialBalance: row[11] as number | 0,
-        newBalance: row[12] as number | 0,
-        timestamp: row[13] as string | 0,
-        row: row[14] ? Number(row[14]) : undefined,
-        operation: row[15] as "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE" | undefined
-      } as TransactionRecord;
-    })
-
-    return transactionRecords;
-  } catch (error: any) {
-    log(`Error occurred in fetchTransactionRecords: ${error.message}`, true);
     return false;
   }
 }
@@ -289,35 +163,9 @@ function undoTransactions(data?: string): boolean {
 
     if (normalizedTransactionIds.length === 0) return false;
 
-    let transactionRecords = fetchTransactionsDataCached() as TransactionRecord[];
-
-    // Convert transactionRecords to an array if it's not already
-    if (!Array.isArray(transactionRecords)) {
-      log("Fetched transaction records are not in an array format. Attempting convert from string if possible.", false);
-      if (typeof transactionRecords === 'string') {
-        try {
-          const parsedRecords = JSON.parse(transactionRecords);
-          if (Array.isArray(parsedRecords)) {
-            log("Successfully converted fetched transaction records from string to array.", false);
-            transactionRecords = parsedRecords;
-          } else {
-            log("Fetched transaction records string could not be converted to an array. Operation aborted.", true);
-            return false;
-          }
-        } catch (parseError: any) {
-          log(`Error parsing fetched transaction records string: ${parseError.message}. Operation aborted.`, true);
-          return false;
-        }
-      } else {
-        log("Fetched transaction records are neither an array nor a string. Operation aborted.", true);
-        return false;
-      }
-    }
-
-    log(`Fetched ${transactionRecords.length} transaction records for undo operation.`, false);
-    const recordsToUndo = transactionRecords.filter(record =>
-      record.id !== undefined && normalizedTransactionIds.includes(Number(record.id))
-    );
+    // Look the records up directly by id instead of loading the whole log.
+    const recordsToUndo = fetchTransactionsByIds(normalizedTransactionIds);
+    log(`Found ${recordsToUndo.length} of ${normalizedTransactionIds.length} requested transaction record(s) for undo.`, false);
 
     if (recordsToUndo.length === 0) {
       log("No matching transaction records found for the provided IDs. Operation aborted.", true);
@@ -435,7 +283,7 @@ function undoTransactions(data?: string): boolean {
       }]);
     }
 
-    clearGlobalCache([TRANSACTIONS_CACHED_KEY]);
+    onTransactionsAppended();
     log(`Successfully undone ${recordsToUndo.length} transaction(s).`, true);
     return true;
   } catch (error: any) {
@@ -460,6 +308,7 @@ function resetAllTransactionRecords(): boolean {
       sheet.deleteRows(TRANSACTIONS_ROW_START, lastRowWithData - TRANSACTIONS_ROW_START + 1);
     }
 
+    invalidateTransactionCache();
     log(`All transaction records have been reset.`, true);
     return true;
   } catch (error: any) {

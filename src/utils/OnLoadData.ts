@@ -166,7 +166,8 @@ function launchModelessDialog(templateName: string, title: string, width: number
     const payloadObject = {
         [SETTINGS_CACHED_KEY]: cache.get(SETTINGS_CACHED_KEY) || "{}",
         [SERVICES_CACHED_KEY]: cache.get(SERVICES_CACHED_KEY) || "{}",
-        [TRANSACTIONS_CACHED_KEY]: cache.get(TRANSACTIONS_CACHED_KEY) || "[]",
+        // Transactions are NOT part of the bootstrap payload: the log is paged on demand through the rolling cache
+        // (fetchTransactionsPage), so the dialog only ever receives the window it is looking at.
         // Investments are cached per period and fetched by the manager after it opens.
     };
 
@@ -184,7 +185,7 @@ function preloadCacheForAllDialogs(): void {
     fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
     fetchServicesDataCached(JSON.stringify({ forceRefresh: true }));
     fetchInvestmentsDataCached(JSON.stringify({ forceRefresh: true }));
-    fetchTransactionsDataCached(JSON.stringify({ forceRefresh: true }));
+    preloadTransactionCache();
 }
 
 function setServerCacheValue(data: string): boolean {
@@ -204,19 +205,20 @@ function setServerCacheValue(data: string): boolean {
 /**
  * Clears specific keys and cleans up the key index.
  */
-function clearGlobalCache(keys: string[]): boolean {
+function clearGlobalCache(requestedKeys?: string[] | null): boolean {
     try {
+        // The Settings "Clear Client Cache" button calls this with no argument: treat that as "clear everything".
+        const keys: string[] = Array.isArray(requestedKeys) && requestedKeys.length > 0
+            ? requestedKeys
+            : [SETTINGS_CACHED_KEY, SERVICES_CACHED_KEY, TRANSACTIONS_CACHED_KEY, INVESTMENTS_LEDGER_CACHED_KEY, 'cachedIndividuals'];
+
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
 
         cache.removeAll(keys);
         if (keys.includes(TRANSACTIONS_CACHED_KEY)) {
-            const transactionMetaKey = `${TRANSACTIONS_CACHED_KEY}_meta`;
-            const transactionChunkCount = Number(cache.get(transactionMetaKey));
-            const transactionChunkKeys = Number.isInteger(transactionChunkCount) && transactionChunkCount > 0
-                ? Array.from({ length: transactionChunkCount }, (_, index) => `${TRANSACTIONS_CACHED_KEY}_${index}`)
-                : [];
-            cache.removeAll([transactionMetaKey, ...transactionChunkKeys]);
+            // The log lives in rolling blocks, not under a single key
+            invalidateTransactionCache();
         }
         keys.forEach(key => props.deleteProperty(key));
 
@@ -287,37 +289,25 @@ function updateTimestamps(): void {
     }
 }
 
-function recordDailyData(): void {
-    const logDaily = fetchProperty("logBankingDaily", "ledgersAndRecords");
+/** One period row computed from the formulas stored in rows 3-10 of the Historical Records sheet. */
+interface EvaluatedPeriodRow {
+    name: string;
+    /** Values for columns C onward (one per metric column), already rounded; null for blanks and formula errors. */
+    values: (string | number | Date | null)[];
+}
 
-    if (logDaily === false) {
-        log(`Daily economics logging is currently paused. Skipping recordDailyEconomics execution.`, false);
-        return;
-    }
-
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, ...
-
-    // Early exit if today is Sunday (0) or Monday (1)
-    if (dayOfWeek === 0 || dayOfWeek === 1) {
-        log("Execution skipped: No weekend sheet modifications scheduled.", false);
-        return;
-    }
-
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
-        ? DEFAULT_HISTORICAL_RECORDS_SHEET
-        : "Economic Records";
-
-    const historySheet = ss.getSheetByName(sheetName);
-    if (!historySheet) {
-        log(`Sheet "${sheetName}" not found.`, true);
-        return;
-    }
-
-    const timestamp = new Date();
-    const settingsRange = historySheet.getRange("B3:Z10");
-    const settingsBlock = settingsRange.getValues();
+/**
+ * Evaluates the per-period metric formulas defined on the Historical Records sheet (B3:Z10) against the CURRENT state of the
+ * period sheets, without writing anything to the records. This is the single source of truth for "what would be recorded
+ * right now": recordDailyData() persists the result, and the analytics tab plots it as the live data point.
+ *
+ * Formulas are written once with plain cell references (e.g. =SUM(B7:B40)); each one is re-scoped to its period sheet
+ * ('Period 3'!B7:B40) and evaluated in a throw-away sheet that is always deleted afterwards.
+ * @param ss The active spreadsheet.
+ * @param historySheet The Historical Records sheet holding the formula rows.
+ */
+function evaluatePeriodFormulas(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, historySheet: GoogleAppsScript.Spreadsheet.Sheet): EvaluatedPeriodRow[] {
+    const settingsBlock = historySheet.getRange("B3:Z10").getValues();
     const numCols = settingsBlock[0].length;
 
     const validPeriods: PeriodConfig[] = [];
@@ -333,7 +323,7 @@ function recordDailyData(): void {
         });
     });
 
-    if (validPeriods.length === 0) return;
+    if (validPeriods.length === 0) return [];
 
     const tempSheet = ss.insertSheet(`calc_ws_${Date.now()}`);
 
@@ -364,23 +354,63 @@ function recordDailyData(): void {
 
         const calculatedValues = calcRange.getValues();
 
-        const outputRows: (string | number | Date | null)[][] = validPeriods.map((period, pIdx) => {
+        return validPeriods.map((period, pIdx) => {
             const rowValues = calculatedValues[pIdx] || [];
-            const formattedRow: (string | number | Date | null)[] = [timestamp, period.name];
+            const values: (string | number | Date | null)[] = [];
 
             for (let colIndex = 0; colIndex < numCols - 1; colIndex++) {
                 const val = rowValues[colIndex];
 
                 if (val === undefined || val === "" || (typeof val === 'string' && val.includes("#"))) {
-                    formattedRow.push(null);
+                    values.push(null);
                 } else if (typeof val === 'number') {
-                    formattedRow.push(Number(val.toFixed(2)));
+                    values.push(Number(val.toFixed(2)));
                 } else {
-                    formattedRow.push(val);
+                    values.push(val);
                 }
             }
-            return formattedRow;
+            return { name: period.name, values };
         });
+    } finally {
+        ss.deleteSheet(tempSheet);
+    }
+}
+
+function recordDailyData(): void {
+    const logDaily = fetchProperty("logBankingDaily", "ledgersAndRecords");
+
+    if (logDaily === false) {
+        log(`Daily economics logging is currently paused. Skipping recordDailyEconomics execution.`, false);
+        return;
+    }
+
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, ...
+
+    // Early exit if today is Sunday (0) or Monday (1)
+    if (dayOfWeek === 0 || dayOfWeek === 1) {
+        log("Execution skipped: No weekend sheet modifications scheduled.", false);
+        return;
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetName = typeof DEFAULT_HISTORICAL_RECORDS_SHEET !== 'undefined'
+        ? DEFAULT_HISTORICAL_RECORDS_SHEET
+        : "Economic Records";
+
+    const historySheet = ss.getSheetByName(sheetName);
+    if (!historySheet) {
+        log(`Sheet "${sheetName}" not found.`, true);
+        return;
+    }
+
+    const timestamp = new Date();
+
+    try {
+        const evaluated = evaluatePeriodFormulas(ss, historySheet);
+        if (evaluated.length === 0) return;
+
+        const outputRows: (string | number | Date | null)[][] = evaluated.map(row => [timestamp, row.name, ...row.values]);
 
         const historicalStartRow = typeof HISTORICAL_RECORDS_ROW_START !== 'undefined'
             ? HISTORICAL_RECORDS_ROW_START
@@ -417,8 +447,6 @@ function recordDailyData(): void {
 
     } catch (error: any) {
         log(`Error in recordDailyData: ${error.message}`, true);
-    } finally {
-        ss.deleteSheet(tempSheet);
     }
 }
 
