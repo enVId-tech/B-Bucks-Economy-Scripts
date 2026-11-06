@@ -128,10 +128,16 @@
             loadHistoricalData();
         });
 
+        /**
+         * Two steps so the chart appears quickly:
+         *  1. the stored history (fast: just reading cells) is drawn immediately,
+         *  2. the live ◆ point (slow: re-evaluates the period-sheet formulas) is added as soon as it is ready.
+         */
         function loadHistoricalData() {
             document.getElementById('loadingIndicator').style.display = 'flex';
 
-            callServer('fetchHistoricalRecordbookData', null, (response) => {
+            callServer('fetchHistoricalRecordbookData', JSON.stringify({ includeLive: false }), (response) => {
+                let loaded = false;
                 try {
                     const parsed = typeof response === 'string' ? JSON.parse(response) : response;
 
@@ -143,6 +149,7 @@
 
                         populateDynamicDropdowns();
                         renderChart();
+                        loaded = true;
                     } else {
                         console.error("Invalid historical record payload:", response);
                     }
@@ -151,9 +158,53 @@
                 } finally {
                     document.getElementById('loadingIndicator').style.display = 'none';
                 }
+                if (loaded) loadLivePoint();
             }, (err) => {
                 console.error("Failed to fetch historical record data:", err);
                 document.getElementById('loadingIndicator').style.display = 'none';
+            });
+        }
+
+        /** Step 2: fetch the current values and merge them into the chart without disturbing the admin's selections. */
+        function loadLivePoint() {
+            const notice = document.getElementById('dataNotice');
+            notice.textContent = 'Calculating current values…';
+            notice.className = 'data-notice';
+            notice.style.display = 'block';
+
+            callServer('fetchLiveHistoricalPoint', null, (response) => {
+                try {
+                    const live = typeof response === 'string' ? JSON.parse(response) : response;
+                    if (live && Array.isArray(live.records)) {
+                        rawRecordData = rawRecordData.filter(r => !r.live).concat(live.records);
+                        rawRecordData.sort((a, b) => a.ts - b.ts);
+                        payloadMeta = Object.assign({}, payloadMeta || {}, live.meta || {});
+                        addMissingPeriodOptions();
+                    }
+                } catch (e) {
+                    console.error("Failed to parse live point:", e);
+                    payloadMeta = Object.assign({}, payloadMeta || {}, { liveError: 'Current values could not be computed.' });
+                }
+                showDataNotice();
+                renderChart();
+            }, (err) => {
+                console.error("Failed to fetch the live point:", err);
+                payloadMeta = Object.assign({}, payloadMeta || {}, { liveError: 'Current values could not be computed.' });
+                showDataNotice();
+            });
+        }
+
+        /** Adds period options that only the live point knows about; existing options and the current selection are left alone. */
+        function addMissingPeriodOptions() {
+            const periodSelect = document.getElementById('periodSelect');
+            const existing = new Set(Array.from(periodSelect.options).map(o => o.value));
+            const missing = new Set();
+            rawRecordData.forEach(r => { if (r.sheet && !existing.has(r.sheet)) missing.add(r.sheet); });
+            Array.from(missing).sort().forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                periodSelect.appendChild(opt);
             });
         }
 

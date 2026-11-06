@@ -303,8 +303,8 @@
         function loadTransactionData(force = true) {
             txLog.invalidate();
             document.getElementById('recordsContainer').innerHTML = '';
-            loadFacets();
-            renderCurrentRecordsPage(force);
+            // The page of records is what the admin is waiting for; the filter drop-down choices can follow right behind it.
+            Promise.resolve(renderCurrentRecordsPage(force)).finally(() => loadFacets());
         }
 
         document.addEventListener('DOMContentLoaded', () => {
