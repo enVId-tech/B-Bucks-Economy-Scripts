@@ -124,7 +124,7 @@ function validateAdvancedSetting(definition: AdvancedSettingDefinition, rawValue
         }
         case 'sheetName': {
             const sheetName = String(rawValue).trim();
-            if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName)) {
+            if (!getSheetNamed(sheetName)) {
                 return { rejectedBecause: `there is no sheet tab named "${sheetName}"` };
             }
             return { value: sheetName };
