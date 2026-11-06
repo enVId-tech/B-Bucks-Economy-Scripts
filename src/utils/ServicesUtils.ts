@@ -108,31 +108,29 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
 
         const servicesData: ItemData[] = [];
 
-        // Extract data from each row
-        for (let row = getServicesRowStart(); row <= lastRow; row++) {
-            const itemName = servicesSheet.getRange(row, SERVICES_COLUMNS.itemName as number).getValue().toString().trim();
-            const category = servicesSheet.getRange(row, SERVICES_COLUMNS.category as number).getValue().toString().trim() as "Income" | "Expense";
+        // Read the whole table with ONE range call instead of three calls per row.
+        const pricingCols = SERVICES_COLUMNS.pricing as number[];
+        const limitCols = SERVICES_COLUMNS.limit as number[];
+        const nameCol = SERVICES_COLUMNS.itemName as number;
+        const categoryCol = SERVICES_COLUMNS.category as number;
+
+        const firstCol = Math.min(nameCol, categoryCol, ...pricingCols, ...limitCols);
+        const lastCol = Math.max(nameCol, categoryCol, ...pricingCols, ...limitCols);
+        const tableValues = servicesSheet
+            .getRange(getServicesRowStart(), firstCol, lastRow - getServicesRowStart() + 1, lastCol - firstCol + 1)
+            .getValues();
+
+        for (const rowValues of tableValues) {
+            const itemName = rowValues[nameCol - firstCol].toString().trim();
+            const category = rowValues[categoryCol - firstCol].toString().trim() as "Income" | "Expense";
             const pricing: QuarterlyData = {};
             const limit: QuarterlyData = {};
 
-            const pricingCols = SERVICES_COLUMNS.pricing as number[];
-            const limitCols = SERVICES_COLUMNS.limit as number[];
-
-            // Find boundaries
-            const minCol = Math.min(...pricingCols, ...limitCols);
-            const maxCol = Math.max(...pricingCols, ...limitCols);
-            const colCount = Number((maxCol - minCol + 1).toFixed(2));
-
-            // Get all relevant cells in a single batch to minimize API calls
-            const rowValues = servicesSheet.getRange(row, minCol, 1, colCount).getValues()[0];
-
-            // A single helper loop to populate both objects instantly from cache
             for (let i = 0; i < 4; i++) {
                 const quarterKey = `Q${i + 1}` as keyof QuarterlyData;
 
-                // Map the absolute column index to the local rowValues array index
-                const priceVal = rowValues[pricingCols[i] - minCol];
-                const limitVal = rowValues[limitCols[i] - minCol];
+                const priceVal = rowValues[pricingCols[i] - firstCol];
+                const limitVal = rowValues[limitCols[i] - firstCol];
 
                 if (priceVal !== "") pricing[quarterKey] = Number(priceVal);
                 if (limitVal !== "") limit[quarterKey] = Number(limitVal);

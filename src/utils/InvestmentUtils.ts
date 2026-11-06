@@ -81,13 +81,47 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
             PropertiesService.getScriptProperties().setProperty(indexKey, JSON.stringify(periodKeys));
         }
 
-        log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
-
         return periodDataArray as PeriodData[];
     } catch (err) {
         log(`Error in fetchInvestmentsDataCached: ${err instanceof Error ? err.message : String(err)}`, true);
         return { error: "Failed to fetch cached investments data" };
     }
+}
+
+/**
+ * Reads every student's investment columns from one period sheet with a single range call.
+ * Shared by the full ledger fetch and the single-student refresh so both read exactly the same way.
+ */
+function readInvestmentsFromSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): InvestmentRecord[] {
+    const values = sheet.getDataRange().getValues();
+    const investments: InvestmentRecord[] = [];
+
+    for (let row = getUserStartingRow() - 1; row < values.length; row++) {
+        const individualName = values[row][0];
+        const balance = Number(values[row][1].toFixed(2));
+        const returnsAmount = Number(values[row][5].toFixed(2));
+        const initAmount = Number(values[row][6].toFixed(2));
+        const dateValue = values[row][7];
+        const grossCurrentAmount = Number(values[row][8].toFixed(2));
+        const netCurrentAmount = Number(values[row][9].toFixed(2));
+        // the percentage with 2 decimal places is represented as a number
+        // with 4 decimal places since the lowest you can represent is 0.01% = 0.0001
+        const netPercentageGain = Number(values[row][10].toFixed(4));
+
+        if (individualName) {
+            investments.push({
+                date: dateValue instanceof Date ? dateValue.toISOString() : undefined,
+                individualName: individualName,
+                balance: balance && typeof balance === 'number' ? balance : 0,
+                initAmount: initAmount && typeof initAmount === 'number' ? initAmount : undefined,
+                returnsAmount: returnsAmount && typeof returnsAmount === 'number' ? returnsAmount : undefined,
+                grossCurrentAmount: grossCurrentAmount && typeof grossCurrentAmount === 'number' ? grossCurrentAmount : undefined,
+                netCurrentAmount: netCurrentAmount && typeof netCurrentAmount === 'number' ? netCurrentAmount : undefined,
+                netPercentageGain: netPercentageGain && typeof netPercentageGain === 'number' ? netPercentageGain : undefined
+            });
+        }
+    }
+    return investments;
 }
 
 /**
@@ -101,40 +135,9 @@ function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
         let periodDataArray: PeriodData[] = [];
 
         periodSheets.forEach(sheet => {
-            const dataRange = sheet.getDataRange();
-            const values = dataRange.getValues();
-
-            let investments: InvestmentRecord[] = [];
-
-            for (let row = getUserStartingRow() - 1; row < values.length; row++) {
-                const individualName = values[row][0];
-                const balance = Number(values[row][1].toFixed(2));
-                const returnsAmount = Number(values[row][5].toFixed(2));
-                const initAmount = Number(values[row][6].toFixed(2));
-                const dateValue = values[row][7];
-                const grossCurrentAmount = Number(values[row][8].toFixed(2));
-                const netCurrentAmount = Number(values[row][9].toFixed(2));
-                // the percentage with 2 decimal places is represented as a number
-                // with 4 decimal places since the lowest you can represent is 0.01% = 0.0001
-                const netPercentageGain = Number(values[row][10].toFixed(4));
-
-                if (individualName) {
-                    investments.push({
-                        date: dateValue instanceof Date ? dateValue.toISOString() : undefined,
-                        individualName: individualName,
-                        balance: balance && typeof balance === 'number' ? balance : 0,
-                        initAmount: initAmount && typeof initAmount === 'number' ? initAmount : undefined,
-                        returnsAmount: returnsAmount && typeof returnsAmount === 'number' ? returnsAmount : undefined,
-                        grossCurrentAmount: grossCurrentAmount && typeof grossCurrentAmount === 'number' ? grossCurrentAmount : undefined,
-                        netCurrentAmount: netCurrentAmount && typeof netCurrentAmount === 'number' ? netCurrentAmount : undefined,
-                        netPercentageGain: netPercentageGain && typeof netPercentageGain === 'number' ? netPercentageGain : undefined
-                    });
-                }
-            }
-
             periodDataArray.push({
                 periodName: sheet.getName(),
-                investments: investments
+                investments: readInvestmentsFromSheet(sheet)
             });
         });
 
@@ -184,15 +187,20 @@ function refreshAllInvestments(): boolean {
             const range = sheet.getRange(getUserStartingRow(), getGrossInvestmentGainColumn(), totalRowsToProcess, 3);
             const values = range.getValues();
 
-            // match values and only modify the necessary columns
-            const currentSheetValues = sheet.getDataRange().getValues();
+            // Names come from one narrow column read (previously the entire sheet was read a second time)
+            const namesColumn = sheet.getRange(getUserStartingRow(), getNamesColumn(), totalRowsToProcess, 1).getValues();
+
+            // First record per name wins, exactly like the previous Array.find
+            const investmentByName = new Map<string, InvestmentRecord>();
+            periodData.investments.forEach(inv => {
+                if (!investmentByName.has(inv.individualName)) investmentByName.set(inv.individualName, inv);
+            });
 
             for (let i = 0; i < totalRowsToProcess; i++) {
-                const sheetRowIndex = getUserStartingRow() - 1 + i;
-                const studentName = currentSheetValues[sheetRowIndex][0];
+                const studentName = namesColumn[i][0];
                 if (!studentName) continue;
 
-                const investment = periodData.investments.find(inv => inv.individualName === studentName);
+                const investment = investmentByName.get(studentName);
                 if (investment && investment.initAmount !== undefined) {
                     const depositDate = investment.date ? new Date(investment.date) : null;
                     const weeksSinceDeposit = depositDate && !isNaN(depositDate.getTime())
@@ -231,8 +239,8 @@ function refreshAllInvestments(): boolean {
  */
 function refreshSingleInvestment(individualName: string, periodName: string): boolean {
     try {
-        const periodDataArray = fetchInvestmentsLedgerData();
-        if ('error' in periodDataArray) return false;
+        const targetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodName);
+        if (!targetSheet || !targetSheet.getName().includes("Period")) return false;
 
         const interestRateProp = fetchProperty("weeklyInterestRate", "standardPercentages");
         const taxRateProp = fetchProperty("investmentWithdrawalTaxRate", "standardPercentages");
@@ -246,10 +254,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
         const withdrawalTaxRate = parseFloat(taxRateProp);
         if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) return false;
 
-        const periodData = periodDataArray.find(p => p.periodName === periodName);
-        if (!periodData) return false;
-
-        const investment = periodData.investments.find(inv => inv.individualName === individualName);
+        const investment = readInvestmentsFromSheet(targetSheet).find(inv => inv.individualName === individualName);
         if (!investment) return false;
 
         if (investment.initAmount !== undefined) {
@@ -262,18 +267,19 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
             const netValue = grossCurrentAmount * (1 - withdrawalTaxRate);
             const percentageGain = investment.initAmount > 0 ? ((netValue - investment.initAmount) / investment.initAmount) : 0;
 
-            // Write the calculated values to columns 9, 10, and 11 for the target row
-            const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodName);
-            if (!sheet) return false;
-
-            const values = sheet.getDataRange().getValues();
+            // Locate the student with a single narrow column read
+            const sheet = targetSheet;
+            const firstRow = getUserStartingRow();
+            const rowCount = sheet.getLastRow() - firstRow + 1;
             let targetRow = -1;
-            const totalRows = values.length;
 
-            for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
-                if (values[i][0] === individualName) {
-                    targetRow = i + 1;
-                    break;
+            if (rowCount > 0) {
+                const names = sheet.getRange(firstRow, getNamesColumn(), rowCount, 1).getValues();
+                for (let i = 0; i < names.length; i++) {
+                    if (names[i][0] === individualName) {
+                        targetRow = firstRow + i;
+                        break;
+                    }
                 }
             }
 
@@ -302,22 +308,22 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
         const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodData.periodName);
         if (!sheet) return false;
 
-        const dataRange = sheet.getDataRange();
-        const values = dataRange.getValues();
+        const firstRow = getUserStartingRow();
+        const rowCount = sheet.getLastRow() - firstRow + 1;
         let investmentRow = -1;
 
-        // Locate individual row
-        const totalRows = values.length;
-        for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
-            if (values[i][0] === investment.individualName) {
-                investmentRow = i + 1;
-                break;
+        // Locate the individual's row with a single narrow column read
+        if (rowCount > 0) {
+            const names = sheet.getRange(firstRow, getNamesColumn(), rowCount, 1).getValues();
+            for (let i = 0; i < names.length; i++) {
+                if (names[i][0] === investment.individualName) {
+                    investmentRow = firstRow + i;
+                    break;
+                }
             }
         }
 
         if (investmentRow === -1) return false;
-
-        sheet.getRange(investmentRow, 1).setValue(investment.individualName);
 
         // Pre-parse the date for investment
         // This prevents reparsing like in the old code
@@ -357,38 +363,46 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
             const sheet = allSheets.find(s => s.getName() === periodData.periodName);
             if (!sheet) return;
 
-            const investments = periodData.investments;
-            const values = sheet.getDataRange().getValues();
-            const totalRows = values.length;
+            const firstRow = getUserStartingRow();
+            const rowCount = sheet.getLastRow() - firstRow + 1;
+            if (rowCount <= 0) return;
 
-            investments.forEach(investment => {
-                let targetRow = -1;
-                for (let i = getUserStartingRow() - 1; i < totalRows; i++) {
-                    if (values[i][0] === investment.individualName) {
-                        targetRow = i + 1;
-                        break;
-                    }
+            // One read of the names and of the four input columns, one write back (previously 2 calls per student).
+            const names = sheet.getRange(firstRow, getNamesColumn(), rowCount, 1).getValues();
+            const block = sheet.getRange(firstRow, getExpendituresColumn(), rowCount, 4);
+            const blockValues = block.getValues();
+            const blockFormulas = block.getFormulas();
+
+            // First row per name wins (same as the old per-student search from the top)
+            const rowByName = new Map<any, number>();
+            names.forEach((row, i) => { if (!rowByName.has(row[0])) rowByName.set(row[0], i); });
+
+            let touched = false;
+            periodData.investments.forEach(investment => {
+                const idx = rowByName.get(investment.individualName);
+                if (idx === undefined) return;
+
+                let dateObj: any = '';
+                if (investment.date) {
+                    const parsedDate = new Date(investment.date);
+                    dateObj = !isNaN(parsedDate.getTime()) ? parsedDate : investment.date;
                 }
 
-                if (targetRow !== -1) {
-                    sheet.getRange(targetRow, 1).setValue(investment.individualName);
-
-                    let dateObj: any = '';
-                    if (investment.date) {
-                        const parsedDate = new Date(investment.date);
-                        dateObj = !isNaN(parsedDate.getTime()) ? parsedDate : investment.date;
-                    }
-
-                    const batchData = [[
-                        Number((investment.expenditure !== undefined ? investment.expenditure : 0.00).toFixed(2)),
-                        Number((investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2)),
-                        Number((investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2)),
-                        dateObj
-                    ]];
-
-                    sheet.getRange(targetRow, getExpendituresColumn(), 1, 4).setValues(batchData);
-                }
+                blockValues[idx] = [
+                    Number((investment.expenditure !== undefined ? investment.expenditure : 0.00).toFixed(2)),
+                    Number((investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2)),
+                    Number((investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2)),
+                    dateObj
+                ];
+                blockFormulas[idx] = ['', '', '', ''];
+                touched = true;
             });
+
+            if (!touched) return;
+
+            // Rows we did not change keep any formula they had
+            const out = blockValues.map((row, r) => row.map((v, c) => (blockFormulas[r][c] !== '' ? blockFormulas[r][c] : v)));
+            block.setValues(out);
         });
 
         SpreadsheetApp.flush();
