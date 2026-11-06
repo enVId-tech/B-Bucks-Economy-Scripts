@@ -514,7 +514,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
             <div id="d-workbook" class="doc-section" data-audience="dev" data-title="Workbook Contract" data-icon="📋">
                 <div class="section-card">
                     <h2>Workbook Contract</h2>
-                    <p>The code assumes a specific sheet layout. Column indexes are 1-based and live in <code>GlobalConsts.ts</code>; never hard-code them elsewhere.</p>
+                    <p>The code assumes a specific sheet layout. Column indexes are 1-based. Their defaults live in <code>GlobalConsts.ts</code> as <code>DEFAULT_*</code>, the Settings sheet can override them, and code reads them only through the accessors in <code>Config.ts</code> (for example <code>getNamesColumn()</code>); never hard-code them or read <code>DEFAULT_*</code> directly.</p>
 
                     <h3 id="d-workbook-sheets">Required sheets</h3>
                     <table class="doc-table">
@@ -528,13 +528,13 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     </table>
 
                     <h3 id="d-workbook-period">Period sheet columns</h3>
-                    <p>Names match the constants in <code>GlobalConsts.ts</code> (e.g. <code>EARNINGS_COL = 3</code>, <code>EXPENDITURES_COL = 5</code>, <code>NET_INVESTMENT_GAIN_COL</code>, <code>DATE_DEPOSIT_COL</code>). Balance and net-income columns hold <strong>formulas</strong>; the code writes earnings, expenditures and investment inputs and lets the sheet compute the rest.</p>
+                    <p>Positions come from the accessors <code>getEarningsColumn()</code>, <code>getExpendituresColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getDepositDateColumn()</code> and friends. Balance and net-income columns hold <strong>formulas</strong>; the code writes earnings, expenditures and investment inputs and lets the sheet compute the rest.</p>
                     <div class="callout callout-warning">
                         The Services UI labels say "Column D" / "Column G" for earnings/expenditures but the code writes columns 3 and 5. This label mismatch is a known, unfixed issue (see Gotchas).
                     </div>
 
                     <h3 id="d-workbook-tx">Transactions sheet (A–P)</h3>
-                    <p>16 columns (<code>TX_COLUMN_COUNT</code>), one row per event, oldest at the top (row 2 onward; row 1 is the header). The newest transaction is the <em>last</em> row; the UI reverses it. <code>mapTransactionRow</code> in <code>TransactionCache.ts</code> is the single place that turns a raw row into the JSON shape the client uses, so change columns there and in <code>GlobalConsts.ts</code> only.</p>
+                    <p>16 columns (<code>TRANSACTION_COLUMN_COUNT</code>), one row per event, oldest at the top (row 2 onward; row 1 is the header). The newest transaction is the <em>last</em> row; the UI reverses it. <code>mapTransactionRow</code> in <code>TransactionCache.ts</code> is the single place that turns a raw row into the JSON shape the client uses, so change columns there and in <code>GlobalConsts.ts</code> only.</p>
 
                     <h3 id="d-workbook-hist">Historical Records layout</h3>
                     <ul>
@@ -557,7 +557,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <h3 id="d-config-tiers">The two tiers</h3>
                     <table class="doc-table">
                         <tr><th>Tier</th><th>Where</th><th>Rules</th></tr>
-                        <tr><td>0, bootstrap</td><td><code>GlobalConsts.ts</code></td><td>Pure literals only. No function calls, no sheet access, no reference to other files. Includes <code>DEFAULT_USER_STARTING_ROW</code> and all <code>TX_*</code> tuning values.</td></tr>
+                        <tr><td>0, bootstrap</td><td><code>GlobalConsts.ts</code></td><td>Pure literals only. No function calls, no sheet access, no reference to other files. Includes <code>DEFAULT_USER_STARTING_ROW</code> and all <code>TRANSACTION_*</code> cache tuning values.</td></tr>
                         <tr><td>1, settings-driven</td><td><code>Config.ts</code></td><td>Read through <code>getConfig(key)</code> at <em>call</em> time, memoized, never at load time.</td></tr>
                     </table>
 
@@ -567,16 +567,43 @@ const days = getConfig('withdrawLockoutTimeframeDays');</code></pre>
 
                     <h3 id="d-config-guard">How the loop is prevented</h3>
                     <ul>
-                        <li><strong>Call-time defaults.</strong> <code>getConfigDefault(key)</code> is a <em>function</em>. A top-level object literal of defaults would reference <code>GlobalConsts</code> constants while <code>Config.ts</code> loads first alphabetically, causing the TDZ error again.</li>
+                        <li><strong>Call-time defaults.</strong> <code>getAdvancedSettingDefinitions()</code> is a <em>function</em>. A top-level object literal of defaults would reference <code>GlobalConsts</code> constants while <code>Config.ts</code> loads first alphabetically, causing the TDZ error again.</li>
                         <li><strong>Re-entrancy guard.</strong> <code>configResolving</code> tracks keys being resolved. If resolving a key triggers a read of the same key (settings loader → config → settings loader…), the inner call returns the default instead of recursing.</li>
                         <li><strong>Validation.</strong> Values pass a validator and <code>coerceToNumber</code>; invalid or missing values fall back to the default.</li>
                         <li><strong>Memoization.</strong> Resolved values are cached until <code>resetConfigMemo()</code>, which <code>setSettingsProperty()</code> calls after any write.</li>
                     </ul>
 
+                    <h3 id="d-config-keys">Every Settings key and its accessor</h3>
+                    <p>All 25 "Advanced Technical Settings" on the Settings sheet are wired. The sheet value wins; if it is blank, invalid, or names a tab that does not exist, the <code>DEFAULT_*</code> literal is used and a line is written with <code>log()</code>.</p>
+                    <table class="doc-table">
+                        <tr><th>Settings key</th><th>Accessor</th><th>Default</th></tr>
+                        <tr><td><code>userStartingRow</code></td><td><code>getUserStartingRow()</code></td><td><code>DEFAULT_USER_STARTING_ROW</code></td></tr>
+                        <tr><td><code>namesCol</code>, <code>balanceCol</code>, <code>earningsCol</code>, <code>netIncomeCol</code>, <code>expendituresCol</code></td><td><code>getNamesColumn()</code>, <code>getBalanceColumn()</code>, <code>getEarningsColumn()</code>, <code>getNetIncomeColumn()</code>, <code>getExpendituresColumn()</code></td><td><code>DEFAULT_*_COL</code></td></tr>
+                        <tr><td><code>investmentReturnsCol</code>, <code>initialDepositCol</code>, <code>timeDepositCol</code>, <code>grossInvestmentGainCol</code>, <code>netInvestmentGainCol</code>, <code>netPercentageGainCol</code></td><td><code>getInvestmentReturnsColumn()</code>, <code>getInitialDepositColumn()</code>, <code>getDepositDateColumn()</code>, <code>getGrossInvestmentGainColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getNetPercentageGainColumn()</code></td><td><code>DEFAULT_*_COL</code></td></tr>
+                        <tr><td><code>defaultServicesSheet</code>, <code>servicesRowStart</code></td><td><code>getServicesSheetName()</code>, <code>getServicesRowStart()</code></td><td><code>DEFAULT_SERVICES_SHEET</code>, <code>DEFAULT_SERVICES_ROW_START</code></td></tr>
+                        <tr><td><code>defaultTransactionsSheet</code>, <code>transactionsRowStart</code></td><td><code>getTransactionsSheetName()</code>, <code>getTransactionsRowStart()</code></td><td><code>DEFAULT_TRANSACTIONS_SHEET</code>, <code>DEFAULT_TRANSACTIONS_ROW_START</code></td></tr>
+                        <tr><td><code>defaultHistoricalRecordsSheet</code>, <code>historicalRecordsRowStart</code>, <code>metricDataStartColumn</code></td><td><code>getHistoricalRecordsSheetName()</code>, <code>getHistoricalRecordsRowStart()</code>, <code>getMetricDataStartColumn()</code></td><td><code>DEFAULT_HISTORICAL_RECORDS_*</code>, <code>DEFAULT_METRIC_DATA_START_COL</code></td></tr>
+                        <tr><td><code>fillStartingCell</code>, <code>fillSheetCellName</code>, <code>timestampCell</code></td><td><code>getFillStartingCell()</code>, <code>getFillSheetCellName()</code>, <code>getTimestampCell()</code></td><td><code>DEFAULT_STARTING_CELL</code>, <code>DEFAULT_SHEET_CELL_NAME</code>, <code>DEFAULT_TIMESTAMP_CELL</code></td></tr>
+                        <tr><td><code>periodColIndex</code>, <code>headerRowIndex</code>, <code>sheetNamePattern</code></td><td><code>getPeriodColumnIndex()</code>, <code>getHeaderRowIndex()</code>, <code>getSheetNamePattern()</code></td><td><code>DEFAULT_PERIOD_COL_INDEX</code>, <code>DEFAULT_HEADER_ROW_INDEX</code>, <code>DEFAULT_SHEET_NAME_PATTERN</code></td></tr>
+                    </table>
+                    <div class="callout callout-info">
+                        <code>defaultSettingsSheet</code> and <code>settingsRowStart</code> are <strong>bootstrap-only</strong>: the loader needs them to find the Settings sheet, so changing those cells has no effect. Edit <code>GlobalConsts.ts</code> instead.
+                    </div>
+
+                    <h3 id="d-config-verify">Diagnosing "constants can't be read"</h3>
+                    <p>Run <code>verifyConstantsAreReadable()</code> from the Apps Script editor. It prints, through <code>log()</code>, each key with the value found on the sheet, the value used, and why a default was chosen (blank cell, invalid value, missing tab). <code>findBootstrapSettingMismatches()</code> lists bootstrap cells that disagree with <code>GlobalConsts.ts</code>. Typical causes: a sheet-name setting that points at a tab that does not exist (for example "Services" instead of "Main Services"), or a blank cell.</p>
+
+                    <h3 id="d-config-conventions">Code conventions</h3>
+                    <ul>
+                        <li><strong>Always log through <code>log()</code></strong>. Never call <code>Logger.log</code> or <code>console.*</code> in server code; only the <code>log()</code> implementation may.</li>
+                        <li><strong>Styles live in <code>src/styles/</code></strong>. No <code>&lt;style&gt;</code> blocks or <code>style=""</code> attributes elsewhere; use a class (for example <code>is-hidden</code>).</li>
+                        <li><strong>Readable names</strong>. Descriptive variables and functions (<code>transaction</code>, <code>blockNumber</code>, <code>timestampMs</code>), no cryptic abbreviations.</li>
+                    </ul>
+
                     <h3 id="d-config-rules">Rules for new constants</h3>
                     <ol class="steps">
                         <li>Can it be a literal? Put it in <code>GlobalConsts.ts</code> (Tier 0).</li>
-                        <li>Does it come from the Settings sheet? Add a default in <code>getConfigDefault</code>, read it with <code>getConfig</code> at the point of use, never assign it to a top-level <code>const</code>.</li>
+                        <li>Does it come from the Settings sheet? Add a <code>DEFAULT_*</code> literal and an entry in <code>getAdvancedSettingDefinitions</code>, add an accessor, read it through that accessor at the point of use, never assign it to a top-level <code>const</code>.</li>
                     </ol>
                 </div>
             </div>
@@ -637,32 +664,32 @@ const days = getConfig('withdrawLockoutTimeframeDays');</code></pre>
 
                     <h3 id="d-txcache-blocks">Blocks</h3>
                     <ul>
-                        <li>Rows are grouped into blocks of <code>TX_BLOCK_SIZE = 50</code>, anchored at the <strong>oldest</strong> row. Because the log is append-only, new rows only ever change the newest block; older blocks stay valid forever.</li>
-                        <li>Each block is stored under <code>TX_BLOCK_KEY_PREFIX + blockNumber</code> with its row count. On read, a block whose cached count differs from the expected count is treated as stale and re-read.</li>
-                        <li>The index (<code>TX_INDEX_KEY</code>) lists cached blocks with a last-used stamp and the total row count. Index writes are guarded by a <code>LockService</code> lock to avoid lost updates between concurrent dialogs.</li>
+                        <li>Rows are grouped into blocks of <code>TRANSACTION_BLOCK_SIZE = 50</code>, anchored at the <strong>oldest</strong> row. Because the log is append-only, new rows only ever change the newest block; older blocks stay valid forever.</li>
+                        <li>Each block is stored under <code>TRANSACTION_BLOCK_KEY_PREFIX + blockNumber</code> with its row count. On read, a block whose cached count differs from the expected count is treated as stale and re-read.</li>
+                        <li>The index (<code>TRANSACTION_INDEX_KEY</code>) lists cached blocks with a last-used stamp and the total row count. Index writes are guarded by a <code>LockService</code> lock to avoid lost updates between concurrent dialogs.</li>
                     </ul>
 
                     <h3 id="d-txcache-limits">Budgets</h3>
                     <table class="doc-table">
                         <tr><th>Constant</th><th>Default</th><th>Meaning</th></tr>
-                        <tr><td><code>TX_BLOCK_SIZE</code></td><td>50</td><td>Rows per block.</td></tr>
-                        <tr><td><code>TX_CACHE_MAX_BLOCKS</code></td><td>24</td><td>Hard cap on cached blocks (1200 rows).</td></tr>
-                        <tr><td><code>TX_CACHE_MAX_BYTES</code></td><td>1,200,000</td><td>Soft cap on total cached bytes.</td></tr>
-                        <tr><td><code>TX_PREFETCH_BEHIND_PAGES</code></td><td>1</td><td>Pages kept behind the viewed page.</td></tr>
-                        <tr><td><code>TX_PREFETCH_AHEAD_PAGES</code></td><td>2</td><td>Pages kept ahead.</td></tr>
-                        <tr><td><code>TX_MAX_PAGE_SIZE</code></td><td>200</td><td>Largest page the UI may request.</td></tr>
+                        <tr><td><code>TRANSACTION_BLOCK_SIZE</code></td><td>50</td><td>Rows per block.</td></tr>
+                        <tr><td><code>TRANSACTION_CACHE_MAX_BLOCKS</code></td><td>24</td><td>Hard cap on cached blocks (1200 rows).</td></tr>
+                        <tr><td><code>TRANSACTION_CACHE_MAX_BYTES</code></td><td>1,200,000</td><td>Soft cap on total cached bytes.</td></tr>
+                        <tr><td><code>TRANSACTION_PREFETCH_BEHIND_PAGES</code></td><td>1</td><td>Pages kept behind the viewed page.</td></tr>
+                        <tr><td><code>TRANSACTION_PREFETCH_AHEAD_PAGES</code></td><td>2</td><td>Pages kept ahead.</td></tr>
+                        <tr><td><code>TRANSACTION_MAX_PAGE_SIZE</code></td><td>200</td><td>Largest page the UI may request.</td></tr>
                     </table>
                     <p>The sheet can hold any number of rows; only the budget above is ever cached, so the cache limit can no longer be hit however large the log grows.</p>
 
                     <h3 id="d-txcache-plan">Planning the window</h3>
-                    <p><code>planTxWindow(total, page, pageSize, direction)</code> is a pure function returning the block range to keep:</p>
+                    <p><code>planTransactionWindow(total, page, pageSize, direction)</code> is a pure function returning the block range to keep:</p>
                     <ul>
                         <li><strong>forward</strong> (moving to higher page numbers, i.e. older): keep more ahead than behind.</li>
                         <li><strong>backward</strong>: the mirror image.</li>
                         <li><strong>jump</strong> (not adjacent to the last page): symmetric.</li>
                         <li>If the window would run past either end of the log, the unused slack is given to the other side so the budget is always used.</li>
                     </ul>
-                    <p><code>chooseTxEvictions(index, window, budget)</code> returns blocks to drop: never any block inside the window; otherwise farthest from the window first, least recently used breaking ties.</p>
+                    <p><code>chooseTransactionEvictions(index, window, budget)</code> returns blocks to drop: never any block inside the window; otherwise farthest from the window first, least recently used breaking ties.</p>
 
                     <h3 id="d-txcache-client">Client side</h3>
                     <p><code>RollingTransactionLog</code> (<code>TransactionWindow.html</code>):</p>
@@ -678,13 +705,13 @@ const res = await log.getPage({ page: 3, pageSize: 20, filters: {}, includeStats
                     </ul>
 
                     <h3 id="d-txcache-filter">Filtered queries</h3>
-                    <p>Filters (student substring, type, period, from/to ms, field scope, ids) are evaluated server-side by <code>matchesTxFilters</code>. Because arbitrary filters can't use the block cache, <code>queryTransactions</code> scans the sheet in slices of 1000 rows, so memory stays bounded. Facets (distinct periods/students/types) come from <code>fetchTransactionFacets</code>, are cached, and respect the current date range. Unfiltered stats (<code>getUnfilteredTxStats</code>) are maintained <em>incrementally</em> in integer cents.</p>
+                    <p>Filters (student substring, type, period, from/to ms, field scope, ids) are evaluated server-side by <code>matchesTransactionFilters</code>. Because arbitrary filters can't use the block cache, <code>queryTransactions</code> scans the sheet in slices of 1000 rows, so memory stays bounded. Facets (distinct periods/students/types) come from <code>fetchTransactionFacets</code>, are cached, and respect the current date range. Unfiltered stats (<code>getUnfilteredTransactionStats</code>) are maintained <em>incrementally</em> in integer cents.</p>
 
                     <h3 id="d-txcache-tune">Tuning</h3>
                     <ul>
-                        <li>Slow page flips: raise <code>TX_PREFETCH_AHEAD_PAGES</code>.</li>
-                        <li>Cache errors or quota pressure: lower <code>TX_CACHE_MAX_BLOCKS</code> or <code>TX_CACHE_MAX_BYTES</code>.</li>
-                        <li>Wide sheets or long reasons: reduce <code>TX_BLOCK_SIZE</code> so a block stays far below 100 KB.</li>
+                        <li>Slow page flips: raise <code>TRANSACTION_PREFETCH_AHEAD_PAGES</code>.</li>
+                        <li>Cache errors or quota pressure: lower <code>TRANSACTION_CACHE_MAX_BLOCKS</code> or <code>TRANSACTION_CACHE_MAX_BYTES</code>.</li>
+                        <li>Wide sheets or long reasons: reduce <code>TRANSACTION_BLOCK_SIZE</code> so a block stays far below 100 KB.</li>
                         <li>Check state with <code>getTransactionCacheStatus()</code>; prime with <code>preloadTransactionCache()</code> (called from <code>preloadCacheForAllDialogs</code>).</li>
                     </ul>
                 </div>
@@ -697,7 +724,7 @@ const res = await log.getPage({ page: 3, pageSize: 20, filters: {}, includeStats
                     <h3 id="d-tx-append">Appending</h3>
                     <p>Every write path (balance edits, services, investments) appends a row via <code>TransactionsUtils.ts</code>, then calls <code>onTransactionsAppended()</code> so the newest block, the index and the stats stay correct without a full invalidation.</p>
                     <h3 id="d-tx-undo">Undo</h3>
-                    <p>Undo takes transaction ids, loads exactly those rows with <code>fetchTransactionsByIds(ids)</code> (it does not load the full log), applies the inverse using <code>txBalanceDelta</code>, and appends a new "Undo transaction ID …" row. Originals are never edited or deleted.</p>
+                    <p>Undo takes transaction ids, loads exactly those rows with <code>fetchTransactionsByIds(ids)</code> (it does not load the full log), applies the inverse using <code>transactionBalanceChange</code>, and appends a new "Undo transaction ID …" row. Originals are never edited or deleted.</p>
                     <h3 id="d-tx-reset">Reset</h3>
                     <p>"Clear All Transaction Records" clears the sheet and calls <code>invalidateTransactionCache()</code>.</p>
                     <div class="callout callout-warning">
@@ -803,7 +830,7 @@ CoD      = net   (stored in NET_INVESTMENT_GAIN_COL)</code></pre>
                         <tr><td><code>fetchProperty / setSettingsProperty</code></td><td>key, group[, value]</td><td>typed value / status</td></tr>
                         <tr><td><code>handleDeposit</code></td><td>deposit payload</td><td>boolean</td></tr>
                     </table>
-                    <p>Check the source for exact payload fields; the TypeScript types in each file (<code>TxFilters</code>, <code>TxPageResponse</code>, <code>QuarterResolution</code>…) are the contract.</p>
+                    <p>Check the source for exact payload fields; the TypeScript types in each file (<code>TransactionFilters</code>, <code>TransactionPageResponse</code>, <code>QuarterResolution</code>…) are the contract.</p>
                 </div>
             </div>
 
@@ -841,8 +868,8 @@ CoD      = net   (stored in NET_INVESTMENT_GAIN_COL)</code></pre>
                     </ol>
                     <h3 id="d-cookbook-col">Add a Transactions column</h3>
                     <ol class="steps">
-                        <li>Update <code>TX_COLUMN_COUNT</code> and the column constants.</li>
-                        <li>Extend <code>mapTransactionRow</code> and, if filterable, <code>matchesTxFilters</code>.</li>
+                        <li>Update <code>TRANSACTION_COLUMN_COUNT</code> and the column constants.</li>
+                        <li>Extend <code>mapTransactionRow</code> and, if filterable, <code>matchesTransactionFilters</code>.</li>
                         <li>Append the value where rows are created in <code>TransactionsUtils.ts</code>.</li>
                         <li>Run <strong>Clear Client Cache</strong> after deploying so stale blocks are rebuilt.</li>
                     </ol>
