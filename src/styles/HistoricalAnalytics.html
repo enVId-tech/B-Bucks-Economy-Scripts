@@ -262,4 +262,34 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
+
+    /* Live "now" toggle + data status notice */
+    .live-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary, #0f172a);
+        text-transform: none;
+        letter-spacing: 0;
+        padding: 6px 0;
+        cursor: pointer;
+    }
+
+    .data-notice {
+        margin: 0 0 10px 0;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e3a8a;
+    }
+
+    .data-notice.warn {
+        background: #fffbeb;
+        border-color: #fde68a;
+        color: #92400e;
+    }
 </style>

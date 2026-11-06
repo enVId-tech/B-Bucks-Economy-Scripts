@@ -79,10 +79,20 @@
                 <input type="date" id="filterToDate" onchange="renderChart()">
             </div>
 
+            <div class="control-group">
+                <label>Current Values</label>
+                <label class="live-toggle" title="Adds a point computed right now from the period sheets, even if today's snapshot hasn't been recorded yet">
+                    <input type="checkbox" id="includeLive" checked onchange="renderChart()"> Include live (now)
+                </label>
+            </div>
+
             <button class="btn-reset" onclick="resetAnalyticsFilters()">
                 Reset Filters
             </button>
         </div>
+
+        <!-- Data status (live point computed / problems) -->
+        <div id="dataNotice" class="data-notice" style="display:none"></div>
 
         <!-- Main Chart Display Card -->
         <div class="chart-card">
@@ -100,6 +110,7 @@
         let rawRecordData = [];
         let availableHeaders = [];
         let chartInstance = null;
+        let payloadMeta = null;
 
         const chartColors = [
             '#0366d6', // Classic Blue
@@ -127,6 +138,8 @@
                     if (parsed && Array.isArray(parsed.records)) {
                         rawRecordData = parsed.records;
                         availableHeaders = parsed.headers || [];
+                        payloadMeta = parsed.meta || null;
+                        showDataNotice();
 
                         populateDynamicDropdowns();
                         renderChart();
@@ -187,22 +200,52 @@
             return Array.from(selectElement.selectedOptions).map(option => option.value);
         }
 
-        function getFilteredRecordsByDate() {
-            const fromDateVal = document.getElementById('filterFromDate').value;
-            const toDateVal = document.getElementById('filterToDate').value;
+        /**
+         * Tells the admin when the live point couldn't be computed, instead of silently plotting stale data.
+         */
+        function showDataNotice() {
+            const el = document.getElementById('dataNotice');
+            if (!payloadMeta) { el.style.display = 'none'; return; }
 
-            return rawRecordData.filter(record => {
-                if (record.date) {
-                    const recDate = new Date(record.date);
-                    if (fromDateVal && recDate < new Date(`${fromDateVal}T00:00:00`)) return false;
-                    if (toDateVal && recDate > new Date(`${toDateVal}T23:59:59.999`)) return false;
-                }
-                return true;
+            if (payloadMeta.liveError) {
+                el.textContent = `⚠️ ${payloadMeta.liveError} The chart shows recorded history only.`;
+                el.className = 'data-notice warn';
+                el.style.display = 'block';
+            } else if (payloadMeta.liveIncluded) {
+                el.textContent = `Live values computed at ${new Date(payloadMeta.generatedAt).toLocaleTimeString()}. The highlighted ◆ point is not stored until the next daily record.`;
+                el.className = 'data-notice';
+                el.style.display = 'block';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        /**
+         * The records the chart should plot right now.
+         *  - applies the date range (compared as yyyy-mm-dd strings, so there is no time-zone drift),
+         *  - optionally drops the live "now" point,
+         *  - keeps only the NEWEST snapshot per day per period, so two snapshots on one day are never added together.
+         */
+        function getVisibleRecords() {
+            const includeLive = document.getElementById('includeLive').checked;
+            const fromDay = document.getElementById('filterFromDate').value;
+            const toDay = document.getElementById('filterToDate').value;
+
+            const newest = new Map();
+            rawRecordData.forEach(record => {
+                if (record.live && !includeLive) return;
+                if (fromDay && record.day < fromDay) return;
+                if (toDay && record.day > toDay) return;
+
+                const key = `${record.day}|${record.sheet}`;
+                const existing = newest.get(key);
+                if (!existing || record.ts >= existing.ts) newest.set(key, record);
             });
+            return Array.from(newest.values());
         }
 
         function renderChart() {
-            const dateFilteredRecords = getFilteredRecordsByDate();
+            const visibleRecords = getVisibleRecords();
             const metricSelectEl = document.getElementById('metricSelect');
 
             let selectedMetrics = getSelectedValues(metricSelectEl);
@@ -215,18 +258,23 @@
 
             const scaleType = document.getElementById('scaleSelect').value || 'linear';
 
-            const dateSet = new Set();
-            dateFilteredRecords.slice().reverse().forEach(item => {
-                dateSet.add(item.dateStr || item.date);
+            // One chart point per calendar day, oldest to newest regardless of which sheet each snapshot came from.
+            const dayInfo = new Map();
+            visibleRecords.forEach(record => {
+                const info = dayInfo.get(record.day) || { label: record.dateStr || record.day, live: false };
+                if (record.live) info.live = true;
+                dayInfo.set(record.day, info);
             });
-            const labels = Array.from(dateSet);
+            const days = Array.from(dayInfo.keys()).sort();
+            const labels = days.map(day => dayInfo.get(day).live ? `${dayInfo.get(day).label} (live)` : dayInfo.get(day).label);
+            const liveFlags = days.map(day => dayInfo.get(day).live);
 
             const datasets = [];
             let colorIndex = 0;
 
             selectedPeriods.forEach(period => {
                 const isAggregate = (period === 'all-sum' || period === 'all-avg' || period === 'all');
-                const periodRecords = dateFilteredRecords.filter(rec => isAggregate || rec.sheet === period);
+                const periodRecords = visibleRecords.filter(rec => isAggregate || rec.sheet === period);
 
                 selectedMetrics.forEach(metricKey => {
                     const optionEl = metricSelectEl.querySelector(`option[value="${metricKey}"]`);
@@ -243,8 +291,8 @@
                         datasetLabel = `${period} (${metricLabel})`;
                     }
 
-                    const dataPoints = labels.map(labelDate => {
-                        const matchingItems = periodRecords.filter(r => (r.dateStr || r.date) === labelDate);
+                    const dataPoints = days.map(day => {
+                        const matchingItems = periodRecords.filter(r => r.day === day);
                         if (!matchingItems.length) return null;
 
                         const validVals = matchingItems
@@ -274,8 +322,10 @@
                         borderWidth: 2,
                         fill: false,
                         tension: 0,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
+                        // the live "now" point is drawn larger and as a diamond so it can't be mistaken for a stored snapshot
+                        pointRadius: liveFlags.map(isLive => isLive ? 7 : 3),
+                        pointStyle: liveFlags.map(isLive => isLive ? 'rectRot' : 'circle'),
+                        pointHoverRadius: 8,
                         pointBackgroundColor: color,
                         spanGaps: true
                     });
@@ -354,6 +404,7 @@
             document.getElementById('scaleSelect').selectedIndex = 0;
             document.getElementById('filterFromDate').value = '';
             document.getElementById('filterToDate').value = '';
+            document.getElementById('includeLive').checked = true;
 
             renderChart();
         }
