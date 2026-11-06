@@ -45,21 +45,45 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
 
         const parsedData = data ? JSON.parse(data) : null;
         const forceRefresh = parsedData?.forceRefresh || false;
+        // Optional: refresh only these periods and keep the cached copy of every other one
+        const onlyPeriods: string[] | null = Array.isArray(parsedData?.periods) && parsedData.periods.length > 0
+            ? parsedData.periods.map((p: any) => String(p))
+            : null;
 
         const cache = CacheService.getScriptCache();
         const indexKey = "cachedInvestmentPeriodIndex";
 
-        if (!forceRefresh) {
-            const periodIndex = PropertiesService.getScriptProperties().getProperty(indexKey);
-            if (periodIndex) {
-                const periodKeys = JSON.parse(periodIndex) as Array<{ periodName: string; cacheKey: string }>;
-                const cachedPeriods = periodKeys.map(({ cacheKey }) => cache.get(cacheKey));
+        const storedIndex = PropertiesService.getScriptProperties().getProperty(indexKey);
+        const periodKeys: Array<{ periodName: string; cacheKey: string }> | null = storedIndex ? JSON.parse(storedIndex) : null;
+        // One batched cache read for all periods (previously one read per period)
+        const cachedByKey: { [key: string]: string } = periodKeys ? cache.getAll(periodKeys.map(k => k.cacheKey)) : {};
+        const allPeriodsCached = !!periodKeys && periodKeys.length > 0 && periodKeys.every(k => cachedByKey[k.cacheKey]);
 
-                if (cachedPeriods.every(period => period)) {
-                    log(`Cache hit: Loaded ${cachedPeriods.length} investment periods individually.`, false);
-                    return cachedPeriods.map(period => JSON.parse(period as string)) as PeriodData[];
-                }
+        if (!forceRefresh && periodKeys && allPeriodsCached) {
+            log(`Cache hit: Loaded ${periodKeys.length} investment periods individually.`, false);
+            return periodKeys.map(k => JSON.parse(cachedByKey[k.cacheKey])) as PeriodData[];
+        }
+
+        // Targeted refresh: every period is cached and every requested period is a known one, so re-read just those sheets
+        if (forceRefresh && onlyPeriods && periodKeys && allPeriodsCached
+            && onlyPeriods.every(name => periodKeys.some(k => k.periodName === name))) {
+            const fresh = fetchInvestmentsLedgerData(onlyPeriods);
+            if (!('error' in fresh) && fresh.length === new Set(onlyPeriods).size) {
+                const freshByName: { [name: string]: PeriodData } = {};
+                fresh.forEach(pd => { freshByName[pd.periodName] = pd; });
+
+                const toStore: { [key: string]: string } = {};
+                const merged = periodKeys.map(k => {
+                    const replacement = freshByName[k.periodName];
+                    if (!replacement) return JSON.parse(cachedByKey[k.cacheKey]) as PeriodData;
+                    toStore[k.cacheKey] = JSON.stringify(replacement);
+                    return replacement;
+                });
+                cache.putAll(toStore, SERVER_SIDE_CACHE_AGE);
+                log(`Targeted refresh of ${fresh.length} of ${periodKeys.length} investment periods.`, false);
+                return merged;
             }
+            // Anything unexpected falls through to the full refresh below
         }
 
         log("Cache miss: Re-extracting investment periods from sheets...", false);
@@ -73,12 +97,14 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         log(`Fetched fresh investments ledger data from sheet. Data: ${JSON.stringify(periodDataArray)}`, false);
 
         if (Array.isArray(periodDataArray)) {
-            const periodKeys = periodDataArray.map(period => {
-                const cacheKey = `investmentPeriod_${Utilities.base64EncodeWebSafe(period.periodName)}`;
-                cache.put(cacheKey, JSON.stringify(period), SERVER_SIDE_CACHE_AGE);
-                return { periodName: period.periodName, cacheKey };
-            });
-            PropertiesService.getScriptProperties().setProperty(indexKey, JSON.stringify(periodKeys));
+            const newKeys = periodDataArray.map(period => ({
+                periodName: period.periodName,
+                cacheKey: `investmentPeriod_${Utilities.base64EncodeWebSafe(period.periodName)}`
+            }));
+            const toStore: { [key: string]: string } = {};
+            periodDataArray.forEach((period, i) => { toStore[newKeys[i].cacheKey] = JSON.stringify(period); });
+            cache.putAll(toStore, SERVER_SIDE_CACHE_AGE);
+            PropertiesService.getScriptProperties().setProperty(indexKey, JSON.stringify(newKeys));
         }
 
         return periodDataArray as PeriodData[];
@@ -128,10 +154,10 @@ function readInvestmentsFromSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): In
  * Fetches investments ledger data from the sheet. It reads all sheets in the active spreadsheet, filters for those that include "Period" in their name, and extracts investment records from a predefined range of rows and columns. The function constructs structured objects for each period, containing the period name and an array of investment records with details such as date, individual name, initial amount, returns amount, and optionally current amount. If the sheet is not found or an error occurs during processing, it returns an empty array.
  * @returns {PeriodData[] | { error: string }} An array of period data objects containing the period name and an array of investment records for that period, or an error object if an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
  */
-function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
+function fetchInvestmentsLedgerData(onlyPeriods?: string[] | null): PeriodData[] | { error: string } {
     try {
         const allSheets = getAllSheets();
-        const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period"));
+        const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period") && (!onlyPeriods || onlyPeriods.includes(sheet.getName())));
         let periodDataArray: PeriodData[] = [];
 
         periodSheets.forEach(sheet => {
