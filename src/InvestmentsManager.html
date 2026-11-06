@@ -17,6 +17,7 @@
   <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
   <!-- These lines MUST be included for the application to function correctly -->
   <?!= include('styles/InvestmentsManager'); ?>
+  <?!= include('styles/DisplayState'); ?>
 
   <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
   <?!= include('utils/ClientToServer'); ?>
@@ -223,7 +224,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
-      document.getElementById('loadingInvestmentsIndicator').style.display = 'flex'; // Show loading indicator
+      setElementDisplay(document.getElementById('loadingInvestmentsIndicator'), 'flex'); // Show loading indicator
 
       wireProjectionTabs();
       // Investments ledger and settings are independent: request both at once
@@ -233,7 +234,7 @@
       populatePeriodSelect(investmentsData || []);
       syncProjectionModeInputs();
 
-      document.getElementById('loadingInvestmentsIndicator').style.display = 'none'; // Hide loading indicator
+      setElementDisplay(document.getElementById('loadingInvestmentsIndicator'), 'none'); // Hide loading indicator
     });
 
     /**
@@ -604,17 +605,17 @@
     async function fetchAndDisplayStudentData(isInitialLoad = true) {
       try {
         if (document.getElementById('studentInfoSection').classList.contains('hidden-display')) {
-          document.getElementById('loadingOverviewIndicatorInitial').style.display = 'flex';
+          setElementDisplay(document.getElementById('loadingOverviewIndicatorInitial'), 'flex');
         }
 
-        document.getElementById('loadingOverviewIndicator').style.display = 'flex'; // Show loading indicator for overview
+        setElementDisplay(document.getElementById('loadingOverviewIndicator'), 'flex'); // Show loading indicator for overview
         const periodSelected = document.getElementById('periodSelect').value;
         const studentSelected = document.getElementById('studentSelect').value;
 
         if (studentSelected === "-- Select a student --" || studentSelected === "" || periodSelected === "-- Select a period --" || periodSelected === "") {
           console.warn("No student selected, cannot display data.");
-          document.getElementById('loadingOverviewIndicator').style.display = 'none'; // Hide loading indicator for overview
-          document.getElementById('loadingOverviewIndicatorInitial').style.display = 'none'; // Hide loading indicator for initial load
+          setElementDisplay(document.getElementById('loadingOverviewIndicator'), 'none'); // Hide loading indicator for overview
+          setElementDisplay(document.getElementById('loadingOverviewIndicatorInitial'), 'none'); // Hide loading indicator for initial load
           document.getElementById('studentInfoSection').classList.add('hidden-display');
           return;
         }
@@ -639,13 +640,13 @@
           console.warn("Selected student data not found in the freshly fetched investments data.");
         }
 
-        document.getElementById('loadingOverviewIndicator').style.display = 'none'; // Hide loading indicator for overview
-        if (document.getElementById('loadingOverviewIndicatorInitial').style.display === 'flex') {
-          document.getElementById('loadingOverviewIndicatorInitial').style.display = 'none'; // Hide loading indicator for initial load
+        setElementDisplay(document.getElementById('loadingOverviewIndicator'), 'none'); // Hide loading indicator for overview
+        if (document.getElementById('loadingOverviewIndicatorInitial').classList.contains('display-flex')) {
+          setElementDisplay(document.getElementById('loadingOverviewIndicatorInitial'), 'none'); // Hide loading indicator for initial load
         }
       } catch (error) {
         console.error("Error fetching and displaying student data:", error);
-        document.getElementById('loadingOverviewIndicator').style.display = 'none'; // Hide loading indicator for overview
+        setElementDisplay(document.getElementById('loadingOverviewIndicator'), 'none'); // Hide loading indicator for overview
       }
     }
 

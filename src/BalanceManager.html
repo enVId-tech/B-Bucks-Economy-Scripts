@@ -17,6 +17,7 @@
     <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
     <!-- These lines MUST be included for the application to function correctly -->
     <?!= include('styles/BalanceManager'); ?>
+    <?!= include('styles/DisplayState'); ?>
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
@@ -154,7 +155,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('logSearchName').addEventListener('input', applyTransactionFilters);
             document.getElementById('logFilterDate').addEventListener('change', applyTransactionFilters);
-            document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
+            setElementDisplay(document.getElementById("loadingIndicatorTransactions"), 'flex'); // Show loading indicator
 
             // Handle click-to-select for all log items
             document.querySelectorAll('[data-selectable="true"]').forEach(item => {
@@ -209,7 +210,7 @@
                     </div>
                 `;
                 updateUndoButtonState();
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
                 return;
             }
 
@@ -287,7 +288,7 @@
 
             logContainer.innerHTML = htmlContent;
             updateUndoButtonState();
-            document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
         }
 
 
@@ -329,7 +330,7 @@
             limitInput.value = limit;
             const page = Math.max(1, Number.parseInt(pageInput.value, 10) || 1);
 
-            document.getElementById('loadingIndicatorTransactions').style.display = 'flex';
+            setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'flex');
             try {
                 const result = await txLog.getPage({ page, pageSize: limit, filters: getLogFilters(), force });
                 if (token !== renderToken) return; // a newer request superseded this one
@@ -340,7 +341,7 @@
             } catch (error) {
                 if (token !== renderToken) return;
                 console.error('Error fetching transaction data:', error);
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none';
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none');
             }
         }
 
@@ -362,7 +363,7 @@
          */
         function applyValue(operation, amount) {
             try {
-                document.getElementById('applyingIndicatorIncome').style.display = 'flex';
+                setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'flex');
                 const getButtons = document.querySelectorAll('.btn, .btn-math');
 
                 getButtons.forEach(btn => btn.classList.add('disabled'));
@@ -395,8 +396,8 @@
                 });
 
                 callServer('executeBalanceAction', payload, (response) => {
-                    document.getElementById('loadingIndicatorTransactions').style.display = 'flex'; // Show loading indicator
-                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                    setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'flex'); // Show loading indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
                     console.log("Server Response:", response);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
                     getButtons.forEach(btn => btn.disabled = false);
@@ -406,15 +407,15 @@
                     console.error("Server Error:", error);
                     getButtons.forEach(btn => btn.classList.remove('disabled'));
                     getButtons.forEach(btn => btn.disabled = false);
-                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
-                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
+                    setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
                 });
             } catch (err) {
                 console.error("Error in applyValue:", err);
                 getButtons.forEach(btn => btn.classList.remove('disabled'));
                 getButtons.forEach(btn => btn.disabled = false);
-                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
+                setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
             }
         }
 
@@ -465,20 +466,20 @@
                 if (response) {
                     console.log("Successfully undone transactions:", transactionIds);
                     // Refresh the log after undoing
-                    document.getElementById("loadingIndicatorTransactions").style.display = 'flex'; // Show loading indicator
-                    document.getElementById("applyingIndicatorIncome").style.display = 'flex'; // Show applying indicator
+                    setElementDisplay(document.getElementById("loadingIndicatorTransactions"), 'flex'); // Show loading indicator
+                    setElementDisplay(document.getElementById("applyingIndicatorIncome"), 'flex'); // Show applying indicator
                     loadTransactionData();
-                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
-                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                    setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
                 } else {
                     console.error("Failed to undo transactions:", response.error);
-                    document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
-                    document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                    setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
+                    setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
                 }
             }, (error) => {
                 console.error("Error undoing transactions:", error);
-                document.getElementById('loadingIndicatorTransactions').style.display = 'none'; // Hide loading indicator
-                document.getElementById('applyingIndicatorIncome').style.display = 'none'; // Hide applying indicator
+                setElementDisplay(document.getElementById('loadingIndicatorTransactions'), 'none'); // Hide loading indicator
+                setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
             });
         }
     </script>

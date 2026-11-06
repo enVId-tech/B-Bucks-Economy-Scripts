@@ -17,6 +17,7 @@
     <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
     <!-- These lines MUST be included for the application to function correctly -->
     <?!= include('styles/BankingSettings'); ?>
+    <?!= include('styles/DisplayState'); ?>
 
     <!-- Include Client-to-Server HTML Utility to neatly transfer data between client and server through a JSON string -->
     <?!= include('utils/ClientToServer'); ?>
@@ -342,14 +343,14 @@
 
             // Handle cancel button click
             document.getElementById('cancelConfirmBtn').onclick = () => {
-                document.getElementById('confirmationModal').style.display = 'none';
+                setElementDisplay(document.getElementById('confirmationModal'), 'none');
             };
 
             // Handle confirm button click
             document.getElementById('confirmActionBtn').onclick = () => {
                 // Perform the destructive action here
                 console.log('Destructive action confirmed!');
-                document.getElementById('confirmationModal').style.display = 'none';
+                setElementDisplay(document.getElementById('confirmationModal'), 'none');
             };
         }
 
@@ -395,7 +396,7 @@
          */
         function saveSection(sectionKey) {
             try {
-                document.getElementById(`processing-${sectionKey}`).style.display = 'block';
+                setElementDisplay(document.getElementById(`processing-${sectionKey}`), 'block');
                 const inputs = document.querySelectorAll(`#dynamicSettingsContainer .settings-card[data-section="${sectionKey}"] input`);
                 const updatedData = {};
 
@@ -423,11 +424,11 @@
             } catch (error) {
                 console.error(`Error saving section ${sectionKey}:`, error);
 
-                document.getElementById(`processing-${sectionKey}`).style.display = 'none';
-                document.getElementById(`error-${sectionKey}`).style.display = 'block';
+                setElementDisplay(document.getElementById(`processing-${sectionKey}`), 'none');
+                setElementDisplay(document.getElementById(`error-${sectionKey}`), 'block');
 
                 setTimeout(() => {
-                    document.getElementById(`error-${sectionKey}`).style.display = 'none';
+                    setElementDisplay(document.getElementById(`error-${sectionKey}`), 'none');
                 }, 5000);
             }
         }
@@ -444,29 +445,29 @@
                 callServer('setSettingsProperty', payload, (response) => {
                     console.log(`Successfully set ${key} on server cache. Response:`, response);
 
-                    document.getElementById(`processing-${key}`).style.display = 'none';
-                    document.getElementById(`success-${key}`).style.display = 'block';
+                    setElementDisplay(document.getElementById(`processing-${key}`), 'none');
+                    setElementDisplay(document.getElementById(`success-${key}`), 'block');
 
                     setTimeout(() => {
-                        document.getElementById(`success-${key}`).style.display = 'none';
+                        setElementDisplay(document.getElementById(`success-${key}`), 'none');
                     }, 5000);
                 }, (error) => {
                     console.error(`Error setting ${key} on server cache:`, error);
 
-                    document.getElementById(`processing-${key}`).style.display = 'none';
-                    document.getElementById(`error-${key}`).style.display = 'block';
+                    setElementDisplay(document.getElementById(`processing-${key}`), 'none');
+                    setElementDisplay(document.getElementById(`error-${key}`), 'block');
                     setTimeout(() => {
-                        document.getElementById(`error-${key}`).style.display = 'none';
+                        setElementDisplay(document.getElementById(`error-${key}`), 'none');
                     }, 5000);
                 });
             } catch (error) {
                 console.error(`Error in setValueOnServer for ${key}:`, error);
 
-                document.getElementById(`processing-${key}`).style.display = 'none';
-                document.getElementById(`error-${key}`).style.display = 'block';
+                setElementDisplay(document.getElementById(`processing-${key}`), 'none');
+                setElementDisplay(document.getElementById(`error-${key}`), 'block');
 
                 setTimeout(() => {
-                    document.getElementById(`error-${key}`).style.display = 'none';
+                    setElementDisplay(document.getElementById(`error-${key}`), 'none');
                 }, 5000);
             }
         }
