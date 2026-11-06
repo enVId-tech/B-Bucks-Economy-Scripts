@@ -252,6 +252,22 @@ function clearServerCacheValue(key: string): boolean {
     }
 }
 
+/** Batch version of clearServerCacheValue: one server round trip for any number of keys. */
+function clearServerCacheValues(keys: string[] | string): boolean {
+    try {
+        const list: string[] = (Array.isArray(keys) ? keys : [keys]).map(k => String(k));
+        if (list.length === 0) return true;
+        CacheService.getScriptCache().removeAll(list);
+        const props = PropertiesService.getScriptProperties();
+        list.forEach(key => props.deleteProperty(key));
+        log(`Cleared server cache values for keys: ${list.join(", ")}`, false);
+        return true;
+    } catch (error: any) {
+        log(`Failed to clear server cache values: ${error.message}`, true);
+        return false;
+    }
+}
+
 function bulkUpdateTimestamps(): void {
     try {
         const spreadsheet = getSS();
