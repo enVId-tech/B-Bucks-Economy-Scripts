@@ -60,8 +60,8 @@ function toTimestampMs(raw: any): number | null {
 }
 
 /** Formats an epoch-ms timestamp in the spreadsheet's time zone (falls back to UTC if Apps Script services are unavailable). */
-function formatHistoricalDay(ms: number, timeZone: string): { day: string; dateStr: string } {
-  const d = new Date(ms);
+function formatHistoricalDay(timestampMs: number, timeZone: string): { day: string; dateStr: string } {
+  const d = new Date(timestampMs);
   try {
     return { day: Utilities.formatDate(d, timeZone, 'yyyy-MM-dd'), dateStr: Utilities.formatDate(d, timeZone, 'MMM d, yyyy') };
   } catch (e) {
@@ -79,16 +79,16 @@ function parseHistoricalHeaders(sheet: GoogleAppsScript.Spreadsheet.Sheet, lastC
   const keys: string[] = [];
   const headers: MetricHeader[] = [];
 
-  headerValues.forEach((headerVal, idx) => {
-    const colIndex = idx + getMetricDataStartColumn();
-    const rawHeaderStr = String(headerVal || '').trim();
+  headerValues.forEach((headerValue, headerOffset) => {
+    const colIndex = headerOffset + getMetricDataStartColumn();
+    const rawHeaderStr = String(headerValue || '').trim();
 
     if (rawHeaderStr) {
       const key = sanitizeHistoricalKey(rawHeaderStr, colIndex);
-      keys[idx] = key;
+      keys[headerOffset] = key;
       headers.push({ key, label: rawHeaderStr, colIndex });
     } else {
-      keys[idx] = `col_${colIndex}`;
+      keys[headerOffset] = `col_${colIndex}`;
     }
   });
   return { keys, headers };
@@ -118,11 +118,11 @@ function computeLiveHistoricalPoint(
 
     evaluated.forEach(row => {
       const metricsMap: Record<string, number | null> = {};
-      row.values.forEach((val, idx) => {
-        const key = keys[idx];
+      row.values.forEach((cellValue, columnIndex) => {
+        const key = keys[columnIndex];
         if (!key) return;
-        const numVal = Number(val);
-        metricsMap[key] = (val !== null && val !== '' && !isNaN(numVal)) ? numVal : null;
+        const numericValue = Number(cellValue);
+        metricsMap[key] = (cellValue !== null && cellValue !== "" && !isNaN(numericValue)) ? numericValue : null;
       });
       records.push({ day, ts: nowMs, date: day, dateStr, sheet: row.name, live: true, source: "current", metrics: metricsMap });
     });
@@ -205,7 +205,7 @@ function fetchHistoricalRecordbookData(data?: string): string {
     if (lastCol < getMetricDataStartColumn()) return;
 
     const parsedHeaders = parseHistoricalHeaders(sheet, lastCol);
-    parsedHeaders.headers.forEach(h => { if (!globalHeadersMap.has(h.key)) globalHeadersMap.set(h.key, h); });
+    parsedHeaders.headers.forEach(header => { if (!globalHeadersMap.has(header.key)) globalHeadersMap.set(header.key, header); });
     const sheetHeaderKeys = parsedHeaders.keys;
 
     if (isLiveSheet) liveHeaderKeys = sheetHeaderKeys;
@@ -252,7 +252,7 @@ function fetchHistoricalRecordbookData(data?: string): string {
 
   if (includeLive) {
     const live = computeLiveHistoricalPoint(spreadsheet, timeZone, liveSheetName, liveHeaderKeys);
-    live.records.forEach(r => collected.push(r));
+    live.records.forEach(liveRecord => collected.push(liveRecord));
     liveIncluded = live.liveIncluded;
     liveError = live.liveError;
   }

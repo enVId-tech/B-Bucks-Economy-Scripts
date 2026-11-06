@@ -38,10 +38,10 @@ function getAllSheets(): GoogleAppsScript.Spreadsheet.Sheet[] {
 /** Same as getSheetByName but answered from the memoized list. Returns null when the sheet does not exist. */
 function getSheetNamed(name: string): GoogleAppsScript.Spreadsheet.Sheet | null {
     if (!sheetMemo.byName) {
-        const map: { [name: string]: GoogleAppsScript.Spreadsheet.Sheet } = {};
+        const sheetsByName: { [name: string]: GoogleAppsScript.Spreadsheet.Sheet } = {};
         // First sheet with a given name wins, matching getSheetByName
-        getAllSheets().forEach(s => { const n = s.getName(); if (!(n in map)) map[n] = s; });
-        sheetMemo.byName = map;
+        getAllSheets().forEach(sheet => { const sheetName = sheet.getName(); if (!(sheetName in sheetsByName)) sheetsByName[sheetName] = sheet; });
+        sheetMemo.byName = sheetsByName;
     }
     return Object.prototype.hasOwnProperty.call(sheetMemo.byName, name) ? sheetMemo.byName[name] : null;
 }

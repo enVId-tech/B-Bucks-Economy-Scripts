@@ -56,27 +56,27 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
         const storedIndex = PropertiesService.getScriptProperties().getProperty(indexKey);
         const periodKeys: Array<{ periodName: string; cacheKey: string }> | null = storedIndex ? JSON.parse(storedIndex) : null;
         // One batched cache read for all periods (previously one read per period)
-        const cachedByKey: { [key: string]: string } = periodKeys ? cache.getAll(periodKeys.map(k => k.cacheKey)) : {};
-        const allPeriodsCached = !!periodKeys && periodKeys.length > 0 && periodKeys.every(k => cachedByKey[k.cacheKey]);
+        const cachedByKey: { [key: string]: string } = periodKeys ? cache.getAll(periodKeys.map(periodKey => periodKey.cacheKey)) : {};
+        const allPeriodsCached = !!periodKeys && periodKeys.length > 0 && periodKeys.every(periodKey => cachedByKey[periodKey.cacheKey]);
 
         if (!forceRefresh && periodKeys && allPeriodsCached) {
             log(`Cache hit: Loaded ${periodKeys.length} investment periods individually.`, false);
-            return periodKeys.map(k => JSON.parse(cachedByKey[k.cacheKey])) as PeriodData[];
+            return periodKeys.map(periodKey => JSON.parse(cachedByKey[periodKey.cacheKey])) as PeriodData[];
         }
 
         // Targeted refresh: every period is cached and every requested period is a known one, so re-read just those sheets
         if (forceRefresh && onlyPeriods && periodKeys && allPeriodsCached
-            && onlyPeriods.every(name => periodKeys.some(k => k.periodName === name))) {
+            && onlyPeriods.every(name => periodKeys.some(periodKey => periodKey.periodName === name))) {
             const fresh = fetchInvestmentsLedgerData(onlyPeriods);
             if (!('error' in fresh) && fresh.length === new Set(onlyPeriods).size) {
                 const freshByName: { [name: string]: PeriodData } = {};
-                fresh.forEach(pd => { freshByName[pd.periodName] = pd; });
+                fresh.forEach(freshPeriod => { freshByName[freshPeriod.periodName] = freshPeriod; });
 
                 const toStore: { [key: string]: string } = {};
-                const merged = periodKeys.map(k => {
-                    const replacement = freshByName[k.periodName];
-                    if (!replacement) return JSON.parse(cachedByKey[k.cacheKey]) as PeriodData;
-                    toStore[k.cacheKey] = JSON.stringify(replacement);
+                const merged = periodKeys.map(periodKey => {
+                    const replacement = freshByName[periodKey.periodName];
+                    if (!replacement) return JSON.parse(cachedByKey[periodKey.cacheKey]) as PeriodData;
+                    toStore[periodKey.cacheKey] = JSON.stringify(replacement);
                     return replacement;
                 });
                 cache.putAll(toStore, SERVER_SIDE_CACHE_AGE);
@@ -218,8 +218,8 @@ function refreshAllInvestments(): boolean {
 
             // First record per name wins, exactly like the previous Array.find
             const investmentByName = new Map<string, InvestmentRecord>();
-            periodData.investments.forEach(inv => {
-                if (!investmentByName.has(inv.individualName)) investmentByName.set(inv.individualName, inv);
+            periodData.investments.forEach(investmentRecord => {
+                if (!investmentByName.has(investmentRecord.individualName)) investmentByName.set(investmentRecord.individualName, investmentRecord);
             });
 
             for (let i = 0; i < totalRowsToProcess; i++) {
@@ -401,12 +401,12 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
 
             // First row per name wins (same as the old per-student search from the top)
             const rowByName = new Map<any, number>();
-            names.forEach((row, i) => { if (!rowByName.has(row[0])) rowByName.set(row[0], i); });
+            names.forEach((nameRow, rowOffset) => { if (!rowByName.has(nameRow[0])) rowByName.set(nameRow[0], rowOffset); });
 
             let touched = false;
             periodData.investments.forEach(investment => {
-                const idx = rowByName.get(investment.individualName);
-                if (idx === undefined) return;
+                const rowOffset = rowByName.get(investment.individualName);
+                if (rowOffset === undefined) return;
 
                 let dateObj: any = '';
                 if (investment.date) {
@@ -414,21 +414,21 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
                     dateObj = !isNaN(parsedDate.getTime()) ? parsedDate : investment.date;
                 }
 
-                blockValues[idx] = [
+                blockValues[rowOffset] = [
                     Number((investment.expenditure !== undefined ? investment.expenditure : 0.00).toFixed(2)),
                     Number((investment.returnsAmount !== undefined ? investment.returnsAmount : 0.00).toFixed(2)),
                     Number((investment.initAmount !== undefined ? investment.initAmount : 0.00).toFixed(2)),
                     dateObj
                 ];
-                blockFormulas[idx] = ['', '', '', ''];
+                blockFormulas[rowOffset] = ['', '', '', ''];
                 touched = true;
             });
 
             if (!touched) return;
 
             // Rows we did not change keep any formula they had
-            const out = blockValues.map((row, r) => row.map((v, c) => (blockFormulas[r][c] !== '' ? blockFormulas[r][c] : v)));
-            block.setValues(out);
+            const mergedValues = blockValues.map((valueRow, rowOffset) => valueRow.map((cellValue, columnOffset) => (blockFormulas[rowOffset][columnOffset] !== '' ? blockFormulas[rowOffset][columnOffset] : cellValue)));
+            block.setValues(mergedValues);
         });
 
         SpreadsheetApp.flush();

@@ -45,7 +45,7 @@ function warmCaches(): boolean {
 
 /** Triggers currently installed for warmCaches. */
 function getWarmCacheTriggers(): GoogleAppsScript.Script.Trigger[] {
-    return ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === WARM_CACHE_HANDLER);
+    return ScriptApp.getProjectTriggers().filter(trigger => trigger.getHandlerFunction() === WARM_CACHE_HANDLER);
 }
 
 /** True when background warming is installed. */
@@ -59,7 +59,7 @@ function isCacheWarmingEnabled(): boolean {
  */
 function enableCacheWarming(): string {
     try {
-        getWarmCacheTriggers().forEach(t => ScriptApp.deleteTrigger(t));
+        getWarmCacheTriggers().forEach(trigger => ScriptApp.deleteTrigger(trigger));
         ScriptApp.newTrigger(WARM_CACHE_HANDLER).timeBased().everyMinutes(WARM_CACHE_INTERVAL_MINUTES).create();
         warmCaches();
         return `Background cache warming is ON (every ${WARM_CACHE_INTERVAL_MINUTES} minutes).`;
@@ -76,7 +76,7 @@ function enableCacheWarming(): string {
 function disableCacheWarming(): string {
     try {
         const existing = getWarmCacheTriggers();
-        existing.forEach(t => ScriptApp.deleteTrigger(t));
+        existing.forEach(trigger => ScriptApp.deleteTrigger(trigger));
         return existing.length > 0 ? "Background cache warming is OFF." : "Background cache warming was already off.";
     } catch (error: any) {
         log(`Error in disableCacheWarming: ${error.message}`, true);
