@@ -250,8 +250,8 @@ function clearServerCacheValue(key: string): boolean {
 
 function bulkUpdateTimestamps(): void {
     try {
-        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-        const sheetsToUpdate = spreadsheet.getSheets().filter(sheet => TIMESTAMP_LIST.includes(sheet.getName()));
+        const spreadsheet = getSS();
+        const sheetsToUpdate = getAllSheets().filter(sheet => TIMESTAMP_LIST.includes(sheet.getName()));
 
         const currentUser = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
         const lastModifiedBy = currentUser ? ` by ${currentUser}` : '';
@@ -267,7 +267,7 @@ function bulkUpdateTimestamps(): void {
 
 function updateTimestampForSheet(): void {
     try {
-        const activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+        const activeSheet = getSS().getActiveSheet();
         if (TIMESTAMP_LIST.includes(activeSheet.getName())) {
             const currentUser = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
             const lastModifiedBy = currentUser ? ` by ${currentUser}` : '';
@@ -303,10 +303,10 @@ interface EvaluatedPeriodRow {
  *
  * Formulas are written once with plain cell references (e.g. =SUM(B7:B40)); each one is re-scoped to its period sheet
  * ('Period 3'!B7:B40) and evaluated in a throw-away sheet that is always deleted afterwards.
- * @param ss The active spreadsheet.
+ * @param spreadsheet The active spreadsheet.
  * @param historySheet The Historical Records sheet holding the formula rows.
  */
-function evaluatePeriodFormulas(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, historySheet: GoogleAppsScript.Spreadsheet.Sheet): EvaluatedPeriodRow[] {
+function evaluatePeriodFormulas(spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet, historySheet: GoogleAppsScript.Spreadsheet.Sheet): EvaluatedPeriodRow[] {
     const settingsBlock = historySheet.getRange("B3:Z10").getValues();
     const numCols = settingsBlock[0].length;
 
@@ -325,7 +325,8 @@ function evaluatePeriodFormulas(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, hi
 
     if (validPeriods.length === 0) return [];
 
-    const tempSheet = ss.insertSheet(`calc_ws_${Date.now()}`);
+    const tempSheet = spreadsheet.insertSheet(`calc_ws_${Date.now()}`);
+    resetSheetMemo();
 
     try {
         const formulaMatrix: string[][] = [];
@@ -372,7 +373,8 @@ function evaluatePeriodFormulas(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, hi
             return { name: period.name, values };
         });
     } finally {
-        ss.deleteSheet(tempSheet);
+        spreadsheet.deleteSheet(tempSheet);
+        resetSheetMemo();
     }
 }
 
@@ -393,10 +395,9 @@ function recordDailyData(): void {
         return;
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheetName = getHistoricalRecordsSheetName();
+        const sheetName = getHistoricalRecordsSheetName();
 
-    const historySheet = ss.getSheetByName(sheetName);
+    const historySheet = getSheetNamed(sheetName);
     if (!historySheet) {
         log(`Sheet "${sheetName}" not found.`, true);
         return;
@@ -405,7 +406,7 @@ function recordDailyData(): void {
     const timestamp = new Date();
 
     try {
-        const evaluated = evaluatePeriodFormulas(ss, historySheet);
+        const evaluated = evaluatePeriodFormulas(getSS(), historySheet);
         if (evaluated.length === 0) return;
 
         const outputRows: (string | number | Date | null)[][] = evaluated.map(row => [timestamp, row.name, ...row.values]);
@@ -450,7 +451,7 @@ function saveHistoricalRecords(): boolean {
     try {
         const sheetName = getHistoricalRecordsSheetName();
 
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+        const sheet = getSheetNamed(sheetName);
         if (!sheet) {
             log(`Historical Records sheet "${sheetName}" not found.`, true);
             return false;
@@ -459,8 +460,9 @@ function saveHistoricalRecords(): boolean {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const newSheetName = `Records_${timestamp}`;
 
-        const newSheet = sheet.copyTo(SpreadsheetApp.getActiveSpreadsheet());
+        const newSheet = sheet.copyTo(getSS());
         newSheet.setName(newSheetName);
+        resetSheetMemo();
 
         return true;
     } catch (error: any) {
@@ -473,7 +475,7 @@ function resetHistoricalRecords(): boolean {
     try {
         const sheetName = getHistoricalRecordsSheetName();
 
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+        const sheet = getSheetNamed(sheetName);
         if (!sheet) {
             log(`Historical Records sheet "${sheetName}" not found.`, true);
             return false;

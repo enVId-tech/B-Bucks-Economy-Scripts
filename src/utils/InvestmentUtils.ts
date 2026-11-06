@@ -130,7 +130,7 @@ function readInvestmentsFromSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): In
  */
 function fetchInvestmentsLedgerData(): PeriodData[] | { error: string } {
     try {
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const allSheets = getAllSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period"));
         let periodDataArray: PeriodData[] = [];
 
@@ -172,7 +172,7 @@ function refreshAllInvestments(): boolean {
         if (isNaN(interestRate) || isNaN(withdrawalTaxRate)) return false;
 
         const nowTime = new Date().getTime();
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const allSheets = getAllSheets();
 
         periodDataArray.forEach(periodData => {
             const sheet = allSheets.find(s => s.getName() === periodData.periodName);
@@ -239,7 +239,7 @@ function refreshAllInvestments(): boolean {
  */
 function refreshSingleInvestment(individualName: string, periodName: string): boolean {
     try {
-        const targetSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodName);
+        const targetSheet = getSheetNamed(periodName);
         if (!targetSheet || !targetSheet.getName().includes("Period")) return false;
 
         const interestRateProp = fetchProperty("weeklyInterestRate", "standardPercentages");
@@ -305,7 +305,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
  */
 function writeSingleInvestmentToSheet(periodData: PeriodData, investment: InvestmentRecord): boolean {
     try {
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(periodData.periodName);
+        const sheet = getSheetNamed(periodData.periodName);
         if (!sheet) return false;
 
         const firstRow = getUserStartingRow();
@@ -357,7 +357,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
  */
 function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
     try {
-        const allSheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+        const allSheets = getAllSheets();
 
         periodDataArray.forEach(periodData => {
             const sheet = allSheets.find(s => s.getName() === periodData.periodName);
@@ -433,7 +433,7 @@ function handleDeposit(data: string): boolean {
             return false;
         }
 
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
+        const sheet = getSheetNamed(period);
         if (!sheet) {
             log(`Sheet for period "${period}" not found. Please check the period name.`, true);
             return false;
@@ -586,7 +586,7 @@ function handleWithdraw(data: string): boolean {
             return false;
         }
 
-        const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(period);
+        const sheet = getSheetNamed(period);
         if (!sheet) {
             log(`Sheet for period "${period}" not found. Please check the period name.`, true);
             return false;

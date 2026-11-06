@@ -46,8 +46,8 @@ interface TransactionRecord {
  */
 function addTransactionRecords(records: TransactionRecord[]): boolean {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(getTransactionsSheetName());
+    const spreadsheet = getSS();
+    const sheet = getSheetNamed(getTransactionsSheetName());
 
     // -- Add edge case checking for the sheet and all fields to ensure data integrity when compiled to JavaScript --
     if (!sheet) {
@@ -179,8 +179,8 @@ function undoTransactions(data?: string): boolean {
         return false;
       }
 
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-      const targetSheet = spreadsheet.getSheets().find(sheet =>
+      const spreadsheet = getSS();
+      const targetSheet = getAllSheets().find(sheet =>
         parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
       );
       if (!targetSheet) {
@@ -294,8 +294,8 @@ function undoTransactions(data?: string): boolean {
 
 function resetAllTransactionRecords(): boolean {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = spreadsheet.getSheetByName(getTransactionsSheetName());
+    const spreadsheet = getSS();
+    const sheet = getSheetNamed(getTransactionsSheetName());
 
     if (!sheet) {
       log(`Transactions sheet "${getTransactionsSheetName()}" not found.`, true);

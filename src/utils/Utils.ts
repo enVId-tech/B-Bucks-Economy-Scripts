@@ -24,7 +24,7 @@ interface CSVData {
 function fillSheetsWithData(data: string): boolean {
     try {
         const entry: CSVData = JSON.parse(data);
-        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const spreadsheet = getSS();
         const spreadsheetId = spreadsheet.getId();
         let sheets = spreadsheet.getSheets();
 
@@ -36,6 +36,7 @@ function fillSheetsWithData(data: string): boolean {
         // If the sheet already exists, delete it first to force a clean recreation from scratch
         if (targetSheet) {
             spreadsheet.deleteSheet(targetSheet);
+            resetSheetMemo();
             targetSheet = undefined;
             sheets = spreadsheet.getSheets();
         }
@@ -45,6 +46,7 @@ function fillSheetsWithData(data: string): boolean {
             if (templateSheet) {
                 targetSheet = templateSheet.copyTo(spreadsheet);
                 targetSheet.setName("Period " + entry.identifier);
+                resetSheetMemo();
                 sheets = spreadsheet.getSheets();
                 isFreshlyCreated = true;
                 forceUnideFreshSheet = true;
@@ -241,7 +243,7 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
 
         // Will always log to console for developer purposes
         // Will also always log to Apps Script Logger for debugging
-        if (!SpreadsheetApp.getActiveSpreadsheet()) {
+        if (!getSS()) {
             console.error("No active spreadsheet found. Logging aborted (likely an error unless this is intended).");
             Logger.log("No active spreadsheet found. Logging aborted (likely an error unless this is intended).");
             return false;
@@ -257,7 +259,7 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
         return true;
     } catch (err: any) {
         Logger.log(`Error formatting log message: ${err.message}`);
-        SpreadsheetApp.getActiveSpreadsheet().toast(`Error formatting log message: ${err.message}`, "Logging Error", 5);
+        getSS().toast(`Error formatting log message: ${err.message}`, "Logging Error", 5);
         return false;
     }
 }
@@ -281,7 +283,7 @@ function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
  */
 function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): void {
     try {
-        const sheet = targetSheet || SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+        const sheet = targetSheet || getSS().getActiveSheet();
 
         if (!sheet) {
             log("No active sheet found to stamp last modified.", true);

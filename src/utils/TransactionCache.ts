@@ -266,7 +266,7 @@ function mapTransactionRow(row: any[]): TransactionRecord {
 // ----------------------------------------------------------------------------------------------------------------------
 
 function getTransactionsSheet(): GoogleAppsScript.Spreadsheet.Sheet | null {
-    return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(getTransactionsSheetName());
+    return getSheetNamed(getTransactionsSheetName());
 }
 
 /** Number of transaction rows currently on the sheet (the header rows above getTransactionsRowStart() are excluded). */

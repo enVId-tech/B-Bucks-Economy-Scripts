@@ -149,12 +149,12 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
  */
 function fetchSettingsData(): SettingsData | { error: string } {
     try {
-        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const spreadsheet = getSS();
 
         const sheetName = (typeof DEFAULT_SETTINGS_SHEET !== 'undefined' && DEFAULT_SETTINGS_SHEET)
             ? DEFAULT_SETTINGS_SHEET
             : "Settings";
-        const settingsSheet = spreadsheet.getSheetByName(sheetName);
+        const settingsSheet = getSheetNamed(sheetName);
 
         if (!settingsSheet) {
             log("Settings sheet not found.", false);
@@ -289,8 +289,8 @@ function setSettingsProperty(data: any): boolean {
         CacheService.getScriptCache().put(SETTINGS_CACHED_KEY, JSON.stringify(settings), 21600);
 
         // Update the sheet directly to ensure the source of truth is consistent
-        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-        const settingsSheet = spreadsheet.getSheetByName(DEFAULT_SETTINGS_SHEET);
+        const spreadsheet = getSS();
+        const settingsSheet = getSheetNamed(DEFAULT_SETTINGS_SHEET);
         if (!settingsSheet) {
             log(`Settings sheet "${DEFAULT_SETTINGS_SHEET}" not found.`, true);
             return false;
@@ -373,10 +373,10 @@ function applyIncomeTaxRateToAll(): boolean {
             return false;
         }
 
-        const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+        const spreadsheet = getSS();
         const spreadsheetId = spreadsheet.getId();
 
-        const allSheets = spreadsheet.getSheets();
+        const allSheets = getAllSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes('Period'));
 
         const valueUpdates: GoogleAppsScript.Sheets.Schema.ValueRange[] = [];
