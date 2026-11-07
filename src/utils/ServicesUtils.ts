@@ -191,7 +191,7 @@ function executeServiceAction(payloadStr: string): string | void {
         if (isRestrictionOverride !== true && itemName && quarter) {
             const limitMessage = checkServiceLimit(String(itemName), quarter as QuarterId, quantity);
             if (limitMessage) {
-                log(limitMessage, true);
+                log(limitMessage, true); // shown to the admin as a dialog, the Services page does not repeat it
                 return limitMessage;
             }
         }
@@ -211,55 +211,46 @@ function executeServiceAction(payloadStr: string): string | void {
 
             const ranges = activeRangeList.getRanges();
 
+            // The charge goes on the expenditures cell of every selected ROW (whatever cells were clicked), so the check is per row too.
+            // Selecting a name cell used to skip the check because only numeric cells were looked at.
+            const checkedRows = new Set<string>();
+
             ranges.forEach(range => {
                 const sheet = range.getSheet();
                 const sheetName = sheet.getName();
-                // Only get numeric characters out of sheetName
-                const periodName = parseInt(sheetName.replace(/\D/g, ""), 10);
+                const startRow = range.getRow();
+                const numRows = range.getNumRows();
 
-                // Calculate target dimensions based on selection and overrides
-                let startRow = range.getRow();
-                let numRows = range.getNumRows();
-                let startCol = range.getColumn();
-                let numCols = range.getNumColumns();
+                log(`Checking balances on ${sheetName}!${range.getA1Notation()}`, false);
 
-                // Get the target range on the sheet and its corresponding A1 notation
-                const targetRange = sheet.getRange(startRow, startCol, numRows, numCols);
-                const targetA1 = targetRange.getA1Notation();
-                const values = targetRange.getValues();
+                // One read per column instead of two reads per cell
+                const names = sheet.getRange(startRow, getNamesColumn(), numRows, 1).getValues();
+                const balances = sheet.getRange(startRow, getBalanceColumn(), numRows, 1).getValues();
+                const expenditures = sheet.getRange(startRow, getExpendituresColumn(), numRows, 1).getValues();
 
-                log(`Sheet name: ${sheetName}, Range A1: ${targetA1}, Period Name: ${periodName}`, false);
+                for (let rowOffset = 0; rowOffset < numRows; rowOffset++) {
+                    const absoluteRowIndex = startRow + rowOffset;
+                    const rowKey = `${sheetName}|${absoluteRowIndex}`;
+                    if (checkedRows.has(rowKey)) continue;
+                    checkedRows.add(rowKey);
 
-                values.forEach((row, rowIndex) => {
-                    const absoluteRowIndex = startRow + rowIndex;
+                    // Rows the charge would skip anyway (no student, or no numeric expenditures cell) are not checked.
+                    const individualName = String(names[rowOffset][0] ?? "").trim();
+                    const expenditureCell = expenditures[rowOffset][0];
+                    if (!individualName || typeof expenditureCell !== 'number' || isNaN(expenditureCell)) continue;
 
-                    row.forEach((cell) => {
-                        if (typeof cell === 'number' && !isNaN(cell)) {
-                            const balance = sheet.getRange(absoluteRowIndex, getBalanceColumn()).getValue();
+                    const balance = balances[rowOffset][0];
+                    if (typeof balance !== "number" || !Number.isFinite(balance)) {
+                        log(`Balance value is invalid for ${individualName}.`, false);
+                        personsNegative.add(`${individualName} (invalid balance)`);
+                        continue;
+                    }
 
-                            const nameValue = sheet.getRange(absoluteRowIndex, getNamesColumn()).getValue();
-                            const individualName = typeof nameValue === "string" ? nameValue.trim() : "";
-                            const personLabel = individualName || `row ${absoluteRowIndex}`;
-
-                            if (typeof balance !== "number" || !Number.isFinite(balance)) {
-                                log(`Balance value is invalid for ${personLabel}.`, true);
-                                personsNegative.add(`${personLabel} (invalid balance)`);
-                                return;
-                            }
-
-                            if (!individualName) {
-                                log(`Person name is invalid for row ${absoluteRowIndex}.`, true);
-                                personsNegative.add(`${personLabel} (invalid name)`);
-                                return;
-                            }
-
-                            // If the operation is subtractive and the balance minus the amount is less than the minimum required, add the individual to the list of persons with negative balances
-                            if (operation === "SUBTRACT" && balance - (unitPrice * quantity) < 0) {
-                                personsNegative.add(individualName);
-                            }
-                        }
-                    });
-                });
+                    // If the operation is subtractive and the balance minus the amount is less than zero, the student can't afford it
+                    if (operation === "SUBTRACT" && balance - (unitPrice * quantity) < 0) {
+                        personsNegative.add(individualName);
+                    }
+                }
             });
 
             if (personsNegative.size > 0) {
