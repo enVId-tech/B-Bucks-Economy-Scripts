@@ -174,6 +174,14 @@ function undoTransactions(data?: string): boolean {
       return false
     }
 
+    // A record that was already undone (or an undo that was itself undone) must not be reversed again, otherwise the money
+    // moves twice while the log and the notes only count it once. Check everything first so nothing is half-done.
+    const alreadyUndone = findRecordsNoLongerInEffect(recordsToUndo.map(record => Number(record.id)));
+    if (alreadyUndone.length > 0) {
+      log(`Transaction ID(s) ${alreadyUndone.join(", ")} have already been undone. Nothing was changed.`, true);
+      return false;
+    }
+
     // Reverse the operations for each record to undo. The expenditure notes are rebuilt once at the end instead of once per record.
     beginNoteSyncBatch();
     try {
@@ -192,8 +200,11 @@ function undoTransactions(data?: string): boolean {
         return false;
       }
 
+      // The stored row is only a hint: rows move when names are sorted, so fall back to finding the student by name.
       let targetRow = Number(record.row);
-      if (!Number.isInteger(targetRow) || targetRow < getUserStartingRow()) {
+      const storedRowIsValid = Number.isInteger(targetRow) && targetRow >= getUserStartingRow()
+        && String(targetSheet.getRange(targetRow, getNamesColumn()).getValue()).trim() === String(record.individual).trim();
+      if (!storedRowIsValid) {
         const lastRow = targetSheet.getLastRow();
         if (lastRow < getUserStartingRow()) {
           log(`No student rows found in Period ${record.period} for transaction ID ${record.id}.`, true);
@@ -209,12 +220,6 @@ function undoTransactions(data?: string): boolean {
           return false;
         }
         targetRow = getUserStartingRow() + studentRowOffset;
-      }
-
-      const rowName = String(targetSheet.getRange(targetRow, getNamesColumn()).getValue()).trim();
-      if (rowName !== String(record.individual).trim()) {
-        log(`Transaction ID ${record.id} row ${targetRow} belongs to "${rowName}", not "${record.individual}".`, true);
-        return false;
       }
 
       const targetRange = targetSheet.getRange(targetRow, Number(record.modifiedColumn), 1, 1);
@@ -263,6 +268,7 @@ function undoTransactions(data?: string): boolean {
           return false;
       }
 
+      const balanceBeforeUndo = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
       log(`Undoing transaction ID ${record.id} at ${targetSheet.getName()}!${targetRange.getA1Notation()} with ${inverseOperation} ${undoValue}.`, false);
       targetRange.setValue(restoredValue);
       SpreadsheetApp.flush();
@@ -272,7 +278,7 @@ function undoTransactions(data?: string): boolean {
         individual: record.individual,
         period: Number(record.period),
         row: targetRow,
-        type: inverseOperation === "ADD" || inverseOperation === "MULTIPLY" ? "Income" : "Expense",
+        type: record.type === "Investment" ? "Investment" : transactionTypeForChange(inverseOperation as Operation, Number(record.modifiedColumn)),
         operation: inverseOperation as "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE",
         serviceProvided: `Undo transaction ID ${record.id} - ${record.serviceProvided || "Not specified"}`,
         unitPrice: Number(record.unitPrice),
@@ -281,8 +287,8 @@ function undoTransactions(data?: string): boolean {
         tenderedMoney: undoValue,
         initialColumnAmount: currentValue,
         newColumnAmount: restoredValue,
-        initialBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.initialBalance) || 0,
-        newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.newBalance) || 0,
+        initialBalance: Number.isFinite(balanceBeforeUndo) ? balanceBeforeUndo : Number(record.newBalance) || 0,
+        newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.initialBalance) || 0,
         timestamp: new Date().toISOString()
       }]);
     }
@@ -297,6 +303,22 @@ function undoTransactions(data?: string): boolean {
     log(`Error occurred in undoTransaction: ${error.message}`, true);
     return false;
   }
+}
+
+/**
+ * Returns the ids (from the list given) that are no longer active: already undone, or an undo that was itself undone.
+ * Only the id and description columns of the log are read.
+ */
+function findRecordsNoLongerInEffect(ids: number[]): number[] {
+  const sheet = getTransactionsSheet();
+  if (!sheet) return [];
+  const total = countTransactionRows(sheet);
+  if (total === 0) return [];
+
+  const rows = sheet.getRange(getTransactionsRowStart(), 1, total, 5).getValues();
+  const minimalRecords = rows.map(row => ({ id: Number(row[0]), serviceProvided: String(row[4] ?? ""), unitPrice: 0 } as TransactionRecord));
+  const activeRecords = resolveActiveRecords(minimalRecords);
+  return ids.filter(id => !activeRecords.has(id));
 }
 
 function resetAllTransactionRecords(): boolean {
