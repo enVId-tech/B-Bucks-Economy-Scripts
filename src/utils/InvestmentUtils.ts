@@ -311,7 +311,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
 
             if (targetRow !== -1) {
                 // Write the calculated values to columns 9, 10, and 11 for the target row
-                sheet.getRange(targetRow, 9, 1, 3).setValues([[grossCurrentAmount, netValue, percentageGain]]);
+                sheet.getRange(targetRow, getGrossInvestmentGainColumn(), 1, 3).setValues([[grossCurrentAmount, netValue, percentageGain]]);
                 SpreadsheetApp.flush();
                 return true;
             }
@@ -470,7 +470,7 @@ function handleDeposit(data: string): boolean {
         let studentRow = -1;
 
         for (let i = getUserStartingRow() - 1; i < values.length; i++) {
-            if (values[i][0] === student) {
+            if (values[i][getNamesColumn() - 1] === student) {
                 studentRow = i + 1;
                 break;
             }
@@ -621,7 +621,7 @@ function handleWithdraw(data: string): boolean {
         let studentRow = -1;
 
         for (let i = getUserStartingRow() - 1; i < values.length; i++) {
-            if (values[i][0] === student) {
+            if (values[i][getNamesColumn() - 1] === student) {
                 studentRow = i + 1;
                 break;
             }
@@ -645,6 +645,10 @@ function handleWithdraw(data: string): boolean {
         const currentNetAmount = parseFloat(netCurrentAmountCell.getValue());
         if (isNaN(currentNetAmount)) {
             log(`Invalid net amount for student "${student}". Please check the net investment gain value in the sheet.`, true);
+            return false;
+        }
+        if (currentNetAmount === 0) {
+            log(`"${student}" has no active CoD to withdraw.`, true);
             return false;
         }
 
@@ -678,7 +682,8 @@ function handleWithdraw(data: string): boolean {
             initialColumnAmount: Number(currentNetAmount.toFixed(2)),
             newColumnAmount: 0,
             initialBalance: Number(previousBalance.toFixed(2)),
-            newBalance: Number(newReturnsAmount.toFixed(2)),
+            // The returns column feeds the balance, so the balance goes up by exactly the net CoD value.
+            newBalance: Number((previousBalance + currentNetAmount).toFixed(2)),
             timestamp: new Date().toISOString()
         }];
 
