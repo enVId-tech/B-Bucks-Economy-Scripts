@@ -52,7 +52,7 @@ const SERVICE_PURCHASE_LOG_PATTERN: RegExp = /^\$-?[\d.,]+ - (.+) \(x\d+\)$/;
 // Undoing writes "Undo transaction ID <id> - <original text>".
 const UNDO_LOG_PATTERN: RegExp = /^Undo transaction ID (\d+) - /;
 // How many log rows are read per step while walking backwards through the log.
-const LIMIT_SCAN_CHUNK_SIZE: number = 500;
+const LIMIT_SCAN_CHUNK_SIZE: number = 2000;
 
 /** True unless the "enforceServicesLimits" setting is explicitly switched off. */
 function isServicesLimitEnforced(): boolean {
@@ -124,10 +124,41 @@ function resolveActiveRecords(records: TransactionRecord[]): Set<number> {
     return inEffect;
 }
 
+// The purchases of one item in one quarter are cached together with how many log rows they cover, so the Services page (which asks
+// every few seconds) and the purchase check only read the rows added since. An entry is only trusted while the log still has
+// at least that many rows, the id on its last covered row still matches, and the quarter dates in Settings have not changed.
+const SERVICE_LIMIT_CACHE_PREFIX: string = "serviceLimitRecords:";
+
+interface CachedLimitRecords {
+    rows: number;
+    lastId: number;
+    /** The quarter dates the entry was built with. */
+    datesSignature: string;
+    /** Purchases of the item in the quarter, plus every undo (or undo of an undo) that points at one of them. */
+    records: TransactionRecord[];
+}
+
+/** Cache key for an item + quarter. Item names can be long or contain any character, so the name is hashed. */
+function serviceLimitCacheKey(itemName: string, quarter: QuarterId): string {
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, itemName, Utilities.Charset.UTF_8);
+    return `${SERVICE_LIMIT_CACHE_PREFIX}${quarter}:${Utilities.base64EncodeWebSafe(digest)}`;
+}
+
+/** Keeps only what the count needs. */
+function toLimitRecord(record: TransactionRecord): TransactionRecord {
+    return {
+        id: Number(record.id),
+        individual: String(record.individual ?? "").trim(),
+        period: record.period,
+        serviceProvided: String(record.serviceProvided ?? ""),
+        unitPrice: 0,
+        quantity: Number(record.quantity) || 0,
+    };
+}
+
 /**
  * Counts how many units of one item each person bought during a quarter, straight from the transaction log.
- * Walks the log from the newest row backwards and stops as soon as a chunk is entirely older than the quarter, so a long log stays cheap.
- * @returns a map "<individual>|<period>" -> units bought.
+ * @returns a map "<individual>|<period>" -> units bought (undone purchases excluded).
  */
 function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string, number> {
     const counts = new Map<string, number>();
@@ -135,23 +166,10 @@ function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string
     if (!sheet) return counts;
 
     const total = countTransactionRows(sheet);
-    const quarterStartMs = getQuarterStartMs(quarter);
+    if (total === 0) return counts;
     const settings = fetchSettingsDataCached();
     const importantDates = ('error' in settings ? {} : settings.importantDates) as any;
-
-    const recordsNewestChunkFirst: TransactionRecord[][] = [];
-    let chunkEnd = total;
-    while (chunkEnd > 0) {
-        const chunkStart = Math.max(0, chunkEnd - LIMIT_SCAN_CHUNK_SIZE);
-        const chunk = readTransactionRows(sheet, chunkStart, chunkEnd - chunkStart);
-        recordsNewestChunkFirst.push(chunk);
-        const oldestTimestampMs = Date.parse(String(chunk[0].timestamp));
-        if (quarterStartMs > 0 && Number.isFinite(oldestTimestampMs) && oldestTimestampMs < quarterStartMs) break;
-        chunkEnd = chunkStart;
-    }
-
-    const records = recordsNewestChunkFirst.reverse().reduce((all, chunk) => all.concat(chunk), [] as TransactionRecord[]);
-    const inEffect = resolveRecordsInEffect(records);
+    const datesSignature = JSON.stringify(importantDates ?? {});
 
     // There are only 8 quarter boundaries, so their "is it midnight" answers are remembered instead of asking the
     // spreadsheet's time zone again for every record.
@@ -160,17 +178,77 @@ function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string
         if (!midnightAnswers.has(timestampMs)) midnightAnswers.set(timestampMs, isMidnight(timestampMs));
         return midnightAnswers.get(timestampMs) as boolean;
     };
-
-    records.forEach(record => {
-        if (!inEffect.has(Number(record.id))) return;
-        if (parsePurchaseItemName(record.serviceProvided) !== itemName) return;
-
+    const isPurchaseInQuarter = (record: TransactionRecord): boolean => {
+        if (parsePurchaseItemName(record.serviceProvided) !== itemName) return false;
         const timestampMs = Date.parse(String(record.timestamp));
-        if (!Number.isFinite(timestampMs)) return;
-        const recordQuarter = resolveCurrentQuarter(importantDates, timestampMs, rememberedMidnightCheck).quarter;
-        if (recordQuarter !== quarter) return;
+        if (!Number.isFinite(timestampMs)) return false;
+        return resolveCurrentQuarter(importantDates, timestampMs, rememberedMidnightCheck).quarter === quarter;
+    };
 
-        const key = `${String(record.individual).trim()}|${record.period ?? ""}`;
+    // Walks records oldest-first and keeps the purchases plus the undo chains that point at them.
+    const relevantIds = new Set<number>();
+    const keepIfRelevant = (record: TransactionRecord, into: TransactionRecord[]): void => {
+        const undoTargetId = parseUndoTargetId(record.serviceProvided);
+        const isRelevant = undoTargetId !== null ? relevantIds.has(undoTargetId) : isPurchaseInQuarter(record);
+        if (!isRelevant) return;
+        relevantIds.add(Number(record.id));
+        into.push(toLimitRecord(record));
+    };
+
+    let cache: GoogleAppsScript.Cache.Cache | null = null;
+    let cacheKey = "";
+    let entry: CachedLimitRecords | null = null;
+    try {
+        cache = CacheService.getScriptCache();
+        cacheKey = serviceLimitCacheKey(itemName, quarter);
+        const raw = cache.get(cacheKey);
+        const parsed = raw ? JSON.parse(raw) as CachedLimitRecords : null;
+        if (parsed && Array.isArray(parsed.records) && parsed.datesSignature === datesSignature && parsed.rows > 0 && parsed.rows <= total
+            && readTransactionIdAt(sheet, parsed.rows - 1) === Number(parsed.lastId)) {
+            entry = parsed;
+        }
+    } catch (cacheError) {
+        entry = null;
+    }
+
+    let lastIdRead: number | null = null;
+    if (entry) {
+        // Fast path: only the rows added since the entry was saved.
+        entry.records.forEach(record => relevantIds.add(Number(record.id)));
+        for (let chunkStart = entry.rows; chunkStart < total; chunkStart += LIMIT_SCAN_CHUNK_SIZE) {
+            const chunk = readTransactionRows(sheet, chunkStart, Math.min(LIMIT_SCAN_CHUNK_SIZE, total - chunkStart));
+            chunk.forEach(record => keepIfRelevant(record, entry!.records));
+            if (chunk.length > 0) lastIdRead = Number(chunk[chunk.length - 1].id);
+        }
+    } else {
+        // Slow path: walk back from the newest row until the quarter start, then keep the relevant records oldest-first.
+        const quarterStartMs = getQuarterStartMs(quarter);
+        const recordsNewestChunkFirst: TransactionRecord[][] = [];
+        let chunkEnd = total;
+        while (chunkEnd > 0) {
+            const chunkStart = Math.max(0, chunkEnd - LIMIT_SCAN_CHUNK_SIZE);
+            const chunk = readTransactionRows(sheet, chunkStart, chunkEnd - chunkStart);
+            recordsNewestChunkFirst.push(chunk);
+            if (lastIdRead === null && chunk.length > 0) lastIdRead = Number(chunk[chunk.length - 1].id);
+            const oldestTimestampMs = Date.parse(String(chunk[0].timestamp));
+            if (quarterStartMs > 0 && Number.isFinite(oldestTimestampMs) && oldestTimestampMs < quarterStartMs) break;
+            chunkEnd = chunkStart;
+        }
+        entry = { rows: total, lastId: 0, datesSignature, records: [] };
+        const newEntry = entry;
+        recordsNewestChunkFirst.reverse().forEach(chunk => chunk.forEach(record => keepIfRelevant(record, newEntry.records)));
+    }
+
+    if (lastIdRead !== null && cache && cacheKey) {
+        entry.rows = total;
+        entry.lastId = lastIdRead;
+        try { cache.put(cacheKey, JSON.stringify(entry), SERVER_SIDE_CACHE_AGE); } catch (sizeError) { /* too large to cache: fine */ }
+    }
+
+    const inEffect = resolveRecordsInEffect(entry.records);
+    entry.records.forEach(record => {
+        if (!inEffect.has(Number(record.id))) return;
+        const key = `${record.individual}|${record.period ?? ""}`;
         counts.set(key, (counts.get(key) ?? 0) + (Number(record.quantity) || 0));
     });
 
@@ -188,9 +266,13 @@ function getSelectedIndividuals(): { individual: string; period?: number }[] {
     activeRangeList.getRanges().forEach(range => {
         const sheet = range.getSheet();
         const periodNumber = parseInt(sheet.getName().replace(/\D/g, ""), 10);
-        for (let row = range.getRow(); row < range.getRow() + range.getNumRows(); row++) {
-            if (row < getUserStartingRow()) continue;
-            const individual = String(sheet.getRange(row, getNamesColumn()).getValue()).trim();
+        const firstRow = Math.max(range.getRow(), getUserStartingRow());
+        const lastRow = range.getRow() + range.getNumRows() - 1;
+        if (lastRow < firstRow) return;
+        // One read for the whole selection instead of one per row (this runs every few seconds while the Services page is open)
+        const names = sheet.getRange(firstRow, getNamesColumn(), lastRow - firstRow + 1, 1).getValues();
+        for (let row = firstRow; row <= lastRow; row++) {
+            const individual = String(names[row - firstRow][0]).trim();
             if (!individual) continue;
             const key = `${individual}|${periodNumber}`;
             if (seen.has(key)) continue;
