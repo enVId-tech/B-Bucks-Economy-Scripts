@@ -294,7 +294,8 @@
             if (!itemSelect || !quarterSelect || !statusBox) return;
 
             const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-            const hasCap = selectedOption && selectedOption.value && selectedOption.getAttribute('data-limit');
+            const hasCap = selectedOption && selectedOption.value
+                && (selectedOption.getAttribute('data-limit') || selectedOption.getAttribute('data-class-limit'));
             if (!hasCap) {
                 setElementDisplay(statusBox, 'none');
                 return;
@@ -312,31 +313,49 @@
             });
         }
 
-        /** Draws the "left" line(s) for the selected people, in red when the chosen quantity would go over. */
+        /** Draws the "left" line(s) for the selected people and classes, in red when the chosen quantity would go over. */
         function renderLimitStatus(statusBox, report, quantity) {
-            if (!report || report.error || report.limit === null || report.limit === undefined) {
+            const hasPersonLimit = report && report.limit !== null && report.limit !== undefined;
+            const hasClassLimit = report && report.classLimit !== null && report.classLimit !== undefined;
+            if (!report || report.error || (!hasPersonLimit && !hasClassLimit)) {
                 setElementDisplay(statusBox, 'none');
                 return;
             }
-            if (!report.people || report.people.length === 0) {
-                statusBox.textContent = `Max ${report.limit} per person this quarter. Select a student in the sheet to see how many are left.`;
-                statusBox.classList.remove('limit-status-exhausted');
-                setElementDisplay(statusBox, 'block');
-                return;
+
+            const lines = [];
+            let isOverLimit = false;
+
+            if (hasPersonLimit) {
+                if (!report.people || report.people.length === 0) {
+                    lines.push(`Max ${report.limit} per person this quarter. Select a student in the sheet to see how many are left.`);
+                } else {
+                    const sortedPeople = report.people.slice().sort((a, b) => a.remaining - b.remaining);
+                    const shownPeople = sortedPeople.slice(0, LIMIT_STATUS_MAX_NAMES);
+                    shownPeople.forEach(person => lines.push(`${person.individual}: ${person.remaining} of ${person.limit} left`));
+                    if (sortedPeople.length > shownPeople.length) {
+                        lines.push(`+${sortedPeople.length - shownPeople.length} more selected`);
+                    }
+                    if (sortedPeople.some(person => quantity > person.remaining)) isOverLimit = true;
+                }
             }
 
-            const sortedPeople = report.people.slice().sort((a, b) => a.remaining - b.remaining);
-            const shownPeople = sortedPeople.slice(0, LIMIT_STATUS_MAX_NAMES);
-            const lines = shownPeople.map(person => `${person.individual}: ${person.remaining} of ${person.limit} left`);
-            if (sortedPeople.length > shownPeople.length) {
-                lines.push(`+${sortedPeople.length - shownPeople.length} more selected`);
+            if (hasClassLimit) {
+                if (!report.classes || report.classes.length === 0) {
+                    lines.push(`Max ${report.classLimit} per class this quarter.`);
+                } else {
+                    report.classes.forEach(classStatus => {
+                        lines.push(`Period ${classStatus.period}: ${classStatus.remaining} of ${classStatus.limit} left for the class`);
+                        if (quantity * classStatus.selectedStudents > classStatus.remaining) isOverLimit = true;
+                    });
+                }
             }
+
             if (!report.enforced) {
                 lines.push('(limits are switched off in Settings)');
             }
 
             statusBox.textContent = lines.join('\n');
-            statusBox.classList.toggle('limit-status-exhausted', sortedPeople.some(person => quantity > person.remaining));
+            statusBox.classList.toggle('limit-status-exhausted', isOverLimit);
             setElementDisplay(statusBox, 'block');
         }
 
@@ -775,8 +794,10 @@
                     if (!item.pricing || item.pricing[itemQuarter] === undefined || item.pricing[itemQuarter] === null) continue;
 
                     const price = item.pricing[itemQuarter];
-                    const limit = (item.limit && item.limit[itemQuarter]) ? ` | Max: ${item.limit[itemQuarter]}/person` : '';
-                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}" data-limit="${item.limit && item.limit[itemQuarter] ? item.limit[itemQuarter] : ''}">${item.itemName} ($${price})${limit}</option>`;
+                    const personCap = item.limit && item.limit[itemQuarter] ? item.limit[itemQuarter] : '';
+                    const classCap = item.classLimit && item.classLimit[itemQuarter] ? item.classLimit[itemQuarter] : '';
+                    const limit = (personCap ? ` | Max: ${personCap}/person` : '') + (classCap ? ` | ${classCap}/class` : '');
+                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}" data-limit="${personCap}" data-class-limit="${classCap}">${item.itemName} ($${price})${limit}</option>`;
 
                     if (item.category === 'Income' && incomeSelect) {
                         incomeHtml += optionMarkup;

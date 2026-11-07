@@ -21,6 +21,7 @@ interface ItemData {
     category: "Income" | "Expense";
     pricing: QuarterlyData;
     limit: QuarterlyData;
+    classLimit: QuarterlyData;
 }
 
 /**
@@ -111,11 +112,12 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
         // Read the whole table with ONE range call instead of three calls per row.
         const pricingCols = SERVICES_COLUMNS.pricing as number[];
         const limitCols = SERVICES_COLUMNS.limit as number[];
+        const classLimitCols = SERVICES_COLUMNS.classLimit as number[];
         const nameCol = SERVICES_COLUMNS.itemName as number;
         const categoryCol = SERVICES_COLUMNS.category as number;
 
-        const firstCol = Math.min(nameCol, categoryCol, ...pricingCols, ...limitCols);
-        const lastCol = Math.max(nameCol, categoryCol, ...pricingCols, ...limitCols);
+        const firstCol = Math.min(nameCol, categoryCol, ...pricingCols, ...limitCols, ...classLimitCols);
+        const lastCol = Math.max(nameCol, categoryCol, ...pricingCols, ...limitCols, ...classLimitCols);
         const tableValues = servicesSheet
             .getRange(getServicesRowStart(), firstCol, lastRow - getServicesRowStart() + 1, lastCol - firstCol + 1)
             .getValues();
@@ -125,15 +127,18 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
             const category = rowValues[categoryCol - firstCol].toString().trim() as "Income" | "Expense";
             const pricing: QuarterlyData = {};
             const limit: QuarterlyData = {};
+            const classLimit: QuarterlyData = {};
 
             for (let i = 0; i < 4; i++) {
                 const quarterKey = `Q${i + 1}` as keyof QuarterlyData;
 
                 const priceVal = rowValues[pricingCols[i] - firstCol];
                 const limitVal = rowValues[limitCols[i] - firstCol];
+                const classLimitVal = rowValues[classLimitCols[i] - firstCol];
 
                 if (priceVal !== "") pricing[quarterKey] = Number(priceVal);
                 if (limitVal !== "") limit[quarterKey] = Number(limitVal);
+                if (classLimitVal !== "") classLimit[quarterKey] = Number(classLimitVal);
             }
 
             // Only include items that have a name, category, and at least one pricing
@@ -142,7 +147,8 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
                     itemName,
                     category,
                     pricing,
-                    limit
+                    limit,
+                    classLimit
                 });
             }
         }

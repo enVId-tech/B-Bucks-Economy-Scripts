@@ -104,7 +104,9 @@ const SERVICES_COLUMNS: { [key: string]: number | number[] } = {
     // Represents Q1-Q4 pricing columns
     pricing: [3, 4, 5, 6],
     // Represents Q1-Q4 max per person columns
-    limit: [7, 8, 9, 10]
+    limit: [7, 8, 9, 10],
+    // Represents Q1-Q4 max per class (period) columns
+    classLimit: [11, 12, 13, 14]
 }
 
 // --- Settings Sheet ---

@@ -22,11 +22,26 @@ interface ServiceLimitStatus {
     remaining: number;
 }
 
+interface ClassLimitStatus {
+    /** Period number taken from the sheet name. */
+    period: number;
+    /** Units of the item the whole class already bought this quarter (undone transactions excluded). */
+    used: number;
+    /** The Max/Class cap from the services sheet. */
+    limit: number;
+    remaining: number;
+    /** How many students of this class are currently selected. */
+    selectedStudents: number;
+}
+
 interface ServiceLimitReport {
     itemName: string;
     quarter: QuarterId;
-    /** Cap from the services sheet, or null when this item has no cap for this quarter. */
+    /** Max/Person from the services sheet, or null when this item has none for this quarter. */
     limit: number | null;
+    /** Max/Class from the services sheet, or null when this item has none for this quarter. */
+    classLimit: number | null;
+    classes: ClassLimitStatus[];
     /** False when the "enforceServicesLimits" setting is turned off, the counts are then informational only. */
     enforced: boolean;
     people: ServiceLimitStatus[];
@@ -166,13 +181,13 @@ function getSelectedIndividuals(): { individual: string; period?: number }[] {
     return people;
 }
 
-/** Looks up the Max/Person cap of an item for one quarter from the services sheet, or null when it has none. */
-function lookupItemLimit(itemName: string, quarter: QuarterId): number | null {
+/** Looks up the Max/Person and Max/Class caps of an item for one quarter from the services sheet (null = no cap). */
+function lookupItemLimits(itemName: string, quarter: QuarterId): { personLimit: number | null; classLimit: number | null } {
+    const asCap = (value: any): number | null => typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
     const services = fetchServicesDataCached();
-    if (!Array.isArray(services)) return null;
+    if (!Array.isArray(services)) return { personLimit: null, classLimit: null };
     const item = services.find(candidate => candidate.itemName === itemName);
-    const limit = item?.limit?.[quarter];
-    return typeof limit === "number" && Number.isFinite(limit) && limit > 0 ? limit : null;
+    return { personLimit: asCap(item?.limit?.[quarter]), classLimit: asCap(item?.classLimit?.[quarter]) };
 }
 
 /**
@@ -186,15 +201,38 @@ function fetchServiceLimitStatus(data?: string): ServiceLimitReport | { error: s
         const quarter = parsed.quarter as QuarterId;
         if (!itemName || !QUARTER_IDS.includes(quarter)) return { error: "An item name and a quarter are required." };
 
-        const limit = lookupItemLimit(itemName, quarter);
-        const report: ServiceLimitReport = { itemName, quarter, limit, enforced: isServicesLimitEnforced(), people: [] };
-        if (limit === null) return report;
+        const { personLimit: limit, classLimit } = lookupItemLimits(itemName, quarter);
+        const report: ServiceLimitReport = { itemName, quarter, limit, classLimit, classes: [], enforced: isServicesLimitEnforced(), people: [] };
+        if (limit === null && classLimit === null) return report;
 
         const counts = countPurchasesFromLog(itemName, quarter);
-        report.people = getSelectedIndividuals().map(person => {
-            const used = counts.get(`${person.individual}|${person.period ?? ""}`) ?? 0;
-            return { individual: person.individual, period: person.period, used, limit, remaining: Math.max(0, limit - used) };
-        });
+        const selectedPeople = getSelectedIndividuals();
+
+        if (limit !== null) {
+            report.people = selectedPeople.map(person => {
+                const used = counts.get(`${person.individual}|${person.period ?? ""}`) ?? 0;
+                return { individual: person.individual, period: person.period, used, limit, remaining: Math.max(0, limit - used) };
+            });
+        }
+
+        if (classLimit !== null) {
+            // A class is a period sheet, so its total is every student's purchases of this item on that period.
+            const classTotals = new Map<number, number>();
+            counts.forEach((units, key) => {
+                const period = Number(key.slice(key.lastIndexOf("|") + 1));
+                classTotals.set(period, (classTotals.get(period) ?? 0) + units);
+            });
+
+            const selectedPerPeriod = new Map<number, number>();
+            selectedPeople.forEach(person => {
+                if (person.period !== undefined) selectedPerPeriod.set(person.period, (selectedPerPeriod.get(person.period) ?? 0) + 1);
+            });
+
+            selectedPerPeriod.forEach((selectedStudents, period) => {
+                const used = classTotals.get(period) ?? 0;
+                report.classes.push({ period, used, limit: classLimit, remaining: Math.max(0, classLimit - used), selectedStudents });
+            });
+        }
         return report;
     } catch (error: any) {
         log(`Error in fetchServiceLimitStatus: ${error.message}`, true);
@@ -210,11 +248,23 @@ function checkServiceLimit(itemName: string, quarter: QuarterId, quantity: numbe
     if (!isServicesLimitEnforced()) return null;
 
     const report = fetchServiceLimitStatus(JSON.stringify({ itemName, quarter }));
-    if ('error' in report || report.limit === null) return null;
+    if ('error' in report) return null;
 
-    const overLimit = report.people.filter(person => quantity > person.remaining);
-    if (overLimit.length === 0) return null;
+    const messages: string[] = [];
 
-    const summary = overLimit.map(person => `${person.individual} (${person.remaining} of ${person.limit} left)`).join(" - ");
-    return `Max per person reached for ${itemName} in ${quarter}: ${summary}. Use "Override Restrictions" to allow it anyway.`;
+    const overPersonLimit = report.people.filter(person => quantity > person.remaining);
+    if (overPersonLimit.length > 0) {
+        const summary = overPersonLimit.map(person => `${person.individual} (${person.remaining} of ${person.limit} left)`).join(" - ");
+        messages.push(`Max per person reached for ${itemName} in ${quarter}: ${summary}.`);
+    }
+
+    // Every selected student of a class buys the item, so the class uses up quantity x selected students.
+    const overClassLimit = report.classes.filter(classStatus => quantity * classStatus.selectedStudents > classStatus.remaining);
+    if (overClassLimit.length > 0) {
+        const summary = overClassLimit.map(classStatus => `Period ${classStatus.period} (${classStatus.remaining} of ${classStatus.limit} left)`).join(" - ");
+        messages.push(`Max per class reached for ${itemName} in ${quarter}: ${summary}.`);
+    }
+
+    if (messages.length === 0) return null;
+    return `${messages.join(" ")} Use "Override Restrictions" to allow it anyway.`;
 }
