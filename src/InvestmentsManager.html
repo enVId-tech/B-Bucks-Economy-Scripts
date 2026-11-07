@@ -673,9 +673,9 @@
       document.getElementById('studentInfoSection').classList.remove('hidden-display');
       document.getElementById('depositSection').classList.remove('hidden-display');
 
-      document.getElementById('cashAmount').textContent = `$${studentData.balance.toFixed(2) || '0.00'}`;
+      document.getElementById('cashAmount').textContent = `$${(Number(studentData.balance) || 0).toFixed(2)}`;
       document.getElementById('codAmount').textContent = `$${studentData.netCurrentAmount ? studentData.netCurrentAmount.toFixed(2) : '0.00'}`;
-      document.getElementById('currentEarnings').textContent = `$${studentData.balance && studentData.netCurrentAmount ? (studentData.balance + studentData.netCurrentAmount).toFixed(2) : '0.00'}`;
+      document.getElementById('currentEarnings').textContent = `$${((Number(studentData.balance) || 0) + (Number(studentData.netCurrentAmount) || 0)).toFixed(2)}`;
       syncProjectionModeInputs();
 
       const dateStr = studentData.date ? new Date(studentData.date).toLocaleDateString() : null;
@@ -764,9 +764,11 @@
 
       // Calculate elapsed days between current time and purchase date
       const daysElapsed = (new Date() - studentDate) / msPerDay;
-      const isPastLockout = (daysElapsed !== NaN ? daysElapsed : Infinity) >= withdrawDays;
+      // No deposit date means there is no CoD to lock, so the lockout is treated as over.
+      const isPastLockout = (Number.isNaN(daysElapsed) ? Infinity : daysElapsed) >= withdrawDays;
 
-      if (isPastLockout || isOverride) {
+      // Still inside the lockout without an override: everything stays disabled (same rule as displayStudentData).
+      if (!isPastLockout) {
         [depositBtn, withdrawBtn, depositCashCodBtn].forEach(btn => {
           if (btn) {
             btn.classList.add('btn-disabled');
