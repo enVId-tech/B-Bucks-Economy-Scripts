@@ -445,7 +445,7 @@ function fetchTransactionsPage(data?: string): TransactionPageResponse | { error
                 filtered: false,
                 serverMs: 0,
             };
-            if (payload.includeStats) response.stats = getUnfilteredTxStats(sheet, total, cache, writable);
+            if (payload.includeStats) response.stats = getUnfilteredTransactionStats(sheet, total, cache, writable);
 
             const finalIndex = writable ? index : readTransactionIndex(cache);
             const keys = Object.keys(finalIndex.blocks);
@@ -471,7 +471,7 @@ function fetchTransactionsPage(data?: string): TransactionPageResponse | { error
  * Incrementally maintained totals for the whole log. Only rows appended since the last call are scanned.
  * Net is accumulated in whole cents to avoid floating point drift.
  */
-function getUnfilteredTxStats(sheet: GoogleAppsScript.Spreadsheet.Sheet, total: number, cache: GoogleAppsScript.Cache.Cache, writable: boolean): TransactionStats {
+function getUnfilteredTransactionStats(sheet: GoogleAppsScript.Spreadsheet.Sheet, total: number, cache: GoogleAppsScript.Cache.Cache, writable: boolean): TransactionStats {
     let state = { rows: 0, income: 0, spending: 0, netCents: 0 };
     try {
         const raw = cache.get(TRANSACTION_STATS_KEY);
