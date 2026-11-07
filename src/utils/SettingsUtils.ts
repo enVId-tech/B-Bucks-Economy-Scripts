@@ -355,6 +355,18 @@ function setSettingsProperty(data: any): boolean {
     }
 }
 
+/** Turns a 1-based column number into its letter(s), e.g. 3 -> "C", 28 -> "AB". */
+function columnNumberToLetter(columnNumber: number): string {
+    let letters = "";
+    let remaining = columnNumber;
+    while (remaining > 0) {
+        const remainder = (remaining - 1) % 26;
+        letters = String.fromCharCode(65 + remainder) + letters;
+        remaining = Math.floor((remaining - 1) / 26);
+    }
+    return letters;
+}
+
 /**
  * Applies the income tax rate to every person in the sheet as a formula
  */
@@ -390,14 +402,16 @@ function applyIncomeTaxRateToAll(): boolean {
             }
 
             const numRows = (lastRow - getUserStartingRow()) + 1;
+            const earningsLetter = columnNumberToLetter(getEarningsColumn());
+            const netIncomeLetter = columnNumberToLetter(getNetIncomeColumn());
             const formulas = Array.from({ length: numRows }, (_, index) => {
                 const rowNumber = getUserStartingRow() + index;
-                return [`=C${rowNumber}*(1-${incomeTaxRate})`];
+                return [`=${earningsLetter}${rowNumber}*(1-${incomeTaxRate})`];
             });
 
             nativeFallbackUpdates.push({ sheet, numRows });
             valueUpdates.push({
-                range: `${sheet.getName()}!D${getUserStartingRow()}:D${lastRow}`,
+                range: `'${sheet.getName()}'!${netIncomeLetter}${getUserStartingRow()}:${netIncomeLetter}${lastRow}`,
                 values: formulas,
             });
         });
@@ -425,7 +439,7 @@ function applyIncomeTaxRateToAll(): boolean {
         nativeFallbackUpdates.forEach(({ sheet, numRows }) => {
             const formulas = Array.from({ length: numRows }, (_, index) => {
                 const rowNumber = getUserStartingRow() + index;
-                return [`=C${rowNumber}*(1-${incomeTaxRate})`];
+                return [`=${columnNumberToLetter(getEarningsColumn())}${rowNumber}*(1-${incomeTaxRate})`];
             });
 
             sheet.getRange(getUserStartingRow(), getNetIncomeColumn(), numRows, 1).setFormulas(formulas);
