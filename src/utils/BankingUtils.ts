@@ -18,6 +18,16 @@ enum Operation {
 }
 
 /**
+ * Works out whether a change is income or spending for the STUDENT. Adding to the expenditures column takes money away,
+ * so it is spending, and taking from it is a refund, so it is income. Every other column works the other way round.
+ */
+function transactionTypeForChange(operation: Operation, column: number): TransactionType {
+  const isIncreasing = operation === Operation.ADD || operation === Operation.MULTIPLY;
+  if (column === getExpendituresColumn()) return isIncreasing ? "Expense" : "Income";
+  return isIncreasing ? "Income" : "Expense";
+}
+
+/**
  * Executes a balance action based on the provided payload string.
  * @param payloadStr The JSON string containing the operation and amount to apply.
  * @returns The result of the operation or an error message.
@@ -134,6 +144,12 @@ function applyMathToSelection(
       getDepositDateColumn()
     ];
 
+    // Set once the primary path has written to the sheet. After that point a failure must NOT fall back, otherwise the
+    // same change would be applied twice.
+    let valuesWritten = false;
+    // A cell selected twice (for example two ranges on the same row with a fixed column) is only changed once.
+    const processedCells = new Set<string>();
+
     // Primary Execution Method: Batch via Sheets API
     try {
       let rangesToProcess: GoogleAppsScript.Spreadsheet.Range[] = [];
@@ -192,22 +208,27 @@ function applyMathToSelection(
           return row.map((cell, colIndex) => {
             const absoluteColIndex = startCol + colIndex;
 
+            // null tells the Sheets API to leave the cell untouched, so formulas and dates in the selection are never overwritten.
             if (NOT_ALLOWED_COLS.includes(absoluteColIndex) && fixedCol === undefined) {
-              log(`Operation not allowed on column ${absoluteColIndex} in range ${sheetName}!${targetA1}. Skipping cell.`, true);
-              return cell;
+              log(`Operation not allowed on column ${absoluteColIndex} in range ${sheetName}!${targetA1}. Skipping cell.`, false);
+              return null;
             }
+
+            const cellKey = `${sheetName}|${absoluteRowIndex}|${absoluteColIndex}`;
+            if (processedCells.has(cellKey)) return null;
 
             if (typeof cell === 'number' && !isNaN(cell)) {
               if (initialBalance === undefined || initialBalance === null || isNaN(Number(initialBalance))) {
                 log(`Balance value is invalid for row ${absoluteRowIndex}. Skipping cell.`, true);
-                return cell;
+                return null;
               }
 
               if (!individualName) {
                 log(`Individual name is missing for row ${absoluteRowIndex}. Skipping cell.`, true);
-                return cell;
+                return null;
               }
 
+              processedCells.add(cellKey);
               const result = operationFunc(cell);
               affectedRows.push(absoluteRowIndex);
 
@@ -215,7 +236,7 @@ function applyMathToSelection(
                 individual: String(individualName),
                 period: periodName || undefined,
                 row: absoluteRowIndex,
-                type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                type: transactionTypeForChange(normalMapping, absoluteColIndex),
                 operation: normalMapping,
                 serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment" : ""} ${isManualTransaction && transactionReason ? '-' : ""} ${transactionReason ?? "Not Specified"}`.trim(),
                 unitPrice: unitPrice,
@@ -232,8 +253,8 @@ function applyMathToSelection(
               return result;
             }
 
-            log(`Non-numeric value "${cell}" found in range ${sheetName}!${targetA1}. Skipping cell.`, true);
-            return cell;
+            log(`Non-numeric value "${cell}" found in range ${sheetName}!${targetA1}. Skipping cell.`, false);
+            return null;
           });
         });
 
@@ -248,6 +269,7 @@ function applyMathToSelection(
           valueInputOption: "USER_ENTERED",
           data: requests
         }, spreadsheetId);
+        valuesWritten = true;
       } else {
         log("No valid ranges found or Sheets API not available.", true);
         return false;
@@ -280,7 +302,15 @@ function applyMathToSelection(
       return true;
 
     } catch (error: any) {
+      if (valuesWritten) {
+        log(`The balances were updated, but finishing the transaction failed: ${error.message}. Check the Transactions Records before retrying.`, true);
+        return `The balances were updated, but finishing the transaction failed: ${error.message}`;
+      }
       log(`Primary Sheets API execution failed, attempting fallback Apps Script path: ${error.message}`, true);
+
+      // Start the fallback from a clean slate.
+      transactionRecords.length = 0;
+      processedCells.clear();
 
       // Fallback Method: Standard SpreadsheetApp API
       try {
@@ -307,31 +337,36 @@ function applyMathToSelection(
           const values = targetRange.getValues();
           const periodName = parseInt(sheet.getName().replace(/\D/g, ""), 10);
 
-          const updatedValues = values.map((row, rowIndex) => {
+          // Only the cells that actually change are written, so formulas and dates in the selection are left alone.
+          values.forEach((row, rowIndex) => {
             const absoluteRowIndex = startRow + rowIndex;
 
-            return row.map((cell, colIndex) => {
+            row.forEach((cell, colIndex) => {
               const absoluteColIndex = startCol + colIndex;
 
               if (NOT_ALLOWED_COLS.includes(absoluteColIndex) && fixedCol === undefined) {
-                return cell;
+                return;
               }
+
+              const cellKey = `${sheet.getName()}|${absoluteRowIndex}|${absoluteColIndex}`;
+              if (processedCells.has(cellKey)) return;
 
               if (typeof cell === 'number' && !isNaN(cell)) {
                 const balance = sheet.getRange(absoluteRowIndex, getBalanceColumn()).getValue();
                 const individualName = sheet.getRange(absoluteRowIndex, getNamesColumn()).getValue();
 
                 if (!individualName || balance === undefined || isNaN(balance)) {
-                  return cell;
+                  return;
                 }
 
+                processedCells.add(cellKey);
                 const result = operationFunc(cell);
 
                 transactionRecords.push({
                   individual: String(individualName),
                   period: periodName || undefined,
                   row: absoluteRowIndex,
-                  type: normalMapping === Operation.ADD || normalMapping === Operation.MULTIPLY ? "Income" : "Expense",
+                  type: transactionTypeForChange(normalMapping, absoluteColIndex),
                   operation: normalMapping,
                   serviceProvided: `${isManualTransaction ? "Manual Balance Adjustment - " : ""}${transactionReason ?? "Not Specified"}`.trim(),
                   unitPrice: unitPrice,
@@ -345,13 +380,10 @@ function applyMathToSelection(
                   timestamp: new Date().toISOString()
                 });
 
-                return result;
+                sheet.getRange(absoluteRowIndex, absoluteColIndex).setValue(result);
               }
-              return cell;
             });
           });
-
-          targetRange.setValues(updatedValues);
         });
 
         SpreadsheetApp.flush();
