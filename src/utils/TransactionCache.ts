@@ -639,9 +639,11 @@ function fetchTransactionFacets(data?: string): any {
 }
 
 /**
- * Looks up specific transactions by id WITHOUT loading the log (used by undo). Only column A is scanned to find the rows.
+ * Looks up specific transactions by id WITHOUT loading the log (used by undo). Only column A is scanned to find the rows, and
+ * neighbouring matches are read together.
+ * @param idColumn Column A of the log, when the caller already read it.
  */
-function fetchTransactionsByIds(ids: number[]): TransactionRecord[] {
+function fetchTransactionsByIds(ids: number[], idColumn?: any[][]): TransactionRecord[] {
     const sheet = getTransactionsSheet();
     if (!sheet || !ids || ids.length === 0) return [];
 
@@ -649,13 +651,19 @@ function fetchTransactionsByIds(ids: number[]): TransactionRecord[] {
     if (total === 0) return [];
 
     const wanted = new Set(ids.map(Number));
-    const idColumn = sheet.getRange(getTransactionsRowStart(), 1, total, 1).getValues();
-    const found: TransactionRecord[] = [];
+    const idValues = idColumn ?? sheet.getRange(getTransactionsRowStart(), 1, total, 1).getValues();
+    const matchedIndexes: number[] = [];
+    for (let i = 0; i < idValues.length; i++) {
+        if (wanted.has(Number(idValues[i][0]))) matchedIndexes.push(i);
+    }
 
-    for (let i = 0; i < idColumn.length; i++) {
-        if (wanted.has(Number(idColumn[i][0]))) {
-            found.push(readTransactionRows(sheet, i, 1)[0]);
-        }
+    const found: TransactionRecord[] = [];
+    let runStart = 0;
+    while (runStart < matchedIndexes.length) {
+        let runEnd = runStart;
+        while (runEnd + 1 < matchedIndexes.length && matchedIndexes[runEnd + 1] === matchedIndexes[runEnd] + 1) runEnd++;
+        readTransactionRows(sheet, matchedIndexes[runStart], runEnd - runStart + 1).forEach(record => found.push(record));
+        runStart = runEnd + 1;
     }
     return found;
 }

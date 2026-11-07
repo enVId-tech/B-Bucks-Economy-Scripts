@@ -177,8 +177,14 @@ function undoTransactionsInsideLock_(data?: string): boolean {
 
     if (normalizedTransactionIds.length === 0) return false;
 
+    // The id and description columns are read once and shared by the lookup and the "already undone" check.
+    const transactionsSheet = getTransactionsSheet();
+    const logRowCount = transactionsSheet ? countTransactionRows(transactionsSheet) : 0;
+    const idColumn = transactionsSheet && logRowCount > 0
+      ? transactionsSheet.getRange(getTransactionsRowStart(), 1, logRowCount, 1).getValues() : [];
+
     // Look the records up directly by id instead of loading the whole log.
-    const recordsToUndo = fetchTransactionsByIds(normalizedTransactionIds);
+    const recordsToUndo = fetchTransactionsByIds(normalizedTransactionIds, idColumn);
     log(`Found ${recordsToUndo.length} of ${normalizedTransactionIds.length} requested transaction record(s) for undo.`, false);
 
     if (recordsToUndo.length === 0) {
@@ -188,13 +194,16 @@ function undoTransactionsInsideLock_(data?: string): boolean {
 
     // A record that was already undone (or an undo that was itself undone) must not be reversed again, otherwise the money
     // moves twice while the log and the notes only count it once. Check everything first so nothing is half-done.
-    const alreadyUndone = findRecordsNoLongerInEffect(recordsToUndo.map(record => Number(record.id)));
+    const alreadyUndone = findRecordsNoLongerInEffect(recordsToUndo.map(record => Number(record.id)), idColumn);
     if (alreadyUndone.length > 0) {
       log(`Transaction ID(s) ${alreadyUndone.join(", ")} have already been undone. Nothing was changed.`, true);
       return false;
     }
 
     // Reverse the operations for each record to undo. The expenditure notes are rebuilt once at the end instead of once per record.
+    // The undo records are appended to the log in one write at the end (also when a later record fails, so nothing that was
+    // changed goes unlogged).
+    const undoRecords: TransactionRecord[] = [];
     beginNoteSyncBatch();
     try {
     for (const record of recordsToUndo) {
@@ -286,7 +295,7 @@ function undoTransactionsInsideLock_(data?: string): boolean {
       SpreadsheetApp.flush();
 
       const updatedBalance = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
-      addTransactionRecords([{
+      undoRecords.push({
         individual: record.individual,
         period: Number(record.period),
         row: targetRow,
@@ -302,9 +311,10 @@ function undoTransactionsInsideLock_(data?: string): boolean {
         initialBalance: Number.isFinite(balanceBeforeUndo) ? balanceBeforeUndo : Number(record.newBalance) || 0,
         newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.initialBalance) || 0,
         timestamp: new Date().toISOString()
-      }]);
+      });
     }
     } finally {
+      if (undoRecords.length > 0) addTransactionRecords(undoRecords);
       endNoteSyncBatch();
     }
 
@@ -321,14 +331,12 @@ function undoTransactionsInsideLock_(data?: string): boolean {
  * Returns the ids (from the list given) that are no longer active: already undone, or an undo that was itself undone.
  * Only the id and description columns of the log are read.
  */
-function findRecordsNoLongerInEffect(ids: number[]): number[] {
+function findRecordsNoLongerInEffect(ids: number[], idColumn: any[][]): number[] {
   const sheet = getTransactionsSheet();
-  if (!sheet) return [];
-  const total = countTransactionRows(sheet);
-  if (total === 0) return [];
+  if (!sheet || idColumn.length === 0) return [];
 
-  const rows = sheet.getRange(getTransactionsRowStart(), 1, total, 5).getValues();
-  const minimalRecords = rows.map(row => ({ id: Number(row[0]), serviceProvided: String(row[4] ?? ""), unitPrice: 0 } as TransactionRecord));
+  const descriptions = sheet.getRange(getTransactionsRowStart(), 5, idColumn.length, 1).getValues();
+  const minimalRecords = idColumn.map((idRow, index) => ({ id: Number(idRow[0]), serviceProvided: String(descriptions[index][0] ?? ""), unitPrice: 0 } as TransactionRecord));
   const activeRecords = resolveActiveRecords(minimalRecords);
   return ids.filter(id => !activeRecords.has(id));
 }
