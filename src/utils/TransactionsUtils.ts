@@ -127,6 +127,8 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
       ).setValues(values);
 
       onTransactionsAppended();
+      // The expenditure notes are a view of this log, so refresh them from it whenever the log changes.
+      syncNotesForRecords(records);
       return true;
     } catch (apiError: any) {
       log(`Failed to write transaction records at row ${insertStartRow}: ${apiError.message}`, true);
@@ -172,7 +174,9 @@ function undoTransactions(data?: string): boolean {
       return false
     }
 
-    // Reverse the operations for each record to undo
+    // Reverse the operations for each record to undo. The expenditure notes are rebuilt once at the end instead of once per record.
+    beginNoteSyncBatch();
+    try {
     for (const record of recordsToUndo) {
       if (!record.individual || !record.type || !record.unitPrice || !record.quantity || !record.modifiedColumn || !record.period) {
         log(`Incomplete transaction record found for ID ${record.id}. Cannot undo.`, true);
@@ -281,6 +285,9 @@ function undoTransactions(data?: string): boolean {
         newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.newBalance) || 0,
         timestamp: new Date().toISOString()
       }]);
+    }
+    } finally {
+      endNoteSyncBatch();
     }
 
     onTransactionsAppended();

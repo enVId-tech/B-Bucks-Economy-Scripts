@@ -559,9 +559,7 @@ function handleDeposit(data: string): boolean {
         const today = new Date();
         sheet.getRange(studentRow, getDepositDateColumn()).setValue(today);
 
-        // Add a comment to the expenditure cell with the transaction details
-        const dateString = today.toLocaleDateString("en-US");
-        commentExpenditureOnSelection([studentRow], `$${amount} - ${dateString} CoDs/Investments ${override ? '(Override)' : ''}`);
+        // The expenditure note is rebuilt from the transaction log when the deposit record below is added.
 
         refreshSingleInvestment(student, period);
 

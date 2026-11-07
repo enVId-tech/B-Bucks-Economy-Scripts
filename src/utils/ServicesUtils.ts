@@ -264,7 +264,6 @@ function executeServiceAction(payloadStr: string): string | void {
                 false,
                 transactionReason,
                 undefined,
-                false,
                 undefined,
                 getEarningsColumn()
             ).toString();
@@ -278,7 +277,6 @@ function executeServiceAction(payloadStr: string): string | void {
                 false,
                 transactionReason,
                 undefined,
-                true,
                 undefined,
                 getExpendituresColumn()
             ).toString();

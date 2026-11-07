@@ -24,6 +24,7 @@ function onOpen(): void {
     .addItem('View Transactions Records', 'openTransactionsRecords')
     .addItem('View Historical Analytics', 'openHistoricalAnalytics')
     .addItem('Banking Settings', 'openBankingSettings')
+    .addItem('Rebuild Expenditure Notes', 'rebuildExpenditureNotesFromMenu')
     .addSeparator()
     .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
