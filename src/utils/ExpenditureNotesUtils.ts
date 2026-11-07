@@ -65,7 +65,7 @@ function syncNotesForRecords(records: TransactionRecord[]): void {
         syncExpenditureNotes(targets);
     } catch (error: any) {
         // A failed note must never undo or hide a transaction that already succeeded.
-        log(`Could not update expenditure notes: ${error.message}`, true);
+        log(`Could not update expenditure notes: ${error.message}`, false);
     }
 }
 
@@ -163,7 +163,7 @@ function syncExpenditureNotes(targets: NoteTarget[]): boolean {
             );
             const row = sheet ? findStudentRow(sheet, target.individual) : null;
             if (!sheet || row === null) {
-                log(`Could not place the expenditure note for "${target.individual}" (period ${target.period}).`, true);
+                log(`Could not place the expenditure note for "${target.individual}" (period ${target.period}).`, false);
                 allWritten = false;
                 return;
             }
@@ -174,7 +174,7 @@ function syncExpenditureNotes(targets: NoteTarget[]): boolean {
         });
         return allWritten;
     } catch (error: any) {
-        log(`Error in syncExpenditureNotes: ${error.message}`, true);
+        log(`Error in syncExpenditureNotes: ${error.message}`, false);
         return false;
     }
 }
@@ -195,10 +195,10 @@ function rebuildAllExpenditureNotes(): string {
 
         const success = syncExpenditureNotes(targets);
         const message = `Rebuilt expenditure notes for ${targets.length} student(s) from the transaction log.${success ? "" : " Some students could not be found, see the log."}`;
-        log(message, true);
+        log(message, false); // the menu entry shows it as a toast
         return message;
     } catch (error: any) {
-        log(`Error in rebuildAllExpenditureNotes: ${error.message}`, true);
+        log(`Error in rebuildAllExpenditureNotes: ${error.message}`, false);
         return `Error occurred in rebuildAllExpenditureNotes: ${error.message}`;
     }
 }

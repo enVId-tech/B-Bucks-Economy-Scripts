@@ -87,6 +87,18 @@ function getQuarterStartMs(quarter: QuarterId): number {
  * @returns the set of record ids that are still in effect (undo records themselves are never in effect).
  */
 function resolveRecordsInEffect(records: TransactionRecord[]): Set<number> {
+    const activeRecords = resolveActiveRecords(records);
+    records.forEach(record => {
+        if (parseUndoTargetId(record.serviceProvided) !== null) activeRecords.delete(Number(record.id));
+    });
+    return activeRecords;
+}
+
+/**
+ * Same walk as resolveRecordsInEffect(), but undo records that are still active (not undone themselves) are kept in the set.
+ * Undo uses this to refuse reversing something twice.
+ */
+function resolveActiveRecords(records: TransactionRecord[]): Set<number> {
     const inEffect = new Set<number>();
     const undoTargets = new Map<number, number>();
 
@@ -109,7 +121,6 @@ function resolveRecordsInEffect(records: TransactionRecord[]): Set<number> {
         if (targetId !== undefined && inEffect.has(Number(record.id))) switchOff(targetId);
     });
 
-    undoTargets.forEach((_target, undoId) => inEffect.delete(undoId));
     return inEffect;
 }
 
@@ -142,12 +153,21 @@ function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string
     const records = recordsNewestChunkFirst.reverse().reduce((all, chunk) => all.concat(chunk), [] as TransactionRecord[]);
     const inEffect = resolveRecordsInEffect(records);
 
+    // There are only 8 quarter boundaries, so their "is it midnight" answers are remembered instead of asking the
+    // spreadsheet's time zone again for every record.
+    const midnightAnswers = new Map<number, boolean>();
+    const rememberedMidnightCheck = (timestampMs: number): boolean => {
+        if (!midnightAnswers.has(timestampMs)) midnightAnswers.set(timestampMs, isMidnight(timestampMs));
+        return midnightAnswers.get(timestampMs) as boolean;
+    };
+
     records.forEach(record => {
         if (!inEffect.has(Number(record.id))) return;
         if (parsePurchaseItemName(record.serviceProvided) !== itemName) return;
 
         const timestampMs = Date.parse(String(record.timestamp));
-        const recordQuarter = resolveCurrentQuarter(importantDates, timestampMs).quarter;
+        if (!Number.isFinite(timestampMs)) return;
+        const recordQuarter = resolveCurrentQuarter(importantDates, timestampMs, rememberedMidnightCheck).quarter;
         if (recordQuarter !== quarter) return;
 
         const key = `${String(record.individual).trim()}|${record.period ?? ""}`;
@@ -235,7 +255,8 @@ function fetchServiceLimitStatus(data?: string): ServiceLimitReport | { error: s
         }
         return report;
     } catch (error: any) {
-        log(`Error in fetchServiceLimitStatus: ${error.message}`, true);
+        // Not shown as a dialog: the Services page polls this every few seconds.
+        log(`Error in fetchServiceLimitStatus: ${error.message}`, false);
         return { error: `Error in fetchServiceLimitStatus: ${error.message}` };
     }
 }
