@@ -360,6 +360,8 @@
         }
 
         setInterval(() => {
+            // No server calls while the dialog is hidden behind another tab/window.
+            if (document.hidden) return;
             refreshLimitStatus('Income');
             refreshLimitStatus('Spending');
         }, LIMIT_STATUS_POLL_MS);
