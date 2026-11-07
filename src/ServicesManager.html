@@ -84,6 +84,14 @@
                 <label class="label">Quantity</label>
                 <input type="number" id="multiplierIncome" value="1" min="1" oninput="updatePreview()">
 
+                <!-- Max/Person: how many of this item the selected people may still buy this quarter -->
+                <div id="limitStatusIncome" class="limit-status display-none"></div>
+
+                <div class="toggle-container toggle-margin-4">
+                    <input type="checkbox" id="restrictionOverrideIncome">
+                    <label class="toggle-label" for="restrictionOverrideIncome">Override Restrictions</label>
+                </div>
+
                 <div class="preview-container">
                     <div class="preview-text" id="previewIncome">--</div>
                 </div>
@@ -125,13 +133,16 @@
 
                 <!-- Insufficient Funds Warning -->
                 <div id="insufficientWarning" class="insufficient-warning hidden-display">
-                    ⚠️ Insufficient funds! Enable override to proceed.
+                    ⚠️ Insufficient funds! Enable Override Restrictions to proceed.
                 </div>
 
                 <!-- Override Toggle -->
+                <!-- Max/Person: how many of this item the selected people may still buy this quarter -->
+                <div id="limitStatusSpending" class="limit-status display-none"></div>
+
                 <div class="toggle-container toggle-margin-4">
-                    <input type="checkbox" id="overrideToggle">
-                    <label class="toggle-label" for="overrideToggle">Allow Negative</label>
+                    <input type="checkbox" id="restrictionOverrideSpending">
+                    <label class="toggle-label" for="restrictionOverrideSpending">Override Restrictions</label>
                 </div>
 
                 <div class="preview-container">
@@ -262,10 +273,77 @@
                 } else {
                     previewSpending.textContent = '--';
                 }
+                refreshLimitStatus('Income');
+                refreshLimitStatus('Spending');
             } catch (error) {
                 console.error("Error updating preview:", error);
             }
         }
+
+        // ---- Max/Person: "how many are left" for the people selected in the sheet ----
+        const limitRequestInFlight = { Income: false, Spending: false };
+        const LIMIT_STATUS_POLL_MS = 4000;
+        const LIMIT_STATUS_MAX_NAMES = 4;
+
+        /** Asks the server how many purchases of the chosen item each selected person has left this quarter. */
+        function refreshLimitStatus(type) {
+            const isIncome = type === 'Income';
+            const itemSelect = document.getElementById(isIncome ? 'itemSelectIncome' : 'itemSelectSpending');
+            const quarterSelect = document.getElementById(isIncome ? 'quarterSelectIncome' : 'quarterSelectSpending');
+            const statusBox = document.getElementById(isIncome ? 'limitStatusIncome' : 'limitStatusSpending');
+            if (!itemSelect || !quarterSelect || !statusBox) return;
+
+            const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+            const hasCap = selectedOption && selectedOption.value && selectedOption.getAttribute('data-limit');
+            if (!hasCap) {
+                setElementDisplay(statusBox, 'none');
+                return;
+            }
+            if (limitRequestInFlight[type]) return;
+            limitRequestInFlight[type] = true;
+
+            const quantity = +document.getElementById(isIncome ? 'multiplierIncome' : 'multiplierSpending').value || 1;
+            callServer('fetchServiceLimitStatus', JSON.stringify({ itemName: itemSelect.value, quarter: quarterSelect.value }), (report) => {
+                limitRequestInFlight[type] = false;
+                renderLimitStatus(statusBox, report, quantity);
+            }, (error) => {
+                limitRequestInFlight[type] = false;
+                console.error('Could not load the Max/Person status:', error);
+            });
+        }
+
+        /** Draws the "left" line(s) for the selected people, in red when the chosen quantity would go over. */
+        function renderLimitStatus(statusBox, report, quantity) {
+            if (!report || report.error || report.limit === null || report.limit === undefined) {
+                setElementDisplay(statusBox, 'none');
+                return;
+            }
+            if (!report.people || report.people.length === 0) {
+                statusBox.textContent = `Max ${report.limit} per person this quarter. Select a student in the sheet to see how many are left.`;
+                statusBox.classList.remove('limit-status-exhausted');
+                setElementDisplay(statusBox, 'block');
+                return;
+            }
+
+            const sortedPeople = report.people.slice().sort((a, b) => a.remaining - b.remaining);
+            const shownPeople = sortedPeople.slice(0, LIMIT_STATUS_MAX_NAMES);
+            const lines = shownPeople.map(person => `${person.individual}: ${person.remaining} of ${person.limit} left`);
+            if (sortedPeople.length > shownPeople.length) {
+                lines.push(`+${sortedPeople.length - shownPeople.length} more selected`);
+            }
+            if (!report.enforced) {
+                lines.push('(limits are switched off in Settings)');
+            }
+
+            statusBox.textContent = lines.join('\n');
+            statusBox.classList.toggle('limit-status-exhausted', sortedPeople.some(person => quantity > person.remaining));
+            setElementDisplay(statusBox, 'block');
+        }
+
+        setInterval(() => {
+            refreshLimitStatus('Income');
+            refreshLimitStatus('Spending');
+        }, LIMIT_STATUS_POLL_MS);
 
         function normalizeFilterText(value) {
             return String(value ?? '').toLowerCase().trim();
@@ -466,7 +544,9 @@
                     quantity: multiplier || undefined,
                     amount: price * (multiplier > 0 ? multiplier : 1) * (isIncome ? 1 : -1),
                     transactionReason: `$${price} - ${name} (x${multiplier})`,
-                    isNegativeOverride: !isIncome && document.getElementById('overrideToggle').checked
+                    itemName: name,
+                    quarter: document.getElementById(isIncome ? 'quarterSelectIncome' : 'quarterSelectSpending').value,
+                    isRestrictionOverride: document.getElementById(isIncome ? 'restrictionOverrideIncome' : 'restrictionOverrideSpending').checked
                 };
 
                 try {
@@ -477,6 +557,12 @@
 
                     // Forward payload securely to your backend execution router
                     callServer('executeServiceAction', JSON.stringify(payload), (response) => {
+                        // The server answers "true" on success, anything else is the reason it refused (for example a reached cap).
+                        if (typeof response === 'string' && response !== 'true' && !response.startsWith('Mock')) {
+                            alert(response);
+                            return;
+                        }
+                        refreshLimitStatus(type);
                         const balanceElement = document.getElementById('balanceAmount');
                         if (balanceElement) {
                             balanceElement.textContent = `$${response.newBalance}`;
@@ -689,8 +775,8 @@
                     if (!item.pricing || item.pricing[itemQuarter] === undefined || item.pricing[itemQuarter] === null) continue;
 
                     const price = item.pricing[itemQuarter];
-                    const limit = (item.limit && item.limit[itemQuarter]) ? ` | Max: ${item.limit[itemQuarter]}` : '';
-                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}">${item.itemName} ($${price})</option>`;
+                    const limit = (item.limit && item.limit[itemQuarter]) ? ` | Max: ${item.limit[itemQuarter]}/person` : '';
+                    const optionMarkup = `<option value="${item.itemName}" data-price="${price}" data-limit="${item.limit && item.limit[itemQuarter] ? item.limit[itemQuarter] : ''}">${item.itemName} ($${price})${limit}</option>`;
 
                     if (item.category === 'Income' && incomeSelect) {
                         incomeHtml += optionMarkup;

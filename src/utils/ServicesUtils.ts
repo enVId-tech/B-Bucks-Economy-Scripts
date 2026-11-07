@@ -174,17 +174,26 @@ function executeServiceAction(payloadStr: string): string | void {
 
         // Parse the clean JSON string into a JSON object for the util function to process
         const payload = JSON.parse(payloadStr);
-        const { operation, unitPrice, quantity, transactionReason = undefined, isNegativeOverride } = payload;
+        const { operation, unitPrice, quantity, transactionReason = undefined, isRestrictionOverride, itemName, quarter } = payload;
 
         if (!operation || !unitPrice || typeof unitPrice !== 'number' || !quantity || typeof quantity !== 'number') {
             log("Invalid payload. Please provide a valid operation and amount. Received - operation: " + operation + ", unitPrice: " + unitPrice + ", quantity: " + quantity, true);
             return "Invalid payload. Please provide a valid operation and amount.";
         }
 
-        if (isNegativeOverride === true || operation === "ADD" || operation === "MULTIPLY") {
-            log("Operation is additive, multiplicative, or a negative override is enabled.", false);
+        // Max/Person cap: counted from the transaction log, skipped when the admin ticked "Override Restrictions".
+        if (isRestrictionOverride !== true && itemName && quarter) {
+            const limitMessage = checkServiceLimit(String(itemName), quarter as QuarterId, quantity);
+            if (limitMessage) {
+                log(limitMessage, true);
+                return limitMessage;
+            }
+        }
+
+        if (isRestrictionOverride === true || operation === "ADD" || operation === "MULTIPLY") {
+            log("Operation is additive, multiplicative, or 'Override Restrictions' is enabled.", false);
         } else {
-            log("Operation is subtractive and no negative override is enabled. Checking for minimum balance constraints.", false);
+            log("Operation is subtractive and no restriction override is enabled. Checking for minimum balance constraints.", false);
             const personsNegative = new Set<string>();
 
             // Fetch all selected cells in the active sheet, if they have a balance below the minimum required to remove, return a message to the user that they cannot remove more than the minimum balance
@@ -249,8 +258,8 @@ function executeServiceAction(payloadStr: string): string | void {
 
             if (personsNegative.size > 0) {
                 const negativePeople = Array.from(personsNegative).join(" - ");
-                log(`Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${negativePeople}] cannot be processed.`, true);
-                return `Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Negative Override' is enabled. Cells for [${negativePeople}] cannot be processed.`;
+                log(`Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Override Restrictions' is enabled. Cells for [${negativePeople}] cannot be processed.`, true);
+                return `Some selected cells have negative balances or invalid account data. Operation will not proceed unless 'Override Restrictions' is enabled. Cells for [${negativePeople}] cannot be processed.`;
             }
         }
 

@@ -217,7 +217,18 @@
                     </div>
 
                     <h3 id="u-services-negative">Not enough money?</h3>
-                    <p>If an expense would push a student below $0 you will see <strong>"Insufficient funds"</strong> and the change is refused, listing who is short. Tick <strong>Allow Negative</strong> if you want to let it through anyway (a student then owes the bank).</p>
+                    <p>If an expense would push a student below $0 you will see <strong>"Insufficient funds"</strong> and the change is refused, listing who is short. Tick <strong>Override Restrictions</strong> if you want to let it through anyway (a student then owes the bank).</p>
+
+                    <h3 id="u-services-limit">Max per person</h3>
+                    <p>When an item has a number in the <strong>Max/Person</strong> column for the chosen quarter, a green box under the quantity shows how many of that item each selected student has left (the students with the fewest left are listed first). It turns red when the quantity you typed is more than someone has left, and the purchase is refused. <strong>Override Restrictions</strong> lets it through anyway, the same tick box that allows a negative balance.</p>
+                    <ul>
+                        <li>Purchases are counted from the Transactions Records, per student and per quarter, so undoing a purchase gives the allowance back.</li>
+                        <li>The quarter is decided by the date and time of each purchase, using the quarter dates in Settings.</li>
+                        <li>Turn off <strong>enforceServicesLimits</strong> in Settings to show the counts without blocking anything.</li>
+                    </ul>
+
+                    <h3 id="u-services-notes">The note on the Expenditures cell</h3>
+                    <p>Hover the Expenditures cell to see the list of purchases that make up the number. The note is rebuilt from the Transactions Records every time they change, to the second, so it always matches the log and an undone purchase disappears from it. Do not edit the note by hand, the next purchase or undo rebuilds it. If notes ever look off, use <strong>Rebuild Expenditure Notes</strong> in the menu. It rewrites the note of every student that has expenditures in the log and leaves students with nothing in the log untouched.</p>
                 </div>
             </div>
 
