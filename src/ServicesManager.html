@@ -568,6 +568,16 @@
                     isRestrictionOverride: document.getElementById(isIncome ? 'restrictionOverrideIncome' : 'restrictionOverrideSpending').checked
                 };
 
+                // The buttons stay disabled until the server answers. Re-enabling them right after the (asynchronous) call was
+                // sent let a second click charge the student twice.
+                const finishSubmission = () => {
+                    document.getElementById("submitIncomeBtn").disabled = false;
+                    document.getElementById("submitSpendingBtn").disabled = false;
+                    document.getElementById("submitIncomeBtn").classList.remove("disabled");
+                    document.getElementById("submitSpendingBtn").classList.remove("disabled");
+                    setElementDisplay(document.getElementById(isIncome ? 'applyingIndicatorIncome' : 'applyingIndicatorSpending'), 'none');
+                };
+
                 try {
                     document.getElementById("submitIncomeBtn").disabled = true;
                     document.getElementById("submitSpendingBtn").disabled = true;
@@ -576,37 +586,27 @@
 
                     // Forward payload securely to your backend execution router
                     callServer('executeServiceAction', JSON.stringify(payload), (response) => {
-                        // The server answers "true" on success, anything else is the reason it refused (for example a reached cap).
+                        finishSubmission();
+                        // The server answers "true" on success. Anything else is the reason it refused (a reached cap, not
+                        // enough money...), which the server has already shown as a dialog, so it is not repeated here.
                         if (typeof response === 'string' && response !== 'true' && !response.startsWith('Mock')) {
-                            alert(response);
+                            console.warn(`Transaction refused: ${response}`);
+                            refreshLimitStatus(type);
                             return;
                         }
                         refreshLimitStatus(type);
-                        const balanceElement = document.getElementById('balanceAmount');
-                        if (balanceElement) {
-                            balanceElement.textContent = `$${response.newBalance}`;
-                        }
 
                         console.log(`Transaction successful: ${payload.transactionReason}`);
                         loadTransactionData(true); // Refresh the log after a successful transaction
                     }, (error) => {
+                        finishSubmission();
                         console.error("Error executing balance action on server:", error);
                         alert(`Failed to execute transaction: ${error.message || error}`);
                     });
                 } catch (error) {
+                    finishSubmission();
                     console.error("Server execution exception on addBalance path:", error);
                     alert(`Failed to execute transaction: ${error.message}`);
-                } finally {
-                    document.getElementById("submitIncomeBtn").disabled = false;
-                    document.getElementById("submitSpendingBtn").disabled = false;
-                    document.getElementById("submitIncomeBtn").classList.remove("disabled");
-                    document.getElementById("submitSpendingBtn").classList.remove("disabled");
-
-                    if (isIncome) {
-                        setElementDisplay(document.getElementById('applyingIndicatorIncome'), 'none'); // Hide applying indicator
-                    } else {
-                        setElementDisplay(document.getElementById('applyingIndicatorSpending'), 'none'); // Hide applying indicator
-                    }
                 }
             } catch (error) {
                 console.error("Unexpected parsing error in addBalance closure logic:", error);
