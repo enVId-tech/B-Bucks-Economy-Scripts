@@ -285,20 +285,7 @@ function applyMathToSelection(
 
       // Re-read each record's balance by its exact sheet period and row.
       if (transactionRecords.length > 0) {
-        transactionRecords.forEach(record => {
-          const recordSheet = getAllSheets().find(sheet =>
-            parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
-          );
-          const recordRow = Number(record.row);
-
-          if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
-            const updatedBalance = Number(recordSheet.getRange(recordRow, getBalanceColumn()).getValue());
-            if (Number.isFinite(updatedBalance)) {
-              record.newBalance = Number(updatedBalance.toFixed(2));
-            }
-          }
-        });
-
+        fillNewBalances(transactionRecords);
         addTransactionRecords(transactionRecords);
       }
 
@@ -395,19 +382,7 @@ function applyMathToSelection(
         SpreadsheetApp.flush();
 
         if (transactionRecords.length > 0) {
-          transactionRecords.forEach(record => {
-            const recordSheet = getAllSheets().find(sheet =>
-              parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
-            );
-            const recordRow = Number(record.row);
-
-            if (recordSheet && Number.isInteger(recordRow) && recordRow > 0) {
-              const updatedBalance = Number(recordSheet.getRange(recordRow, getBalanceColumn()).getValue());
-              if (Number.isFinite(updatedBalance)) {
-                record.newBalance = Number(updatedBalance.toFixed(2));
-              }
-            }
-          });
+          fillNewBalances(transactionRecords);
           addTransactionRecords(transactionRecords);
         }
 
@@ -424,4 +399,35 @@ function applyMathToSelection(
     log(`Error occurred in applyMathToSelection: ${error.message}`, true);
     return error.message;
   }
+}
+
+/**
+ * Reads the balance after a change for every record, with one read of the balance column per period sheet
+ * (previously one read per student).
+ */
+function fillNewBalances(records: TransactionRecord[]): void {
+  const rowsByPeriod = new Map<number, number[]>();
+  records.forEach(record => {
+    const recordRow = Number(record.row);
+    if (!Number.isInteger(recordRow) || recordRow <= 0) return;
+    const periodRows = rowsByPeriod.get(Number(record.period)) ?? [];
+    periodRows.push(recordRow);
+    rowsByPeriod.set(Number(record.period), periodRows);
+  });
+
+  const balanceByCell = new Map<string, number>();
+  rowsByPeriod.forEach((periodRows, period) => {
+    const recordSheet = getAllSheets().find(sheet => parseInt(sheet.getName().replace(/\D/g, ""), 10) === period);
+    if (!recordSheet) return;
+    const firstRow = Math.min(...periodRows);
+    const balances = recordSheet.getRange(firstRow, getBalanceColumn(), Math.max(...periodRows) - firstRow + 1, 1).getValues();
+    periodRows.forEach(row => balanceByCell.set(`${period}|${row}`, Number(balances[row - firstRow][0])));
+  });
+
+  records.forEach(record => {
+    const updatedBalance = balanceByCell.get(`${Number(record.period)}|${Number(record.row)}`);
+    if (updatedBalance !== undefined && Number.isFinite(updatedBalance)) {
+      record.newBalance = Number(updatedBalance.toFixed(2));
+    }
+  });
 }
