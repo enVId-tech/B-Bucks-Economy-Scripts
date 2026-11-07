@@ -171,6 +171,12 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
  * @returns The result of the operation or an error message.
  */
 function executeServiceAction(payloadStr: string): string | void {
+    // Money moves only while holding the transaction lock, see LockUtils.ts
+    return runWithTransactionLock(() => executeServiceActionInsideLock_(payloadStr), "Another transaction is still running. Nothing was changed, please try again.");
+}
+
+/** Body of executeServiceAction(). Only call it through executeServiceAction(), which holds the transaction lock. */
+function executeServiceActionInsideLock_(payloadStr: string): string | void {
     try {
         // Check if a string payload was provided
         if (!payloadStr) {

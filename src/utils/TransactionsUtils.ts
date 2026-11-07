@@ -45,6 +45,12 @@ interface TransactionRecord {
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
 function addTransactionRecords(records: TransactionRecord[]): boolean {
+  // Money moves only while holding the transaction lock, see LockUtils.ts
+  return runWithTransactionLock(() => addTransactionRecordsInsideLock_(records), false);
+}
+
+/** Body of addTransactionRecords(). Only call it through addTransactionRecords(), which holds the transaction lock. */
+function addTransactionRecordsInsideLock_(records: TransactionRecord[]): boolean {
   try {
     const spreadsheet = getSS();
     const sheet = getSheetNamed(getTransactionsSheetName());
@@ -141,6 +147,12 @@ function addTransactionRecords(records: TransactionRecord[]): boolean {
 }
 
 function undoTransactions(data?: string): boolean {
+  // Money moves only while holding the transaction lock, see LockUtils.ts
+  return runWithTransactionLock(() => undoTransactionsInsideLock_(data), false);
+}
+
+/** Body of undoTransactions(). Only call it through undoTransactions(), which holds the transaction lock. */
+function undoTransactionsInsideLock_(data?: string): boolean {
   try {
     if (!data || typeof data !== 'string') {
       log("No data provided for undoTransaction. Operation aborted.", true);
@@ -322,6 +334,12 @@ function findRecordsNoLongerInEffect(ids: number[]): number[] {
 }
 
 function resetAllTransactionRecords(): boolean {
+  // Money moves only while holding the transaction lock, see LockUtils.ts
+  return runWithTransactionLock(() => resetAllTransactionRecordsInsideLock_(), false);
+}
+
+/** Body of resetAllTransactionRecords(). Only call it through resetAllTransactionRecords(), which holds the transaction lock. */
+function resetAllTransactionRecordsInsideLock_(): boolean {
   try {
     const spreadsheet = getSS();
     const sheet = getSheetNamed(getTransactionsSheetName());

@@ -445,6 +445,12 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
  * @returns A boolean indicating whether the operation was successful.
  */
 function handleDeposit(data: string): boolean {
+    // Money moves only while holding the transaction lock, see LockUtils.ts
+    return runWithTransactionLock(() => handleDepositInsideLock_(data), false);
+}
+
+/** Body of handleDeposit(). Only call it through handleDeposit(), which holds the transaction lock. */
+function handleDepositInsideLock_(data: string): boolean {
     try {
         const parsedData = JSON.parse(data);
         const { amount, student, period, override } = parsedData;
@@ -596,6 +602,12 @@ function handleDeposit(data: string): boolean {
  * @returns A boolean indicating whether the withdrawal was successful.
  */
 function handleWithdraw(data: string): boolean {
+    // Money moves only while holding the transaction lock, see LockUtils.ts
+    return runWithTransactionLock(() => handleWithdrawInsideLock_(data), false);
+}
+
+/** Body of handleWithdraw(). Only call it through handleWithdraw(), which holds the transaction lock. */
+function handleWithdrawInsideLock_(data: string): boolean {
     try {
         const withdrawData = JSON.parse(data);
         const { amount, student, period, override } = withdrawData;;

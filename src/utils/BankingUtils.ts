@@ -33,6 +33,12 @@ function transactionTypeForChange(operation: Operation, column: number): Transac
  * @returns The result of the operation or an error message.
  */
 function executeBalanceAction(payloadStr: string): string | void {
+  // Money moves only while holding the transaction lock, see LockUtils.ts
+  return runWithTransactionLock(() => executeBalanceActionInsideLock_(payloadStr), "Another transaction is still running. Nothing was changed, please try again.");
+}
+
+/** Body of executeBalanceAction(). Only call it through executeBalanceAction(), which holds the transaction lock. */
+function executeBalanceActionInsideLock_(payloadStr: string): string | void {
   try {
     // Check if a string payload was provided
     if (!payloadStr) {
