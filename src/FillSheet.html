@@ -178,27 +178,88 @@
     // --- Code to process CSV data in the browser for previewing before import ---
 
     /**
-     * Parses CSV data into an array of objects.
-     * @param csvData The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
-     * @returns {CSVData[]} An array of objects, each containing an identifier and an array of associated individuals.
+     * Splits one CSV line into its fields, honouring double quotes so a quoted "Last, First" name stays one field.
+     * @param line A single line of the roster file.
+     * @returns {string[]} The trimmed fields of the line.
+     */
+    function splitCsvLine(line) {
+      const fields = [];
+      let current = '';
+      let insideQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const character = line[i];
+        if (character === '"') {
+          if (insideQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+        } else if (character === ',' && !insideQuotes) {
+          fields.push(current.trim());
+          current = '';
+        } else {
+          current += character;
+        }
+      }
+
+      fields.push(current.trim());
+      return fields;
+    }
+
+    /**
+     * Parses a roster export into one entry per period. Three layouts are understood, and they can be mixed in one file:
+     * 1. Gradebook roster: a "1 - Course - Term" line, then rows like: 1,studentId,"Last, First",grade
+     * 2. Attendance class roster: a "Period,Course Title,..." column line, a data line starting with the period number, then rows like: 01,studentId,@,"Last, First",grade,...
+     * 3. Short attendance class roster: the same, but the column line is only "Period,Teacher,Year".
+     * Sections that repeat (page breaks, Fall and Spring terms, several courses in one period) are merged into a single period, and a student listed more than once in a period is kept once.
+     * @param csvData The raw roster file as a string.
+     * @returns {CSVData[]} An array of objects, each containing a period identifier and the sorted names of its students.
      */
     function parseCsvData(csvData) {
       try {
         if (!csvData) return [];
 
-        // Split once, but don't mutate the array elements in place
-        const rows = csvData.split('\n');
+        const rows = csvData.replace(/^﻿/, '').split(/\r?\n/);
         const data = [];
-        // Initialize the first block container
+        const sheetsByIdentifier = {};
+        const seenStudentIds = {};
         let currentSheet = null;
+        let periodColumnIndex = -1;
 
         const headerStrContains = " - ";
+        const studentIdPattern = /^\d{5,}$/;
+
+        const startSheet = (identifier) => {
+          if (!sheetsByIdentifier[identifier]) {
+            sheetsByIdentifier[identifier] = { identifier: identifier, individuals: [] };
+            seenStudentIds[identifier] = {};
+            data.push(sheetsByIdentifier[identifier]);
+          }
+          currentSheet = sheetsByIdentifier[identifier];
+        };
 
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i].trim();
           if (!row) continue;
 
-          // Check for Identifier Row (e.g., "1 - Header Group")
+          // Attendance class roster: the column line names where the period number sits in the line that follows it
+          if (/^period\s*,/i.test(row)) {
+            periodColumnIndex = splitCsvLine(row).findIndex(field => field.toLowerCase() === 'period');
+            continue;
+          }
+
+          if (periodColumnIndex >= 0) {
+            const sectionIdentifier = parseInt(splitCsvLine(row)[periodColumnIndex], 10);
+            periodColumnIndex = -1;
+            if (!isNaN(sectionIdentifier)) {
+              startSheet(sectionIdentifier);
+              continue;
+            }
+          }
+
+          // Gradebook roster: check for Identifier Row (e.g., "1 - Header Group")
           if (row.includes(headerStrContains)) {
             let cleanRow = row;
             if (row.includes(']')) {
@@ -209,14 +270,7 @@
             const identifier = parseInt(identifierPart, 10);
 
             if (!isNaN(identifier)) {
-              if (currentSheet) {
-                data.push(currentSheet);
-              }
-
-              currentSheet = {
-                identifier: identifier,
-                individuals: []
-              };
+              startSheet(identifier);
               continue;
             }
           }
@@ -229,14 +283,16 @@
             const partsByQuotes = row.split('"');
             if (partsByQuotes.length >= 3) {
               const name = partsByQuotes[1].trim();
+              const studentId = splitCsvLine(row).find(field => studentIdPattern.test(field));
+
+              if (studentId) {
+                if (seenStudentIds[currentSheet.identifier][studentId]) continue;
+                seenStudentIds[currentSheet.identifier][studentId] = true;
+              }
+
               currentSheet.individuals.push(name);
             }
           }
-        }
-
-        // Push the final sheet if it exists
-        if (currentSheet) {
-          data.push(currentSheet);
         }
 
         // Sort the individuals inside each group
