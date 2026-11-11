@@ -231,7 +231,9 @@
     .notice-warn { background: var(--portal-warn-soft); color: var(--portal-warn); }
     .notice-good { background: var(--portal-good-soft); color: var(--portal-good); }
     .notice-bad { background: var(--portal-bad-soft); color: var(--portal-bad); }
-    .spectate-banner { background: var(--portal-warn-soft); color: var(--portal-warn); padding: 10px 20px; text-align: center; font-weight: 600; }
+    .spectate-banner { position: sticky; top: 57px; z-index: 9; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; background: var(--portal-warn); color: #fff; padding: 9px 20px; text-align: center; font-weight: 600; font-size: 14px; }
+    .banner-button { border: 0; border-radius: 999px; padding: 5px 16px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; background: rgba(255, 255, 255, 0.95); color: var(--portal-warn); }
+    .banner-button:hover { background: #fff; }
 
     /* ---------- shop ---------- */
     .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
