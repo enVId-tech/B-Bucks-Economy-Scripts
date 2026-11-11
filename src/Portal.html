@@ -757,7 +757,8 @@
 
       const projection = buildProjection(principal, weeks, rate, taxRate, isCurrentCod ? 0 : 1);
       const currentWeek = isCurrentCod ? predictor.codWeekNow : null;
-      const depositIso = isCurrentCod ? predictor.codDepositDate : null;
+      // Current CoD counts from its deposit date; the other modes start fresh today.
+      const depositIso = isCurrentCod ? predictor.codDepositDate : new Date().toISOString();
       const nowEntry = isCurrentCod ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
       labelElement.textContent = 'Value after tax at week ' + weeks + ' (principal ' + money(principal) + ')';
       valueElement.textContent = money(projection.finalNet);
