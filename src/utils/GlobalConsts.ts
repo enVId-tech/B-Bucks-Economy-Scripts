@@ -176,3 +176,9 @@ const TIMESTAMP_LIST: string[] = [
 ];
 
 const DEFAULT_TIMESTAMP_CELL: string = "A5"; // default for "timestampCell" (Settings sheet value wins, read it with getTimestampCell())
+
+// -- Student Portal (see utils/PortalUtils.ts) ---
+const PORTAL_ACCOUNTS_SHEET: string = "Portal Accounts"; // Email, Period, Name. Created on demand; an email listed here always wins over name matching
+const PORTAL_REQUESTS_SHEET: string = "Expenditure Requests"; // one row per student request, created on demand
+const PORTAL_DOMAIN_PROPERTY: string = "PORTAL_ALLOWED_DOMAIN"; // Script Property holding the allowed email domain. Never hard-code the domain in source
+const PORTAL_RECENT_TRANSACTIONS: number = 15; // how many recent log entries a student sees
