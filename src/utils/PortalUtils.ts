@@ -541,6 +541,7 @@ function portalGetDashboard(data: string): any {
             .map((entry, index) => ({ rank: index + 1, displayName: abbreviateStudentName_(entry.name), total: entry.total, isYou: entry.name === name }));
 
         const weeklyInterestRate = Number(fetchProperty("weeklyInterestRate", "standardPercentages"));
+        const withdrawalTaxRate = Number(fetchProperty("investmentWithdrawalTaxRate", "standardPercentages"));
 
         return {
             viewingAsAdmin: !isOwnProfile,
@@ -563,6 +564,7 @@ function portalGetDashboard(data: string): any {
             },
             predictor: {
                 weeklyInterestRate: Number.isFinite(weeklyInterestRate) ? weeklyInterestRate : null,
+                withdrawalTaxRate: Number.isFinite(withdrawalTaxRate) ? withdrawalTaxRate : null,
                 weeksRemaining: weeksUntilInvestingEnds_(),
                 currentCodAmount: Number((student.balance + student.netGain).toFixed(2))
             },
