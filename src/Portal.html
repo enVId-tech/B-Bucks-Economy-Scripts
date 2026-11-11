@@ -538,6 +538,31 @@
         ]));
       });
       panel.appendChild(requestsCard);
+
+      // Purchases stay undoable until their row is deleted from the transaction log.
+      const purchasesCard = h('div', 'card', null, [h('h2', '', 'Your purchases')]);
+      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'You can undo a purchase to get your money back, for as long as it is on the record.'));
+      const purchases = dashboard.purchases || [];
+      if (purchases.length === 0) purchasesCard.appendChild(emptyState('No purchases that can be undone.'));
+      purchases.forEach(purchase => {
+        const undoButton = h('button', 'button button-secondary', 'Undo');
+        let confirming = false;
+        undoButton.onclick = () => {
+          // Browser pop-ups are blocked inside the web app frame, so the confirmation is a second click on the same button.
+          if (!confirming) {
+            confirming = true;
+            undoButton.textContent = 'Tap again to undo';
+            setTimeout(() => { confirming = false; undoButton.textContent = 'Undo'; }, 4000);
+            return;
+          }
+          runAction('portalUndoPurchase', { name: student.name, period: student.period, transactionId: purchase.id }, undoButton);
+        };
+        purchasesCard.appendChild(h('div', 'list-row', null, [
+          h('div', '', null, [h('div', 'row-title', purchase.description), h('div', 'row-sub', formatDate(purchase.timestamp))]),
+          h('div', 'row-actions', null, [h('div', 'amount-minus', '-' + money(purchase.amount).replace('-', '')), undoButton])
+        ]));
+      });
+      panel.appendChild(purchasesCard);
     }
 
     // ------------------------------------------------------------------ leaderboard
