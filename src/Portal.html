@@ -83,6 +83,16 @@
       return (value < 0 ? '-$' : '$') + formatted;
     }
 
+    // Very large amounts (a typo, or a curious student) get a short spoken-style form such as "$7.28 sextillion".
+    const MONEY_SCALE_NAMES = ['million', 'billion', 'trillion', 'quadrillion', 'quintillion', 'sextillion', 'septillion', 'octillion', 'nonillion', 'decillion'];
+    function shortMoney(amount) {
+      const value = Math.abs(Number(amount) || 0);
+      if (value < 1e9) return '';
+      const scaleIndex = Math.floor(Math.log10(value) / 3) - 2;
+      if (scaleIndex >= MONEY_SCALE_NAMES.length) return '$' + value.toExponential(2).replace('e+', ' x 10^');
+      return '$' + (value / Math.pow(1000, scaleIndex + 2)).toFixed(2) + ' ' + MONEY_SCALE_NAMES[scaleIndex];
+    }
+
     function formatDate(isoText) {
       if (!isoText) return '';
       const date = new Date(isoText);
@@ -453,19 +463,19 @@
       const projection = buildProjection(principal, weeks, rate);
       labelElement.textContent = 'Value at week ' + weeks + ' (principal ' + money(principal) + ')';
       valueElement.textContent = money(projection.finalValue);
+      const shortForm = shortMoney(projection.finalValue);
+      if (shortForm) valueElement.appendChild(h('div', 'result-short', 'About ' + shortForm));
+      valueElement.classList.toggle('result-value-long', money(projection.finalValue).length > 14);
 
       if (weeks === 0) {
         breakdownContainer.appendChild(emptyState('Investing has ended for this period, so there is nothing left to project.'));
         return;
       }
-      const topValue = projection.finalValue;
+      breakdownContainer.appendChild(h('div', 'week-row week-head', null, [h('span', '', 'Week'), h('span', '', 'Earned so far'), h('span', '', 'Total value')]));
       projection.breakdown.forEach(entry => {
-        const bar = h('progress', 'mini-bar');
-        bar.max = topValue;
-        bar.value = entry.value;
         breakdownContainer.appendChild(h('div', 'week-row', null, [
           h('span', 'week-name', 'Week ' + entry.week),
-          bar,
+          h('span', 'week-earned', '+' + money(entry.value - principal)),
           h('span', 'week-value', money(entry.value))
         ]));
       });
