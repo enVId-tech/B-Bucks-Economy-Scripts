@@ -26,6 +26,9 @@ function onOpen(): void {
     .addItem('Banking Settings', 'openBankingSettings')
     .addItem('Rebuild Expenditure Notes', 'rebuildExpenditureNotesFromMenu')
     .addSeparator()
+    .addItem('Set Portal Domain', 'configurePortalDomain')
+    .addItem('Create Portal Tabs', 'createPortalSheets')
+    .addSeparator()
     .addItem('Documentation & Attribution', 'openDocumentation')
     .addToUi();
 }
