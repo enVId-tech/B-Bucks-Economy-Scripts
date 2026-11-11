@@ -138,6 +138,7 @@ function checkPortalRate_(email: string, kind: "action" | "read"): string | null
 
 /** Menu item: asks for the email domain students must sign in with and stores it as a Script Property. */
 function configurePortalDomain(): void {
+    requireEditor_();
     const ui = SpreadsheetApp.getUi();
     const currentDomain = getPortalAllowedDomain();
     const answer = ui.prompt(
@@ -161,6 +162,7 @@ function configurePortalDomain(): void {
 
 /** Menu item: creates the "Portal Accounts" and "Expenditure Requests" tabs (with headers) when they do not exist yet. */
 function createPortalSheets(): void {
+    requireEditor_();
     ensurePortalSheet_(PORTAL_ACCOUNTS_SHEET, PORTAL_ACCOUNT_HEADERS);
     ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
     SpreadsheetApp.getActive().toast("Portal tabs are ready.", "Student portal", 5);
@@ -393,7 +395,7 @@ function failure_(message: string): PortalActionResult {
  * First call of the page: who is this, and which student accounts can they open?
  * Admins also get the list of every student so they can spectate.
  */
-function portalBootstrap(): any {
+function portalBootstrapEntry_(): any {
     try {
         const identity = resolvePortalIdentity_();
         const response: any = { status: identity.status, email: identity.email, isAdmin: identity.isAdmin, signInUrl: identity.status === "ok" ? "" : buildPortalSignInUrl_(), profiles: [], experimental: PORTAL_EXPERIMENTAL };
@@ -554,7 +556,7 @@ function investingWindowMessage_(): string | null {
  * Everything the dashboard shows for one student.
  * @param data JSON string: { name: string, period: string }. Students may only ask for their own profile, admins for any.
  */
-function portalGetDashboard(data: string): any {
+function portalGetDashboardEntry_(data: string): any {
     try {
         const request = JSON.parse(data);
         const name = String(request.name ?? "");
@@ -667,7 +669,7 @@ function withFreshDashboard_(result: PortalActionResult, data: string): PortalAc
  * the log is: columns A to C of the whole log (to find the student's rows), then one block covering the student's first to last row.
  * @param data JSON string: { name, period }
  */
-function portalGetTransactions(data: string): any {
+function portalGetTransactionsEntry_(data: string): any {
     try {
         const request = JSON.parse(data);
         const name = String(request.name ?? "");
@@ -779,7 +781,7 @@ function findPortalStudent_(name: string, period: string): PortalStudentRow | nu
  * Invests cash into the student's CoD. The same handler as the admin dialog runs, always WITHOUT the admin override.
  * @param data JSON string: { name, period, amount }
  */
-function portalDeposit(data: string): PortalActionResult {
+function portalDepositEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalDepositCore_(data), data);
 }
 
@@ -813,7 +815,7 @@ function portalDepositCore_(data: string): PortalActionResult {
  * Takes the CoD out once the withdrawal lockout is over. The lockout is only checked in the admin dialog's page code, so it is enforced here.
  * @param data JSON string: { name, period }
  */
-function portalWithdraw(data: string): PortalActionResult {
+function portalWithdrawEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalWithdrawCore_(data), data);
 }
 
@@ -889,7 +891,7 @@ function findPortalRequestRow_(requestId: number): number {
  * A student asks to buy something. Nothing is charged until an admin approves it.
  * @param data JSON string: { name, period, itemName, quantity }
  */
-function portalRequestExpenditure(data: string): PortalActionResult {
+function portalRequestExpenditureEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(runWithTransactionLock(() => portalRequestExpenditureInsideLock_(data), failure_("The bank is busy right now. Please try again in a moment.")), data);
 }
 
@@ -933,7 +935,7 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
  * A student takes back a request that is still pending.
  * @param data JSON string: { name, period, id }
  */
-function portalCancelRequest(data: string): PortalActionResult {
+function portalCancelRequestEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalCancelRequestCore_(data), data);
 }
 
@@ -968,7 +970,7 @@ function portalCancelRequestCore_(data: string): PortalActionResult {
 // ---------------------------------------------------------------------------------------------------------------------------
 
 /** All requests, pending first. Admins only. */
-function portalAdminListRequests(): any {
+function portalAdminListRequestsEntry_(): any {
     try {
         const identity = resolvePortalIdentity_();
         if (identity.status !== "ok" || !identity.isAdmin) return { error: "Admins only." };
@@ -989,7 +991,7 @@ function portalAdminListRequests(): any {
  * to the Expenditure Requests tab, so the sheet itself shows what is done.
  * @param data JSON string: { id: number, note?: string }
  */
-function portalAdminCompleteRequest(data: string): PortalActionResult {
+function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
     return runWithTransactionLock(() => {
         try {
             const identity = resolvePortalIdentity_();
@@ -1027,7 +1029,7 @@ function portalAdminCompleteRequest(data: string): PortalActionResult {
  * so the purchase is logged, counted against the caps and can be undone like any other.
  * @param data JSON string: { id: number, approve: boolean, note?: string }
  */
-function portalAdminResolveRequest(data: string): PortalActionResult {
+function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
     return runWithTransactionLock(() => {
         try {
             const identity = resolvePortalIdentity_();
@@ -1084,3 +1086,19 @@ function portalAdminResolveRequest(data: string): PortalActionResult {
         }
     }, failure_("The bank is busy right now. Please try again in a moment."));
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Public entry points. Each one checks the caller itself, so the code below runs trusted (see utils/AccessGuard.ts): a student has to be
+// able to invest or request through the admin handlers without being a spreadsheet editor.
+// ---------------------------------------------------------------------------------------------------------------------------
+
+function portalBootstrap(): any { return runTrusted_(() => portalBootstrapEntry_()); }
+function portalGetDashboard(data: string): any { return runTrusted_(() => portalGetDashboardEntry_(data)); }
+function portalGetTransactions(data: string): any { return runTrusted_(() => portalGetTransactionsEntry_(data)); }
+function portalDeposit(data: string): PortalActionResult { return runTrusted_(() => portalDepositEntry_(data)); }
+function portalWithdraw(data: string): PortalActionResult { return runTrusted_(() => portalWithdrawEntry_(data)); }
+function portalRequestExpenditure(data: string): PortalActionResult { return runTrusted_(() => portalRequestExpenditureEntry_(data)); }
+function portalCancelRequest(data: string): PortalActionResult { return runTrusted_(() => portalCancelRequestEntry_(data)); }
+function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
+function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+function portalAdminResolveRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminResolveRequestEntry_(data)); }
