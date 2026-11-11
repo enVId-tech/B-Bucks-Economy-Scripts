@@ -20,11 +20,45 @@
  *    still lands in the log, takes the transaction lock and respects the same caps as the admin dialogs.
  */
 
+/*
+ * ================================ MAP OF THIS FILE (read this first) ================================
+ *
+ * Sections, top to bottom, and what to look for in each:
+ *   1. Types and constants ........ the shapes of the data (identity, profile, student row, request) and the Expenditure Requests columns.
+ *   2. Web app entry and setup .... doGet (serves the page), checkPortalRate_ (flood limit), the two setup menu actions.
+ *   3. Identity ................... getPortalAdminEmails_ and resolvePortalIdentity_: WHO is calling and whether they are an admin.
+ *   4. Rosters and profile linking  getPortalRosterIndex_ (cached roster), findPortalProfiles_: WHICH student account an email may open.
+ *   5. Reading data for the page .. portalBootstrap, buildPortalDashboard_ (the dashboard), portalGetTransactions (the history).
+ *   6. Student actions ............ authorizeProfileAction_, then portalDeposit / portalWithdraw / portalRequestExpenditure / portalCancelRequest.
+ *   7. Admin actions .............. list, approve or deny, mark completed.
+ *   8. Public entry points ........ the bottom of the file: the only functions the browser calls, each wrapped in runTrusted_.
+ *
+ * Life of ONE click, so you know where to look when something breaks:
+ *   page button -> Portal.html runAction -> portalCall (queue) -> google.script.run.<portalX>  [the 8. wrapper, runs trusted]
+ *   -> portalXEntry_ -> portalXCore_: (a) authorizeProfileAction_ decides if this caller may act on this student,
+ *      (b) the amount / quantity is validated, (c) the SAME handler the admin dialogs use does the work (handleDeposit, applyMathToSelection...),
+ *      (d) the result {ok, message, dashboard} goes back and the page redraws from it.
+ *
+ * Naming conventions used in this file:
+ *   - A trailing underscore (name_) means "private": Apps Script does not let a web page call it. Everything with an underscore is internal.
+ *   - Entry_ / Core_ suffixes: Entry_ adds the fresh dashboard to the answer, Core_ does the real work and returns {ok, message}.
+ *   - "profile" = one student account (name + period). "identity" = who is signed in. "admin" = a spreadsheet editor.
+ * =====================================================================================================
+ */
+
 /** Messages that log(..., true) would normally show as a spreadsheet alert. While a portal request runs they are collected here. */
 let portalCapturedMessages: string[] | null = null;
 
+/**
+ * How far a visitor got:
+ *  - "signin":        Google gave us no email (not signed in, or an account outside the owner's domain). The page shows the sign-in help.
+ *  - "wrongDomain":   signed in, but the email is not in the allowed domain and the person is not an admin.
+ *  - "notConfigured": no allowed domain has been set yet (Banking Settings > Set Portal Domain), so only admins may enter.
+ *  - "ok":             allowed in.
+ */
 type PortalStatus = "ok" | "signin" | "wrongDomain" | "notConfigured";
 
+/** The answer to "who is calling?". Built only by resolvePortalIdentity_ from Google's own session, never from anything the browser sends. */
 interface PortalIdentity {
     status: PortalStatus;
     email: string;
@@ -37,16 +71,28 @@ interface PortalProfile {
     period: string;
 }
 
+/**
+ * One student's row of a period sheet, read by readPortalPeriod_. The column positions come from Settings (getBalanceColumn() etc.),
+ * so moving a column in the sheet only needs the setting changed, not this code.
+ */
 interface PortalStudentRow {
+    /** Exactly as written in the names column ("Last, First"). Names are how a student is looked up, so they must be unique on a period. */
     name: string;
     /** From the hidden ID column. Used only to match a sign-in email, never sent to the browser. */
     studentId: string;
+    /** 1-based row number on the period sheet (what getRange wants). */
     row: number;
+    /** Spendable cash. */
     balance: number;
+    /** Total spent so far (the Expenditures column). */
     expenditures: number;
+    /** The amount first put into the CoD. The investment maths and the Current CoD predictor both start from this, never from the grown value. */
     initialDeposit: number;
+    /** When the CoD was opened; null when there is none. Weeks of growth are counted from this date. */
     depositDate: Date | null;
+    /** CoD value with interest, before the withdrawal tax. */
     grossGain: number;
+    /** CoD value with interest, after the withdrawal tax: what a withdrawal would pay out right now. */
     netGain: number;
     netPercentageGain: number;
 }
@@ -81,10 +127,15 @@ interface PortalRequestRecord {
     completedAt: string;
 }
 
+/** Header row of the "Expenditure Requests" tab. The ORDER is the column order: readPortalRequests_ and every write read columns by position, so never reorder, only append. */
 const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Student", "Period", "Item", "Quarter", "Unit Price", "Quantity", "Total", "Status", "Resolved By", "Resolved At", "Note", "Student Note", "Completed By", "Completed At"];
+/** Header row of the optional "Portal Accounts" tab (an email -> student override). */
 const PORTAL_ACCOUNT_HEADERS: string[] = ["Email", "Period", "Name"];
+/** Script-cache key holding the list of admin emails (10 minutes). */
 const PORTAL_ADMIN_CACHE_KEY: string = "portalAdminEmails";
+/** Most units one request may ask for (the page enforces it too, but the server decides). */
 const PORTAL_MAX_REQUEST_QUANTITY: number = 50;
+/** Longest note (characters) a student can attach to a request; longer text is cut. Keep equal to MAX_STUDENT_NOTE_LENGTH in Portal.html. */
 const PORTAL_MAX_STUDENT_NOTE_LENGTH: number = 1000;
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -212,7 +263,16 @@ function getPortalAdminEmails_(): string[] {
     return emailList;
 }
 
-/** Works out who is calling from Google's own session, never from browser input. */
+/**
+ * Works out who is calling from Google's own session, never from browser input.
+ *
+ * Decision order (the first rule that matches wins):
+ *  1. No email visible            -> "signin"        (not signed in, or an account outside the owner's Workspace domain)
+ *  2. No allowed domain configured -> "ok" for admins, "notConfigured" for everybody else
+ *  3. Email not in the allowed domain and not an admin -> "wrongDomain"
+ *  4. Otherwise                   -> "ok"
+ * Admins skip the domain check on purpose: a teacher may use a personal address and must still reach the Admin tab.
+ */
 function resolvePortalIdentity_(): PortalIdentity {
     const email = (Session.getActiveUser().getEmail() || "").trim().toLowerCase();
     if (!email) return { status: "signin", email: "", isAdmin: false };
@@ -248,6 +308,7 @@ function getPortalPeriodSheets_(): GoogleAppsScript.Spreadsheet.Sheet[] {
     return getAllSheets().filter(sheet => sheet.getName().includes("Period"));
 }
 
+/** Turns a spreadsheet cell into a number; blanks, text and errors become 0 instead of NaN so one bad cell cannot break a whole dashboard. */
 function toNumber_(rawValue: any): number {
     const parsedNumber = Number(rawValue);
     return Number.isFinite(parsedNumber) ? parsedNumber : 0;
@@ -383,6 +444,7 @@ function runCapturingMessages_<T>(work: () => T): { result: T; messages: string[
     }
 }
 
+/** The shape of a refused or failed action: the page shows `message` in a red notice and changes nothing. */
 function failure_(message: string): PortalActionResult {
     return { ok: false, message };
 }
@@ -523,6 +585,7 @@ function getPortalQuarter_(): QuarterId {
     return 'error' in quarterInfo ? "Q1" : quarterInfo.quarter;
 }
 
+/** Whole weeks left until the investing end date in Settings (rounded down, never below 0; 0 also when no date is set). Used to know how far the predictors may project. */
 function weeksUntilInvestingEnds_(): number {
     const endInvestingDate = fetchProperty("endInvestingDate", "importantDates");
     if (!endInvestingDate || typeof endInvestingDate === "object") return 0;
@@ -579,32 +642,41 @@ let portalRequestsMemo: PortalRequestRecord[] | null = null;
 
 /** Builds the dashboard for a caller who is already signed in and rate-checked. */
 function buildPortalDashboard_(identity: PortalIdentity, profiles: PortalProfile[], name: string, period: string): any {
+    // STEPS: 1) read the requests tab once  2) is the caller allowed to see this student?  3) read the period sheet once  4) work out the CoD
+    // facts (lockout, week)  5) rank the class  6) assemble the answer. Any failure returns { error } and the page shows it on a card.
     portalRequestsMemo = null;
     try {
+        // 1) One read of the Expenditure Requests tab, reused by the caps check in buildPortalCatalog_ and by the request list below.
         portalRequestsMemo = readPortalRequests_();
+        // 2) A student may only see a profile linked to their email; an admin may see any (that is "acting in the student's account").
         const isOwnProfile = ownsPortalProfile_(profiles, name, period);
         if (!isOwnProfile && !identity.isAdmin) return { error: "That account is not linked to your email." };
 
+        // 3) One read of the whole period sheet: it gives this student AND every classmate (for the leaderboard).
         const periodSheet = getSheetNamed(period);
         if (!periodSheet) return { error: `Period "${period}" was not found.` };
         const classmates = readPortalPeriod_(periodSheet);
         const student = classmates.find(candidate => candidate.name === name);
         if (!student) return { error: `${name} was not found on ${period}.` };
 
+        // 4) CoD facts. "Has a CoD" means money was deposited OR there is still a gain on the sheet.
         const quarter = getPortalQuarter_();
         const lockoutDaysLeft = student.netGain !== 0 || student.initialDeposit > 0 ? daysLeftInLockout_(student) : 0;
         const hasActiveCod = student.initialDeposit > 0 || student.netGain !== 0;
         const investingMessage = investingWindowMessage_();
 
+        // 5) Leaderboard: balance plus any positive CoD gain, highest first. Only abbreviated names ("Jane D.") ever leave the server.
         const leaderboard = classmates
             .map(classmate => ({ name: classmate.name, total: Number((classmate.balance + (classmate.netGain > 0 ? classmate.netGain : 0)).toFixed(2)) }))
             .sort((first, second) => second.total - first.total)
             .map((entry, index) => ({ rank: index + 1, displayName: abbreviateStudentName_(entry.name), total: entry.total, isYou: entry.name === name }));
 
+        // Whole weeks since the deposit date: the "week" the Current CoD predictor marks as now. Week 0 is the deposit week.
         const codWeekNow = hasActiveCod && student.depositDate ? Math.max(0, Math.floor((Date.now() - student.depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7))) : 0;
         const weeklyInterestRate = Number(fetchProperty("weeklyInterestRate", "standardPercentages"));
         const withdrawalTaxRate = Number(fetchProperty("investmentWithdrawalTaxRate", "standardPercentages"));
 
+        // 6) The answer. Field names here are what Portal.html reads (see renderHome, renderInvest, renderSpend, renderLeaderboard and buildPredictorCard).
         return {
             viewingAsAdmin: !isOwnProfile,
             student: {
@@ -687,6 +759,9 @@ function portalGetTransactionsEntry_(data: string): any {
             return { error: `The transaction history is not available (the "${getTransactionsSheetName()}" tab could not be found).` };
         }
 
+        // STEPS: 1) cheap freshness check (row count + id of the last row)  2) cache hit? return it  3) otherwise find this student's rows
+        // (read columns A:C once)  4) read ONE block that spans their first to last row  5) flag undone purchases  6) cache and return.
+        // 1) Two tiny reads. A cached history is only trusted while both still match, so a new transaction invalidates it automatically.
         const total = countTransactionRows(sheet);
         if (total === 0) return { records: [], total: 0 };
 
@@ -706,6 +781,7 @@ function portalGetTransactionsEntry_(data: string): any {
             }
         } catch (cacheError) { /* rebuild below */ }
 
+        // 3) Which rows belong to this student? Only columns A:C (id, student, period) are read for the whole log.
         const keyColumns = sheet.getRange(firstRow, 1, total, 3).getValues(); // id, student, period (only read when the cache missed)
         const matchedIndexes: number[] = [];
         keyColumns.forEach((row, index) => {
@@ -732,7 +808,7 @@ function portalGetTransactionsEntry_(data: string): any {
                 };
             });
 
-            // A purchase that was undone later is flagged so the page can leave it out of the purchases list.
+            // 5) A purchase that was undone later is flagged so the page can leave it out of the purchases list.
             const inEffect = resolveRecordsInEffect(oldestFirst.map(record => ({ id: record.id, serviceProvided: record.description, unitPrice: 0 } as TransactionRecord)));
             oldestFirst.forEach(record => { if (!inEffect.has(record.id) && !/^Undo transaction ID \d+ - /.test(record.description)) record.undone = true; });
             records = oldestFirst.reverse();
@@ -771,6 +847,7 @@ function authorizeProfileAction_(name: string, period: string): { identity: Port
     return { identity, reason: "That account is not linked to your email.", onBehalf: false };
 }
 
+/** The live row of one student (balance, CoD...) read straight from the sheet, or null when the name is not on that period. Always a fresh read: it decides money. */
 function findPortalStudent_(name: string, period: string): PortalStudentRow | null {
     const periodSheet = getSheetNamed(period);
     if (!periodSheet) return null;
@@ -785,6 +862,7 @@ function portalDepositEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalDepositCore_(data), data);
 }
 
+/** The deposit itself. Order: authorize -> validate amount -> investing window open? -> the shared handleDeposit (never with the admin override) -> log when an admin acted for the student. */
 function portalDepositCore_(data: string): PortalActionResult {
     try {
         const request = JSON.parse(data);
@@ -819,6 +897,7 @@ function portalWithdrawEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalWithdrawCore_(data), data);
 }
 
+/** The withdrawal itself. Order: authorize -> has a CoD? -> lockout over? -> the shared handleWithdraw. The lockout is checked HERE because the admin dialog only checks it in its page code. */
 function portalWithdrawCore_(data: string): PortalActionResult {
     try {
         const request = JSON.parse(data);
@@ -895,6 +974,7 @@ function portalRequestExpenditureEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(runWithTransactionLock(() => portalRequestExpenditureInsideLock_(data), failure_("The bank is busy right now. Please try again in a moment.")), data);
 }
 
+/** The request itself, run while holding the transaction lock so two clicks cannot both pass the cap check. Nothing is charged here: a request only reserves units against the caps until an admin approves it. */
 function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
     try {
         const request = JSON.parse(data);
@@ -939,6 +1019,7 @@ function portalCancelRequestEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalCancelRequestCore_(data), data);
 }
 
+/** Cancels a PENDING request for the student (or on their behalf for an admin). An approved request can no longer be cancelled: it was already charged. */
 function portalCancelRequestCore_(data: string): PortalActionResult {
     return runWithTransactionLock(() => {
         try {
@@ -1092,13 +1173,23 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
 // able to invest or request through the admin handlers without being a spreadsheet editor.
 // ---------------------------------------------------------------------------------------------------------------------------
 
+/** Browser entry, the first call of the page: who is this, which accounts can they open, and (for convenience) the first account's dashboard. */
 function portalBootstrap(): any { return runTrusted_(() => portalBootstrapEntry_()); }
+/** Browser entry: the dashboard of one account. Payload JSON { name, period }. */
 function portalGetDashboard(data: string): any { return runTrusted_(() => portalGetDashboardEntry_(data)); }
+/** Browser entry: every transaction of one account (cached). Payload JSON { name, period }. */
 function portalGetTransactions(data: string): any { return runTrusted_(() => portalGetTransactionsEntry_(data)); }
+/** Browser entry: invest cash. Payload JSON { name, period, amount }. */
 function portalDeposit(data: string): PortalActionResult { return runTrusted_(() => portalDepositEntry_(data)); }
+/** Browser entry: withdraw the CoD. Payload JSON { name, period }. */
 function portalWithdraw(data: string): PortalActionResult { return runTrusted_(() => portalWithdrawEntry_(data)); }
+/** Browser entry: ask to buy something. Payload JSON { name, period, itemName, quantity, studentNote }. */
 function portalRequestExpenditure(data: string): PortalActionResult { return runTrusted_(() => portalRequestExpenditureEntry_(data)); }
+/** Browser entry: cancel a pending request. Payload JSON { name, period, id }. */
 function portalCancelRequest(data: string): PortalActionResult { return runTrusted_(() => portalCancelRequestEntry_(data)); }
+/** Browser entry (admins): every request, pending first. */
 function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
+/** Browser entry (admins): mark an approved request as completed. Payload JSON { id, note }. */
 function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+/** Browser entry (admins): approve or deny a pending request. Payload JSON { id, approve, note }. */
 function portalAdminResolveRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminResolveRequestEntry_(data)); }
