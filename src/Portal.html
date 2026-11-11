@@ -121,6 +121,13 @@
       return '$' + (value / Math.pow(1000, scaleIndex + 2)).toFixed(2) + ' ' + MONEY_SCALE_NAMES[scaleIndex];
     }
 
+    // Date only (no clock time): a CoD counts as invested since the start of that day.
+    function formatDay(isoText) {
+      if (!isoText) return '';
+      const date = new Date(isoText);
+      return isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
     function formatDate(isoText) {
       if (!isoText) return '';
       const date = new Date(isoText);
@@ -602,7 +609,7 @@
       const codCard = h('div', 'card', null, [h('h2', '', 'Your CoD')]);
       codCard.appendChild(h('div', 'grid grid-4', null, [
         tile('Invested', money(student.codPrincipal)),
-        tile('Since', student.codDate ? formatDate(student.codDate) : '-'),
+        tile('Since', student.codDate ? formatDay(student.codDate) : '-'),
         tile('Value now', money(student.codNet)),
         tile('Gain', ((student.codPercentageGain || 0) * 100).toFixed(2) + '%')
       ]));
