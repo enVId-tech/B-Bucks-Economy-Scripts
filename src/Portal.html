@@ -145,6 +145,28 @@
 
     function mainElement() { return document.getElementById('portalMain'); }
 
+    /** Asks the visitor to use their school account, with the way out when Google keeps picking the wrong one. */
+    function showSignInHelp(currentEmail, signInUrl) {
+      const chooser = h('a', 'button', 'Choose my school account');
+      chooser.href = signInUrl;
+      chooser.target = '_top';
+      const again = h('button', 'button button-secondary', 'I switched: try again');
+      again.addEventListener('click', () => { window.top.location.reload(); });
+      const card = h('div', 'card center-card', null, [
+        h('h1', '', 'Sign in with your school account'),
+        h('p', '', currentEmail
+          ? 'You are signed in as ' + currentEmail + ', which is not a school account.'
+          : 'We could not tell which Google account you are using, or it is not a school account.'),
+        h('ol', 'help-steps', null, [
+          h('li', '', 'Press "Choose my school account" and pick your school account.'),
+          h('li', '', 'If you land back on this page, Google is still using another account. Add a new Chrome profile for school (click your picture at the top right of Chrome, then Add, then sign in with only your school account) and open this link in that profile.'),
+          h('li', '', 'A private (incognito) window where you sign in with only your school account works too.')
+        ]),
+        h('div', 'button-row', null, [chooser, again])
+      ]);
+      mainElement().replaceChildren(card);
+    }
+
     function showMessageCard(title, message, actionLabel, actionHref) {
       const card = h('div', 'card center-card', null, [
         h('h1', '', title),
@@ -278,14 +300,9 @@
         avatar.textContent = (session.email || '?').charAt(0).toUpperCase();
         setElementDisplay(avatar, session.email ? 'flex' : 'none');
 
-        if (session.status === 'signin') {
-          showMessageCard('Sign in to continue', 'Use your school Google account to open your bank account.', 'Sign in with Google', session.signInUrl);
-          return;
-        }
-        if (session.status === 'wrongDomain') {
-          showMessageCard('Wrong account', 'You are signed in as ' + session.email + '. Please sign in with your school account instead.', 'Choose another account', session.signInUrl);
-          return;
-        }
+        // No email at all means Google gave us an account outside the school (or none): treat it as "not a school account".
+        if (session.status === 'signin') { showSignInHelp(null, session.signInUrl); return; }
+        if (session.status === 'wrongDomain') { showSignInHelp(session.email, session.signInUrl); return; }
         if (session.status === 'notConfigured') {
           showMessageCard('Portal not ready', 'The portal has not been opened for students yet. Please check back soon.');
           return;
