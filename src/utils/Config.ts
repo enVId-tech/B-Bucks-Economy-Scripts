@@ -65,6 +65,7 @@ function getAdvancedSettingDefinitions(): { [settingKey: string]: AdvancedSettin
         grossInvestmentGainCol: { settingKey: 'grossInvestmentGainCol', defaultValue: DEFAULT_GROSS_INVESTMENT_GAIN_COL, kind: 'positiveInteger' },
         netInvestmentGainCol: { settingKey: 'netInvestmentGainCol', defaultValue: DEFAULT_NET_INVESTMENT_GAIN_COL, kind: 'positiveInteger' },
         netPercentageGainCol: { settingKey: 'netPercentageGainCol', defaultValue: DEFAULT_NET_PERCENTAGE_GAIN_COL, kind: 'positiveInteger' },
+        studentIdCol: { settingKey: 'studentIdCol', defaultValue: DEFAULT_STUDENT_ID_COL, kind: 'positiveInteger' },
         defaultServicesSheet: { settingKey: 'defaultServicesSheet', defaultValue: DEFAULT_SERVICES_SHEET, kind: 'sheetName' },
         servicesRowStart: { settingKey: 'servicesRowStart', defaultValue: DEFAULT_SERVICES_ROW_START, kind: 'positiveInteger' },
         defaultTransactionsSheet: { settingKey: 'defaultTransactionsSheet', defaultValue: DEFAULT_TRANSACTIONS_SHEET, kind: 'sheetName' },
@@ -319,6 +320,11 @@ function getNetInvestmentGainColumn(): number {
 /** Setting "netPercentageGainCol" (positiveInteger). */
 function getNetPercentageGainColumn(): number {
     return getConfig('netPercentageGainCol');
+}
+
+/** Setting "studentIdCol" (positiveInteger). The hidden column on every Period tab that holds the student ID. */
+function getStudentIdColumn(): number {
+    return getConfig('studentIdCol');
 }
 
 /** Setting "defaultServicesSheet" (sheetName). */
