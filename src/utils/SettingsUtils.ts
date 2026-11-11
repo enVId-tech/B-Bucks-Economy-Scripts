@@ -63,6 +63,7 @@ interface AdvancedTechnicalSettings {
     grossInvestmentGainCol: number;
     netInvestmentGainCol: number;
     netPercentageGainCol: number;
+    studentIdCol: number;
     defaultServicesSheet: string;
     servicesRowStart: number;
     defaultSettingsSheet: string;
