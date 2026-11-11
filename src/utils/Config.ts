@@ -385,3 +385,13 @@ function getSheetNamePattern(): string {
 function getTimestampCell(): string {
     return getConfig('timestampCell');
 }
+
+/**
+ * The email domain allowed into the student portal, read from the Script Property named by PORTAL_DOMAIN_PROPERTY
+ * (Extensions > Apps Script > Project Settings > Script Properties, or the "Set Portal Domain" menu item).
+ * It is deliberately not part of the source code or the Settings sheet. Returns "" when it has not been set.
+ */
+function getPortalAllowedDomain(): string {
+    const storedValue = PropertiesService.getScriptProperties().getProperty(PORTAL_DOMAIN_PROPERTY) ?? "";
+    return storedValue.trim().toLowerCase().replace(/^@/, "");
+}
