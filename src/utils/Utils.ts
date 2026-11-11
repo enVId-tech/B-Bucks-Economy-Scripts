@@ -11,19 +11,263 @@
 
 interface CSVData {
     identifier: number;
+    /** Student names, sorted. */
     individuals: string[];
+    /** Student IDs in the same order as `individuals` ("" when the roster has none). Older imports do not send this. */
+    studentIds?: string[];
 }
+
+/** What importing one period did, shown to the teacher when the import finishes. */
+interface FillSheetResult {
+    ok: boolean;
+    period: number;
+    /** created: new tab. updated: kept the tab and added what was missing. rebuilt: the old tab barely matched, so it was replaced. skipped: nothing to import. */
+    mode: "created" | "updated" | "rebuilt" | "skipped";
+    added: number;
+    kept: number;
+    idsFilled: number;
+    /** Names that were not added because a student with that name but a different ID already exists on the tab. */
+    skippedNames: string[];
+    message: string;
+}
+
+/** An existing student on a period tab. */
+interface RosterRow {
+    row: number;
+    name: string;
+    id: string;
+}
+
+// A period tab that matches at least this share of the import (or of its own students) is updated in place instead of rebuilt.
+const ROSTER_MERGE_MATCH_SHARE: number = 0.5;
 
 // Sheet is "Reports -> Gb -> Rb Rstr"
 
+/** "Doe,  Jane" and "doe, jane" are the same name. */
+function normalizeRosterName_(name: string): string {
+    return String(name ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Student IDs are kept as text so leading zeros survive. */
+function normalizeStudentId_(rawValue: any): string {
+    return String(rawValue ?? "").trim();
+}
+
+/** The IDs of an import, one per name ("" where the roster had none). */
+function alignedStudentIds_(entry: CSVData): string[] {
+    return entry.individuals.map((_, index) => normalizeStudentId_(entry.studentIds?.[index]));
+}
+
+/** Students currently on a period tab, with the ID stored in the hidden ID column. */
+function readExistingRoster_(sheet: GoogleAppsScript.Spreadsheet.Sheet, startRow: number): RosterRow[] {
+    const lastRow = sheet.getLastRow();
+    if (lastRow < startRow) return [];
+
+    const rowCount = lastRow - startRow + 1;
+    const names = sheet.getRange(startRow, getNamesColumn(), rowCount, 1).getValues();
+    const idColumn = getStudentIdColumn();
+    const ids = sheet.getMaxColumns() >= idColumn ? sheet.getRange(startRow, idColumn, rowCount, 1).getValues() : [];
+
+    const roster: RosterRow[] = [];
+    names.forEach((cells, index) => {
+        const name = String(cells[0] ?? "").trim();
+        if (name) roster.push({ row: startRow + index, name, id: normalizeStudentId_(ids[index]?.[0]) });
+    });
+    return roster;
+}
+
+/** Something other than a student ID already sits in the ID column of these rows. Returns it, or null when the column is free. */
+function findStudentIdColumnConflict_(sheet: GoogleAppsScript.Spreadsheet.Sheet, startRow: number): string | null {
+    const idColumn = getStudentIdColumn();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < startRow || sheet.getMaxColumns() < idColumn) return null;
+
+    const cells = sheet.getRange(startRow, idColumn, lastRow - startRow + 1, 1).getValues();
+    for (const cell of cells) {
+        const value = normalizeStudentId_(cell[0]);
+        if (value && !/^\d{4,}$/.test(value)) return value;
+    }
+    return null;
+}
+
+/** Makes sure the ID column exists, writes the IDs next to the names and hides the column so only editors can see it. */
+function writeStudentIds_(sheet: GoogleAppsScript.Spreadsheet.Sheet, firstRow: number, ids: string[]): void {
+    if (ids.length === 0 || !ids.some(id => id)) return;
+
+    const idColumn = getStudentIdColumn();
+    if (sheet.getMaxColumns() < idColumn) sheet.insertColumnsAfter(sheet.getMaxColumns(), idColumn - sheet.getMaxColumns());
+
+    const idRange = sheet.getRange(firstRow, idColumn, ids.length, 1);
+    idRange.setNumberFormat("@");
+    idRange.setValues(ids.map(id => [id]));
+    if (!sheet.isColumnHiddenByUser(idColumn)) sheet.hideColumns(idColumn);
+}
+
+interface RosterMergePlan {
+    shouldMerge: boolean;
+    existing: RosterRow[];
+    /** Existing rows that an imported student matched, with the ID the import knows for them. */
+    matched: { rosterRow: RosterRow; importedId: string }[];
+    /** Positions in the import (names/IDs arrays) that have no match and must be added. */
+    toAdd: number[];
+    skippedNames: string[];
+}
+
 /**
- * Fills the sheets with data parsed from the CSV string. Each sheet is named after the identifier and contains the associated individuals starting from a specified cell. If a sheet for an identifier doesn't exist, it creates one by copying a template sheet.
- * @param data  The raw CSV data as a string, where each row represents an identifier and its associated individuals. The identifier can be separated from the individuals by either a hyphen or a comma.
- * @returns {boolean} Returns true if the operation was successful, false otherwise.
+ * Decides whether an existing period tab is "the same class" as the import and which students are missing.
+ * A student matches by ID when both sides have one, otherwise by name. Two different IDs with the same name are two people:
+ * the newcomer is not added (the code keys everything by name) and is reported instead.
  */
-function fillSheetsWithData(data: string): boolean {
+function planRosterMerge_(existing: RosterRow[], names: string[], ids: string[]): RosterMergePlan {
+    const rowsById = new Map<string, RosterRow>();
+    const rowsByName = new Map<string, RosterRow>();
+    existing.forEach(rosterRow => {
+        if (rosterRow.id && !rowsById.has(rosterRow.id)) rowsById.set(rosterRow.id, rosterRow);
+        const nameKey = normalizeRosterName_(rosterRow.name);
+        if (!rowsByName.has(nameKey)) rowsByName.set(nameKey, rosterRow);
+    });
+
+    const usedRows = new Set<number>();
+    const plan: RosterMergePlan = { shouldMerge: false, existing, matched: [], toAdd: [], skippedNames: [] };
+
+    names.forEach((name, index) => {
+        const importedId = ids[index];
+        let hit = importedId ? rowsById.get(importedId) : undefined;
+
+        if (!hit) {
+            const sameName = rowsByName.get(normalizeRosterName_(name));
+            if (sameName && sameName.id && importedId && sameName.id !== importedId) {
+                plan.skippedNames.push(name);
+                return;
+            }
+            hit = sameName;
+        }
+
+        if (!hit) {
+            plan.toAdd.push(index);
+        } else if (!usedRows.has(hit.row)) {
+            usedRows.add(hit.row);
+            plan.matched.push({ rosterRow: hit, importedId });
+        }
+    });
+
+    const matchedCount = plan.matched.length;
+    plan.shouldMerge = matchedCount > 0 && (matchedCount / names.length >= ROSTER_MERGE_MATCH_SHARE || matchedCount / existing.length >= ROSTER_MERGE_MATCH_SHARE);
+    return plan;
+}
+
+/**
+ * Updates a period tab in place: students who are already there keep their row and all their data (only a missing ID is filled in),
+ * and students who are in the import but not on the tab are added below the last student. Nobody is removed or renamed.
+ */
+function mergeStudentsIntoSheet_(sheet: GoogleAppsScript.Spreadsheet.Sheet, templateSheet: GoogleAppsScript.Spreadsheet.Sheet | undefined, entry: CSVData, ids: string[], plan: RosterMergePlan, startRow: number): FillSheetResult {
+    const result: FillSheetResult = { ok: true, period: entry.identifier, mode: "updated", added: 0, kept: plan.matched.length, idsFilled: 0, skippedNames: plan.skippedNames, message: "" };
+
+    if (plan.toAdd.length > 0 && !templateSheet) {
+        log("Template sheet not found. Period " + entry.identifier + " was left unchanged because new students need the Template row.", true);
+        return { ...result, ok: false, mode: "skipped", kept: 0, message: `Period ${entry.identifier}: the Template tab is missing, nothing was changed.` };
+    }
+
+    // 1. Fill in IDs for students who were imported before IDs existed. Only blanks are written.
+    const missingIds = plan.matched.filter(match => match.importedId && !match.rosterRow.id);
+    if (missingIds.length > 0) {
+        const idColumn = getStudentIdColumn();
+        if (sheet.getMaxColumns() < idColumn) sheet.insertColumnsAfter(sheet.getMaxColumns(), idColumn - sheet.getMaxColumns());
+        const lastExistingRow = plan.existing[plan.existing.length - 1].row;
+        const span = sheet.getRange(startRow, idColumn, lastExistingRow - startRow + 1, 1);
+        const currentValues = span.getValues();
+        missingIds.forEach(match => { currentValues[match.rosterRow.row - startRow][0] = match.importedId; });
+        span.setNumberFormat("@");
+        span.setValues(currentValues.map(row => [row[0] === "" ? "" : normalizeStudentId_(row[0])]));
+        result.idsFilled = missingIds.length;
+    }
+
+    // 2. Add the students who are missing, using the Template row so formulas, formats and starting values match everyone else.
+    if (plan.toAdd.length > 0 && templateSheet) {
+        const firstNewRow = (plan.existing.length > 0 ? plan.existing[plan.existing.length - 1].row : startRow - 1) + 1;
+        const addCount = plan.toAdd.length;
+        const lastNeededRow = firstNewRow + addCount - 1;
+        if (lastNeededRow > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), lastNeededRow - sheet.getMaxRows());
+
+        const columnCount = Math.min(templateSheet.getMaxColumns(), sheet.getMaxColumns());
+        templateSheet.getRange(startRow, 1, 1, columnCount).copyTo(sheet.getRange(firstNewRow, 1, addCount, columnCount), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
+
+        sheet.getRange(firstNewRow, getNamesColumn(), addCount, 1).setValues(plan.toAdd.map(index => [entry.individuals[index]]));
+        writeStudentIds_(sheet, firstNewRow, plan.toAdd.map(index => ids[index]));
+        result.added = addCount;
+    }
+
+    // 3. The column has to stay hidden even when nothing new was written to it.
+    const idColumn = getStudentIdColumn();
+    if (sheet.getMaxColumns() >= idColumn && ids.some(id => id) && !sheet.isColumnHiddenByUser(idColumn)) sheet.hideColumns(idColumn);
+
+    SpreadsheetApp.flush();
+    result.message = `Period ${entry.identifier}: kept ${result.kept}, added ${result.added}` + (result.idsFilled > 0 ? `, filled ${result.idsFilled} ID(s)` : "") + (result.skippedNames.length > 0 ? `, skipped ${result.skippedNames.length} (same name, different ID)` : "") + ".";
+    return result;
+}
+
+/**
+ * Imports one period. If the period's tab already exists and mostly matches the import (same students, by ID or name), the tab is
+ * updated in place so nobody loses data. If it barely matches, or does not exist, it is built fresh from the Template tab as before.
+ * @param data JSON string of CSVData: { identifier, individuals, studentIds? }.
+ * @returns {FillSheetResult} What happened to the period.
+ */
+function fillSheetsWithData(data: string): FillSheetResult {
+    const failedResult = (period: number, message: string): FillSheetResult => ({ ok: false, period, mode: "skipped", added: 0, kept: 0, idsFilled: 0, skippedNames: [], message });
+    let period = NaN;
     try {
         const entry: CSVData = JSON.parse(data);
+        period = entry.identifier;
+        const ids = alignedStudentIds_(entry);
+        const sheetName = "Period " + entry.identifier;
+        const existingSheet = getSheetNamed(sheetName);
+        const templateSheet = getSheetNamed("Template") ?? undefined;
+        const startRow = (existingSheet ?? templateSheet)?.getRange(getFillStartingCell()).getRow() ?? getUserStartingRow();
+
+        if (existingSheet) {
+            if (entry.individuals.length === 0) {
+                return { ...failedResult(period, `Period ${period}: the file listed no students, the tab was left alone.`), ok: true };
+            }
+
+            const conflict = findStudentIdColumnConflict_(existingSheet, startRow);
+            const existingRoster = readExistingRoster_(existingSheet, startRow);
+            const plan = planRosterMerge_(existingRoster, entry.individuals, ids);
+
+            if (plan.shouldMerge) {
+                if (conflict) {
+                    log(`Column ${getStudentIdColumn()} on ${sheetName} already holds "${conflict}", so student IDs can't go there. Change "studentIdCol" in the Advanced Technical Settings to a free column.`, true);
+                    return failedResult(period, `Period ${period}: column ${getStudentIdColumn()} is already in use, nothing was changed.`);
+                }
+                return mergeStudentsIntoSheet_(existingSheet, templateSheet, entry, ids, plan, startRow);
+            }
+        } else if (templateSheet && ids.some(id => id)) {
+            const templateConflict = findStudentIdColumnConflict_(templateSheet, startRow);
+            if (templateConflict) {
+                log(`Column ${getStudentIdColumn()} on the Template tab already holds "${templateConflict}", so student IDs can't go there. Change "studentIdCol" in the Advanced Technical Settings to a free column.`, true);
+                return failedResult(period, `Period ${period}: column ${getStudentIdColumn()} is already in use on the Template tab, nothing was changed.`);
+            }
+        }
+
+        const replacedExisting = existingSheet !== null;
+        const rebuilt = rebuildPeriodSheet_(entry, ids);
+        return {
+            ok: rebuilt, period, mode: rebuilt ? (replacedExisting ? "rebuilt" : "created") : "skipped",
+            added: rebuilt ? entry.individuals.length : 0, kept: 0, idsFilled: 0, skippedNames: [],
+            message: rebuilt ? `Period ${period}: ${replacedExisting ? "rebuilt (it did not match the file)" : "created"} with ${entry.individuals.length} student(s).` : `Period ${period}: could not be imported.`
+        };
+    } catch (err: any) {
+        log(`An error occurred in function fillSheetsWithData: ${err.message ?? err}`, false);
+        return failedResult(period, `Period ${period}: ${err.message ?? err}`);
+    }
+}
+
+/**
+ * Builds a period tab from scratch from the Template tab (deleting a tab with the same name first).
+ * Only used for new periods and for tabs that do not match the import at all.
+ * @returns {boolean} Returns true if the operation was successful, false otherwise.
+ */
+function rebuildPeriodSheet_(entry: CSVData, studentIds: string[]): boolean {
+    try {
         const spreadsheet = getSS();
         const spreadsheetId = spreadsheet.getId();
         let sheets = spreadsheet.getSheets();
@@ -122,6 +366,7 @@ function fillSheetsWithData(data: string): boolean {
             // Set the raw names into Column A
             const outputValues = entry.individuals.map(name => [name]);
             targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
+            writeStudentIds_(targetSheet, startRow, studentIds);
 
             // Execute metadata updates via the advanced sheet endpoints
             if (requests.length > 0 && Sheets && Sheets.Spreadsheets) {
@@ -180,6 +425,7 @@ function fillSheetsWithData(data: string): boolean {
             // Fill data cleanly in a single network call
             const outputValues = entry.individuals.map(name => [name]);
             targetSheet.getRange(startRow, 1, lengthParsed, 1).setValues(outputValues);
+            writeStudentIds_(targetSheet, startRow, studentIds);
 
             // Dynamically removing excess rows after filling data to keep sheets tidy
             SpreadsheetApp.flush();
