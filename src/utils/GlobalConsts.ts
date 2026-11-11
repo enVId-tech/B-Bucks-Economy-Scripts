@@ -183,3 +183,4 @@ const PORTAL_ACCOUNTS_SHEET: string = "Portal Accounts"; // Email, Period, Name.
 const PORTAL_REQUESTS_SHEET: string = "Expenditure Requests"; // one row per student request, created on demand
 const PORTAL_DOMAIN_PROPERTY: string = "PORTAL_ALLOWED_DOMAIN"; // Script Property holding the allowed email domain. Never hard-code the domain in source
 const PORTAL_RECENT_TRANSACTIONS: number = 15; // how many recent log entries a student sees
+const PORTAL_PURCHASE_SCAN_SIZE: number = 60; // how many of a student's newest log entries are checked for purchases that can be undone

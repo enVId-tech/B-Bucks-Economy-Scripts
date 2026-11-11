@@ -516,6 +516,7 @@ function portalGetDashboard(data: string): any {
             catalog: buildPortalCatalog_(quarter, name, period),
             requests: readPortalRequests_().filter(candidate => candidate.student === name && candidate.period === period).slice(-20).reverse(),
             recent: fetchPortalRecentTransactions_(name, period),
+            purchases: fetchPortalUndoablePurchases_(name, period),
             leaderboard
         };
     } catch (error: any) {
@@ -545,6 +546,65 @@ function fetchPortalRecentTransactions_(name: string, period: string): any[] {
             operation: record.operation,
             newBalance: record.newBalance ?? null
         }));
+}
+
+/**
+ * The student's purchases that can still be undone: purchase records that are still in effect (not undone) and still on the log.
+ * A purchase stops being listed once its row is deleted from the transaction log.
+ */
+function fetchPortalUndoablePurchases_(name: string, period: string): any[] {
+    const response = queryTransactions(JSON.stringify({
+        page: 1,
+        pageSize: PORTAL_PURCHASE_SCAN_SIZE,
+        filters: { student: name, period: period.replace(/\D/g, "") }
+    }));
+    if ('error' in response) return [];
+
+    const ownRecords = response.window.records.filter(record => record.individual === name);
+    // The window is newest first, the in-effect walk needs oldest first.
+    const inEffect = resolveRecordsInEffect([...ownRecords].reverse());
+    return ownRecords
+        .filter(record => parsePurchaseItemName(record.serviceProvided) !== null && inEffect.has(Number(record.id)))
+        .map(record => ({
+            id: record.id,
+            timestamp: record.timestamp,
+            description: (record.serviceProvided ?? "").trim(),
+            amount: Number(((record.unitPrice ?? 0) * (record.quantity ?? 1)).toFixed(2))
+        }));
+}
+
+/**
+ * Takes back a purchase. Works until the purchase's row is deleted from the transaction log; the money goes back and the
+ * quantity no longer counts against the caps. The same undo as the admin Transaction Records dialog runs.
+ * @param data JSON string: { name, period, transactionId }
+ */
+function portalUndoPurchase(data: string): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try {
+            const request = JSON.parse(data);
+            const name = String(request.name ?? "");
+            const period = String(request.period ?? "");
+            const transactionId = Number(request.transactionId);
+
+            const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
+            if (reason) return failure_(reason);
+            if (!Number.isInteger(transactionId)) return failure_("That purchase was not found.");
+
+            const record = fetchTransactionsByIds([transactionId])[0];
+            if (!record) return failure_("That purchase is no longer on the transaction log, so it cannot be undone.");
+            if (record.individual !== name || String(record.period) !== period.replace(/\D/g, "")) return failure_("That purchase was not found.");
+            if (parsePurchaseItemName(record.serviceProvided) === null) return failure_("Only purchases can be undone here.");
+
+            const { result, messages } = runCapturingMessages_(() => undoTransactions(JSON.stringify({ transactionIds: [transactionId] })));
+            if (result !== true) return failure_(messages.join(" ") || "The purchase could not be undone.");
+
+            if (onBehalf) log(`Portal: ${identity.email} undid transaction ${transactionId} for ${name} (${period}).`, false);
+            return { ok: true, message: "Purchase undone. The money is back in the balance." };
+        } catch (error: any) {
+            log(`Error in portalUndoPurchase: ${error.message}`, false);
+            return failure_("The purchase could not be undone. Please try again.");
+        }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
