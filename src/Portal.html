@@ -312,21 +312,102 @@
         tile('Quarter', portalState.dashboard.quarter, '')
       ]));
 
-      const recentCard = h('div', 'card', null, [h('h2', '', 'Recent activity')]);
-      const recent = portalState.dashboard.recent;
-      if (recent.length === 0) recentCard.appendChild(emptyState('No transactions yet.'));
-      recent.forEach(entry => {
-        // Income and withdrawals add cash. Purchases and new deposits take cash out of the balance.
-        const isGain = entry.type === 'Income' || (entry.type === 'Investment' && /^Withdrawal/i.test(entry.description || ''));
-        recentCard.appendChild(h('div', 'list-row', null, [
-          h('div', 'row-left', null, [
-            h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
-            h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
-          ]),
-          h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(entry.amount).replace('-', ''))
-        ]));
+      panel.appendChild(buildActivityCard());
+    }
+
+    // ------------------------------------------------------------------ transaction history (search + categories)
+
+    const ACTIVITY_CATEGORIES = [['all', 'All'], ['income', 'Income'], ['spending', 'Spending'], ['investments', 'Investments']];
+    const activityState = { key: '', search: '', category: 'all', page: 1, requestNumber: 0, searchTimer: null };
+
+    /** Every transaction of the student from the transactions sheet, with a search box and category buttons. */
+    function buildActivityCard() {
+      const student = portalState.dashboard.student;
+      const key = student.name + '|' + student.period;
+      if (activityState.key !== key) Object.assign(activityState, { key, search: '', category: 'all', page: 1 });
+
+      const searchInput = h('input');
+      searchInput.type = 'search';
+      searchInput.placeholder = 'Search your transactions (for example "pencil")';
+      searchInput.value = activityState.search;
+      searchInput.maxLength = 80;
+      searchInput.oninput = () => {
+        clearTimeout(activityState.searchTimer);
+        activityState.searchTimer = setTimeout(() => { activityState.search = searchInput.value.trim(); activityState.page = 1; loadActivity(); }, 300);
+      };
+
+      const chips = h('div', 'segmented');
+      ACTIVITY_CATEGORIES.forEach(([category, label]) => {
+        const chip = h('button', 'segment' + (activityState.category === category ? ' active' : ''), label);
+        chip.type = 'button';
+        chip.onclick = () => {
+          activityState.category = category;
+          activityState.page = 1;
+          chips.querySelectorAll('.segment').forEach(other => other.classList.toggle('active', other === chip));
+          loadActivity();
+        };
+        chips.appendChild(chip);
       });
-      panel.appendChild(recentCard);
+
+      const list = h('div', '');
+      list.id = 'activityList';
+      const pager = h('div', 'pager');
+      pager.id = 'activityPager';
+
+      const card = h('div', 'card', null, [h('h2', '', 'Transaction history'), searchInput, chips, list, pager]);
+      // The card is not part of the page yet, so the first load waits until it is attached.
+      setTimeout(loadActivity, 0);
+      return card;
+    }
+
+    async function loadActivity() {
+      const list = document.getElementById('activityList');
+      const pager = document.getElementById('activityPager');
+      if (!list || !pager || !portalState.profile) return;
+      const thisRequest = ++activityState.requestNumber;
+      list.replaceChildren(emptyState('Loading...'));
+      pager.replaceChildren();
+      try {
+        const result = await callServerAsync('portalGetTransactions', JSON.stringify({
+          name: portalState.dashboard.student.name, period: portalState.dashboard.student.period,
+          search: activityState.search, category: activityState.category, page: activityState.page
+        }));
+        if (thisRequest !== activityState.requestNumber) return; // a newer search is already running
+        list.replaceChildren();
+        if (!result || result.error) { list.appendChild(emptyState((result && result.error) || 'The history could not load.')); return; }
+
+        if (result.records.length === 0) {
+          list.appendChild(emptyState(activityState.search || activityState.category !== 'all' ? 'No transactions match that search.' : 'No transactions yet.'));
+        }
+        result.records.forEach(entry => {
+          const isGain = entry.change > 0;
+          const shownAmount = entry.change !== 0 ? Math.abs(entry.change) : entry.amount;
+          list.appendChild(h('div', 'list-row', null, [
+            h('div', 'row-left', null, [
+              h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
+              h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
+            ]),
+            h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
+          ]));
+        });
+
+        if (result.totalPages > 1) {
+          const previous = h('button', 'button button-secondary', 'Newer');
+          previous.disabled = result.page <= 1;
+          previous.onclick = () => { activityState.page = result.page - 1; loadActivity(); };
+          const next = h('button', 'button button-secondary', 'Older');
+          next.disabled = result.page >= result.totalPages;
+          next.onclick = () => { activityState.page = result.page + 1; loadActivity(); };
+          pager.appendChild(previous);
+          pager.appendChild(h('span', 'row-sub', 'Page ' + result.page + ' of ' + result.totalPages + ' \u00b7 ' + result.total + ' transactions'));
+          pager.appendChild(next);
+        } else if (result.total > 0) {
+          pager.appendChild(h('span', 'row-sub', result.total + ' transaction' + (result.total === 1 ? '' : 's')));
+        }
+      } catch (error) {
+        console.error(error);
+        if (thisRequest === activityState.requestNumber) { list.replaceChildren(emptyState('The history could not load. Please try again.')); }
+      }
     }
 
     // ------------------------------------------------------------------ invest + predictor
