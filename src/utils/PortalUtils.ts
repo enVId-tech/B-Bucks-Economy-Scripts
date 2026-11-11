@@ -540,6 +540,7 @@ function portalGetDashboard(data: string): any {
             .sort((first, second) => second.total - first.total)
             .map((entry, index) => ({ rank: index + 1, displayName: abbreviateStudentName_(entry.name), total: entry.total, isYou: entry.name === name }));
 
+        const codWeekNow = hasActiveCod && student.depositDate ? Math.max(0, Math.floor((Date.now() - student.depositDate.getTime()) / (1000 * 60 * 60 * 24 * 7))) : 0;
         const weeklyInterestRate = Number(fetchProperty("weeklyInterestRate", "standardPercentages"));
         const withdrawalTaxRate = Number(fetchProperty("investmentWithdrawalTaxRate", "standardPercentages"));
 
@@ -566,7 +567,10 @@ function portalGetDashboard(data: string): any {
                 weeklyInterestRate: Number.isFinite(weeklyInterestRate) ? weeklyInterestRate : null,
                 withdrawalTaxRate: Number.isFinite(withdrawalTaxRate) ? withdrawalTaxRate : null,
                 weeksRemaining: weeksUntilInvestingEnds_(),
-                currentCodAmount: Number((student.balance + student.netGain).toFixed(2))
+                // The Current CoD list follows the CoD's own timeline: it starts from the initial deposit and counts weeks from the deposit date.
+                codPrincipal: hasActiveCod ? student.initialDeposit : 0,
+                codWeekNow: codWeekNow,
+                codWeeksTotal: hasActiveCod ? codWeekNow + weeksUntilInvestingEnds_() : 0
             },
             quarter,
             catalog: buildPortalCatalog_(quarter, name, period),
