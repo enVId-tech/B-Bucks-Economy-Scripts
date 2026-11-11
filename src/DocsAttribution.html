@@ -71,7 +71,7 @@
                         <tr><td>Open Investment Banking</td><td>Put a student's money into a CoD, take it back out, and preview what it will earn.</td></tr>
                         <tr><td>View Transactions Records</td><td>Search everything that has happened, and undo mistakes.</td></tr>
                         <tr><td>View Historical Analytics</td><td>Chart how the class economy changes over time.</td></tr>
-                        <tr><td>Banking Settings</td><td>Dates, tax and interest rates, rules, and the maintenance/reset tools.</td></tr>
+                        <tr><td>Banking Settings</td><td>Dates, tax and interest rates, rules, and the maintenance/reset tools, including the student portal setup.</td></tr>
                         <tr><td>Documentation &amp; Attribution</td><td>This guide.</td></tr>
                     </table>
 
@@ -396,8 +396,8 @@
 
                     <h3 id="u-portal-setup">Setting it up</h3>
                     <ol class="steps">
-                        <li>Menu → <strong>Set Portal Domain</strong>. Enter the email domain your students sign in with. It is stored in the project's Script Properties, never in the code.</li>
-                        <li>Menu → <strong>Create Portal Tabs</strong>. This adds the <code>Portal Accounts</code> and <code>Expenditure Requests</code> tabs.</li>
+                        <li>Banking Settings → Maintenance → <strong>Student Portal</strong> → <strong>Set Portal Domain</strong>. Enter the email domain your students sign in with. It is stored in the project's Script Properties, never in the code.</li>
+                        <li>Banking Settings → Maintenance → Student Portal → <strong>Create Portal Tabs</strong>. This adds the <code>Portal Accounts</code> and <code>Expenditure Requests</code> tabs.</li>
                         <li>In the Apps Script editor choose <strong>Deploy → New deployment → Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone in your organization</strong>. Share the link it gives you.</li>
                     </ol>
                     <div class="callout callout-danger">
@@ -416,12 +416,12 @@
                     <ul>
                         <li><strong>Home:</strong> balance, CoD, spending and the full transaction history, read from the transactions sheet named in Settings (Default Transactions Sheet). Newest first, 15 per page, with a search box (matches what was bought, invested or earned) and Income / Spending / Investments buttons. If that tab is missing or renamed, the history shows a message instead.</li>
                         <li><strong>Invest:</strong> invest cash, withdraw once the withdrawal window is over, and use the same earnings predictor as Investment Banking. Students can never use the admin override.</li>
-                        <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and requests that are still waiting also count against them. Under <strong>Your purchases</strong> a student can undo any purchase for as long as it is still on the Transaction Records tab (tap Undo twice). The money goes back and the item no longer counts against the caps. Once the record is deleted from the tab, the purchase can no longer be undone.</li>
+                        <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and requests that are still waiting also count against them. Under <strong>Your purchases</strong> a student can undo any purchase for as long as it is still on the Transaction Records tab (tap Undo twice). The money goes back and the item no longer counts against the caps. Once the record is deleted from the tab, the purchase can no longer be undone. Each item has an optional <strong>Add a note</strong> box where the student can write the details in a paragraph (up to 1000 characters). Requests show a status: Pending, Approved, Completed, Denied or Cancelled.</li>
                         <li><strong>Leaderboard:</strong> the top ten of their period plus their own rank (cash plus CoD value, names shortened to first name and last initial).</li>
                     </ul>
 
                     <h3 id="u-portal-admin">Approving requests and acting in a student's account</h3>
-                    <p>If you can edit the spreadsheet, the portal shows an <strong>Admin</strong> tab. Pick any period and student and press <strong>Open account</strong>. You are then literally in their account: you can invest, withdraw, request purchases and cancel requests for them, under the same rules and caps as the student (no override). A banner at the top reminds you whose account it is, and <strong>Exit</strong> returns you to your own view. Each action is written to the log with your email and the student's name, and requests you make carry a note saying so. The request list shows pending requests first. <strong>Approve</strong> charges the student exactly like the Services dialog (logged, counted against the caps, undoable in Transaction Records) after checking the price, balance and caps again. <strong>Deny</strong> charges nothing. An optional note is saved with the request.</p>
+                    <p>If you can edit the spreadsheet, the portal shows an <strong>Admin</strong> tab. Pick any period and student and press <strong>Open account</strong>. You are then literally in their account: you can invest, withdraw, request purchases and cancel requests for them, under the same rules and caps as the student (no override). A banner at the top reminds you whose account it is, and <strong>Exit</strong> returns you to your own view. Each action is written to the log with your email and the student's name, and requests you make carry a note saying so. The request list shows pending requests first. <strong>Approve</strong> charges the student exactly like the Services dialog (logged, counted against the caps, undoable in Transaction Records) after checking the price, balance and caps again. <strong>Deny</strong> charges nothing. An optional note is saved with the request. Every request row opens a <strong>Details</strong> section with the student's note, who asked and when. Approved requests stay at the top of the list with a <strong>Mark completed</strong> button (and an optional note): it sets the status to Completed on the Expenditure Requests tab and fills in Completed By and Completed At, so the sheet itself shows what is done. You can also see the new columns <em>Student Note</em>, <em>Completed By</em> and <em>Completed At</em> there; tabs made by an older version get the headers added automatically.</p>
                 </div>
             </div>
 
@@ -577,6 +577,8 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <li>Student IDs are read on the server only to match an email and are never sent to the browser.</li>
                         <li>The allowed domain is the Script Property named by <code>PORTAL_DOMAIN_PROPERTY</code>, read through <code>getPortalAllowedDomain()</code> in <code>Config.ts</code>. It is never written in source. With no domain set, only admins can open the portal.</li>
                         <li>The page builds every element with <code>textContent</code>, so item names or student names can never inject markup.</li>
+                        <li>Flood control, in two layers. The page sends server calls one at a time with a short gap, locks buttons for a cool-down after each action, waits until typing stops before searching, and refreshes itself only every 45 seconds when nobody is typing (constants at the top of the script in <code>Portal.html</code>). Because a page can always be bypassed, the server also limits each person with <code>checkPortalRate_()</code>: a minimum gap between actions and a per-minute cap for actions and for reads (<code>PORTAL_ACTION_MIN_GAP_MS</code>, <code>PORTAL_ACTIONS_PER_MINUTE</code>, <code>PORTAL_READS_PER_MINUTE</code> in <code>GlobalConsts.ts</code>).</li>
+                        <li>The <code>PORTAL_EXPERIMENTAL</code> constant in <code>GlobalConsts.ts</code> controls the EXPERIMENTAL labels in Banking Settings and on the portal page. Set it to <code>false</code> to remove them.</li>
                     </ul>
 
                     <h3 id="d-portal-api">Endpoints</h3>
@@ -587,7 +589,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr><td><code>portalDeposit</code>, <code>portalWithdraw</code></td><td>owner of the profile</td><td>Call <code>handleDeposit</code> / <code>handleWithdraw</code> with override always false. The withdrawal lockout, which the admin dialog only checks in its page code, is enforced here on the server.</td></tr>
                         <tr><td><code>portalRequestExpenditure</code>, <code>portalCancelRequest</code></td><td>owner of the profile</td><td>Write or cancel a row in the Expenditure Requests tab. Nothing is charged yet.</td></tr>
                         <tr><td><code>portalUndoPurchase</code></td><td>owner of the profile, or admin</td><td>Runs the normal undo for one purchase record of that student. Refuses anything that is not a purchase, is already undone, or is gone from the log.</td></tr>
-                        <tr><td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code></td><td>admin</td><td>Approve charges through <code>applyMathToSelection</code> on the Expenditures cell, inside the transaction lock.</td></tr>
+                        <tr><td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code>, <code>portalAdminCompleteRequest</code></td><td>admin</td><td>Approve charges through <code>applyMathToSelection</code> on the Expenditures cell, inside the transaction lock.</td></tr>
                     </table>
 
                     <h3 id="d-portal-alerts">log() inside a web app</h3>
