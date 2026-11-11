@@ -67,16 +67,23 @@ interface PortalRequestRecord {
     unitPrice: number;
     quantity: number;
     total: number;
-    status: "Pending" | "Approved" | "Denied" | "Cancelled";
+    /** Pending -> Approved (charged) -> Completed (the teacher did the work). Denied and Cancelled end a request without a charge. */
+    status: "Pending" | "Approved" | "Completed" | "Denied" | "Cancelled";
     resolvedBy: string;
     resolvedAt: string;
+    /** The teacher's note, or a remark that an admin made the request for the student. */
     note: string;
+    /** What the student wrote about the request (a paragraph). */
+    studentNote: string;
+    completedBy: string;
+    completedAt: string;
 }
 
-const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Student", "Period", "Item", "Quarter", "Unit Price", "Quantity", "Total", "Status", "Resolved By", "Resolved At", "Note"];
+const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Student", "Period", "Item", "Quarter", "Unit Price", "Quantity", "Total", "Status", "Resolved By", "Resolved At", "Note", "Student Note", "Completed By", "Completed At"];
 const PORTAL_ACCOUNT_HEADERS: string[] = ["Email", "Period", "Name"];
 const PORTAL_ADMIN_CACHE_KEY: string = "portalAdminEmails";
 const PORTAL_MAX_REQUEST_QUANTITY: number = 50;
+const PORTAL_MAX_STUDENT_NOTE_LENGTH: number = 1000;
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // Web app entry point and setup
@@ -88,6 +95,43 @@ function doGet(): GoogleAppsScript.HTML.HtmlOutput {
     return template.evaluate()
         .setTitle("Bank of Banderas")
         .addMetaTag("viewport", "width=device-width, initial-scale=1");
+}
+
+/** Lets the Banking Settings dialog know whether to show the EXPERIMENTAL label next to the portal tools. */
+function getPortalUiFlags(): { experimental: boolean } {
+    return { experimental: PORTAL_EXPERIMENTAL };
+}
+
+/**
+ * Per-person rate limit for portal requests, so nobody can flood the server by spamming the page (or by calling the endpoints
+ * directly, which the page's own cool-down cannot prevent). Counts calls in a rolling one-minute window and enforces a minimum gap
+ * between actions. The counters live in the script cache, so they are approximate under heavy parallel use but always bounded.
+ * @param email The signed-in person.
+ * @param kind "action" for anything that changes data, "read" for dashboard and history loads.
+ * @returns The message to show when the person is going too fast, or null when the call may go ahead.
+ */
+function checkPortalRate_(email: string, kind: "action" | "read"): string | null {
+    try {
+        const cache = CacheService.getScriptCache();
+        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, email.toLowerCase(), Utilities.Charset.UTF_8);
+        const key = `portalRate:${kind}:${Utilities.base64EncodeWebSafe(digest)}`;
+        const now = Date.now();
+        const stored = cache.get(key);
+        const state: { start: number; count: number; last: number } = stored ? JSON.parse(stored) : { start: now, count: 0, last: 0 };
+        if (now - state.start >= 60000) { state.start = now; state.count = 0; }
+
+        const limitPerMinute = kind === "action" ? PORTAL_ACTIONS_PER_MINUTE : PORTAL_READS_PER_MINUTE;
+        if (kind === "action" && now - state.last < PORTAL_ACTION_MIN_GAP_MS) return "Please wait a moment before doing that again.";
+        if (state.count >= limitPerMinute) return "You are going too fast. Please wait a minute and try again.";
+
+        state.count++;
+        state.last = now;
+        cache.put(key, JSON.stringify(state), 120);
+        return null;
+    } catch (error: any) {
+        log(`Error in checkPortalRate_: ${error.message}`, false); // a broken limiter must never lock everybody out
+        return null;
+    }
 }
 
 /** Menu item: asks for the email domain students must sign in with and stores it as a Script Property. */
@@ -123,7 +167,15 @@ function createPortalSheets(): void {
 /** Returns the named portal tab, creating it with a bold header row when needed. */
 function ensurePortalSheet_(sheetName: string, headers: string[]): GoogleAppsScript.Spreadsheet.Sheet {
     const existingSheet = getSheetNamed(sheetName);
-    if (existingSheet) return existingSheet;
+    if (existingSheet) {
+        // A tab made by an older version may lack the newest columns: add their headers without touching any data.
+        const existingColumns = existingSheet.getLastColumn();
+        if (existingColumns < headers.length) {
+            if (existingSheet.getMaxColumns() < headers.length) existingSheet.insertColumnsAfter(existingSheet.getMaxColumns(), headers.length - existingSheet.getMaxColumns());
+            existingSheet.getRange(1, existingColumns + 1, 1, headers.length - existingColumns).setValues([headers.slice(existingColumns)]).setFontWeight("bold");
+        }
+        return existingSheet;
+    }
 
     const sheet = getSS().insertSheet(sheetName);
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
@@ -311,7 +363,7 @@ function failure_(message: string): PortalActionResult {
 function portalBootstrap(): any {
     try {
         const identity = resolvePortalIdentity_();
-        const response: any = { status: identity.status, email: identity.email, isAdmin: identity.isAdmin, signInUrl: buildPortalSignInUrl_(), profiles: [] };
+        const response: any = { status: identity.status, email: identity.email, isAdmin: identity.isAdmin, signInUrl: buildPortalSignInUrl_(), profiles: [], experimental: PORTAL_EXPERIMENTAL };
         if (identity.status !== "ok") return response;
 
         response.profiles = findPortalProfiles_(identity);
@@ -465,6 +517,8 @@ function portalGetDashboard(data: string): any {
 
         const identity = resolvePortalIdentity_();
         if (identity.status !== "ok") return { error: "You are not signed in." };
+        const readLimit = checkPortalRate_(identity.email, "read");
+        if (readLimit) return { error: readLimit };
 
         const profiles = findPortalProfiles_(identity);
         const isOwnProfile = ownsPortalProfile_(profiles, name, period);
@@ -543,6 +597,8 @@ function portalGetTransactions(data: string): any {
 
         const identity = resolvePortalIdentity_();
         if (identity.status !== "ok") return { error: "You are not signed in." };
+        const readLimit = checkPortalRate_(identity.email, "read");
+        if (readLimit) return { error: readLimit };
         if (!ownsPortalProfile_(findPortalProfiles_(identity), name, period) && !identity.isAdmin) return { error: "That account is not linked to your email." };
 
         const filters: TransactionFilters = { student: name, period: period.replace(/\D/g, "") };
@@ -644,6 +700,8 @@ function portalUndoPurchase(data: string): PortalActionResult {
 function authorizeProfileAction_(name: string, period: string): { identity: PortalIdentity; reason: string | null; onBehalf: boolean } {
     const identity = resolvePortalIdentity_();
     if (identity.status !== "ok") return { identity, reason: "You are not signed in.", onBehalf: false };
+    const tooFast = checkPortalRate_(identity.email, "action");
+    if (tooFast) return { identity, reason: tooFast, onBehalf: false };
     if (ownsPortalProfile_(findPortalProfiles_(identity), name, period)) return { identity, reason: null, onBehalf: false };
     if (identity.isAdmin) {
         const exists = findPortalStudent_(name, period) !== null;
@@ -725,7 +783,9 @@ function readPortalRequests_(): PortalRequestRecord[] {
     const requestsSheet = getSheetNamed(PORTAL_REQUESTS_SHEET);
     if (!requestsSheet || requestsSheet.getLastRow() < 2) return [];
 
-    return requestsSheet.getRange(2, 1, requestsSheet.getLastRow() - 1, PORTAL_REQUEST_HEADERS.length).getValues()
+    // A tab from an older version has fewer columns until the next request or completion extends it.
+    const columnCount = Math.min(requestsSheet.getMaxColumns(), PORTAL_REQUEST_HEADERS.length);
+    return requestsSheet.getRange(2, 1, requestsSheet.getLastRow() - 1, columnCount).getValues()
         .filter(row => row[0] !== "" && row[0] !== null)
         .map(row => ({
             id: Number(row[0]),
@@ -741,7 +801,10 @@ function readPortalRequests_(): PortalRequestRecord[] {
             status: String(row[10]) as PortalRequestRecord["status"],
             resolvedBy: String(row[11] ?? ""),
             resolvedAt: row[12] instanceof Date ? row[12].toISOString() : String(row[12] ?? ""),
-            note: String(row[13] ?? "")
+            note: String(row[13] ?? ""),
+            studentNote: String(row[14] ?? ""),
+            completedBy: String(row[15] ?? ""),
+            completedAt: row[16] instanceof Date ? row[16].toISOString() : String(row[16] ?? "")
         }));
 }
 
@@ -769,6 +832,7 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const period = String(request.period ?? "");
         const itemName = String(request.itemName ?? "").trim();
         const quantity = Math.floor(Number(request.quantity));
+        const studentNote = String(request.studentNote ?? "").trim().slice(0, PORTAL_MAX_STUDENT_NOTE_LENGTH);
 
         const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
         if (reason) return failure_(reason);
@@ -788,7 +852,7 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const nextId = existingRequests.reduce((highest, existing) => Math.max(highest, existing.id), 0) + 1;
         const total = Number((item.unitPrice * quantity).toFixed(2));
 
-        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : ""]);
+        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : "", studentNote, "", ""]);
         if (onBehalf) log(`Portal: ${identity.email} requested ${quantity} x ${itemName} for ${name} (${period}).`, false);
         return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). It is charged only if it is approved.` };
     } catch (error: any) {
@@ -839,12 +903,51 @@ function portalAdminListRequests(): any {
 
         const requests = readPortalRequests_();
         const pending = requests.filter(request => request.status === "Pending");
-        const resolved = requests.filter(request => request.status !== "Pending").slice(-30).reverse();
-        return { requests: [...pending, ...resolved] };
+        const toComplete = requests.filter(request => request.status === "Approved").reverse(); // charged, work not marked done yet
+        const finished = requests.filter(request => request.status !== "Pending" && request.status !== "Approved").slice(-30).reverse();
+        return { requests: [...pending, ...toComplete, ...finished] };
     } catch (error: any) {
         log(`Error in portalAdminListRequests: ${error.message}`, false);
         return { error: "The requests could not load." };
     }
+}
+
+/**
+ * Marks an approved request as completed (the teacher did what the student asked for). The status, who did it and when are written
+ * to the Expenditure Requests tab, so the sheet itself shows what is done.
+ * @param data JSON string: { id: number, note?: string }
+ */
+function portalAdminCompleteRequest(data: string): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try {
+            const identity = resolvePortalIdentity_();
+            if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
+            const tooFast = checkPortalRate_(identity.email, "action");
+            if (tooFast) return failure_(tooFast);
+
+            const request = JSON.parse(data);
+            const requestId = Number(request.id);
+            const completionNote = String(request.note ?? "").trim().slice(0, 200);
+
+            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            if (!record) return failure_("That request was not found.");
+            if (record.status === "Completed") return failure_("That request is already completed.");
+            if (record.status !== "Approved") return failure_("Only an approved request can be marked completed.");
+
+            const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
+            const rowNumber = findPortalRequestRow_(requestId);
+            if (rowNumber < 0) return failure_("That request was not found.");
+
+            requestsSheet.getRange(rowNumber, 11).setValue("Completed");
+            requestsSheet.getRange(rowNumber, 16, 1, 2).setValues([[identity.email, new Date()]]);
+            if (completionNote) requestsSheet.getRange(rowNumber, 14).setValue(record.note ? `${record.note} - Completed: ${completionNote}` : `Completed: ${completionNote}`);
+            log(`Portal: ${identity.email} marked request ${requestId} (${record.itemName}) for ${record.student} (${record.period}) as completed.`, false);
+            return { ok: true, message: `Marked as completed: ${record.quantity} x ${record.itemName} for ${record.student}.` };
+        } catch (error: any) {
+            log(`Error in portalAdminCompleteRequest: ${error.message}`, false);
+            return failure_("The request could not be marked completed. Please try again.");
+        }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
 }
 
 /**
@@ -857,6 +960,8 @@ function portalAdminResolveRequest(data: string): PortalActionResult {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
+            const tooFast = checkPortalRate_(identity.email, "action");
+            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
