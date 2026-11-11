@@ -475,8 +475,8 @@
 
     function limitText(item) {
       const parts = [];
-      if (item.personRemaining !== null) parts.push(item.personRemaining + ' of ' + item.personLimit + ' left for you');
-      if (item.classRemaining !== null) parts.push(item.classRemaining + ' of ' + item.classLimit + ' left for your class');
+      if (typeof item.personRemaining === 'number' && typeof item.personLimit === 'number') parts.push(item.personRemaining + ' of ' + item.personLimit + ' left for you');
+      if (typeof item.classRemaining === 'number' && typeof item.classLimit === 'number') parts.push(item.classRemaining + ' of ' + item.classLimit + ' left for your class');
       return parts.join(' - ');
     }
 
@@ -506,8 +506,8 @@
         requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value) }, requestButton);
 
         const pills = h('div', 'pill-row');
-        if (item.personRemaining !== null) pills.appendChild(h('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
-        if (item.classRemaining !== null) pills.appendChild(h('span', 'pill' + (item.classRemaining === 0 ? ' pill-out' : ''), item.classRemaining + ' of ' + item.classLimit + ' left for the class'));
+        if (typeof item.personRemaining === 'number' && typeof item.personLimit === 'number') pills.appendChild(h('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
+        if (typeof item.classRemaining === 'number' && typeof item.classLimit === 'number') pills.appendChild(h('span', 'pill' + (item.classRemaining === 0 ? ' pill-out' : ''), item.classRemaining + ' of ' + item.classLimit + ' left for the class'));
 
         const card = h('div', 'item-card' + (soldOut ? ' sold-out' : ''), null, [
           h('div', 'item-top', null, [h('div', 'item-name', item.itemName), h('div', 'item-price', money(item.unitPrice))]),
