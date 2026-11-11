@@ -22,7 +22,7 @@
 
 <body>
   <header class="portal-header">
-    <div class="brand"><span class="brand-mark">B</span><span>Bank of Banderas</span></div>
+    <div class="brand"><span class="brand-mark">B</span><span>Bank of Banderas</span><span id="experimentalBadge" class="experimental-badge display-none" title="This portal is new and still being tested.">EXPERIMENTAL</span></div>
     <div class="header-user">
       <select id="profileSelect" class="display-none" aria-label="Choose account" onchange="handleProfileChange()"></select>
       <span id="userEmail" class="header-email"></span>
@@ -48,6 +48,34 @@
       projectionMode: 'custom',
       busy: false
     };
+
+    // ------------------------------------------------------------------ server calls: one at a time, with a cool-down
+    // Nobody can flood the server by clicking fast: calls wait for the previous one to finish and for a short gap. The server
+    // enforces its own limits as well (see checkPortalRate_ in PortalUtils.ts), because a page can always be bypassed.
+    const MAX_STUDENT_NOTE_LENGTH = 1000;   // characters in a note on a request (the server enforces the same limit)
+    const MIN_GAP_BETWEEN_CALLS_MS = 300;   // least time between two server calls
+    const ACTION_COOLDOWN_MS = 1500;        // buttons stay locked this long after an action finishes
+    const SEARCH_TYPING_DELAY_MS = 450;     // the history search waits until typing stops
+    const AUTO_REFRESH_MS = 45000;          // how often the page quietly checks for new transactions
+    const REFRESH_AFTER_RETURN_MS = 15000;  // coming back to the tab refreshes if the data is older than this
+    const EDITING_GRACE_MS = 10000;         // no automatic refresh this soon after the person typed or clicked
+
+    let callQueue = Promise.resolve();
+    let lastCallStartedAt = 0;
+
+    function wait(milliseconds) { return new Promise(resolve => setTimeout(resolve, milliseconds)); }
+
+    /** Runs a server function after every earlier call has finished, at least MIN_GAP_BETWEEN_CALLS_MS apart. */
+    function portalCall(serverFunction, payload) {
+      const result = callQueue.then(async () => {
+        const waitTime = lastCallStartedAt + MIN_GAP_BETWEEN_CALLS_MS - Date.now();
+        if (waitTime > 0) await wait(waitTime);
+        lastCallStartedAt = Date.now();
+        return callServerAsync(serverFunction, payload);
+      });
+      callQueue = result.catch(() => { });
+      return result;
+    }
 
     const TAB_ICONS = { home: '\u2302', invest: '\u2197', spend: '\u2610', leaderboard: '\u2605', admin: '\u2699' };
 
@@ -128,28 +156,73 @@
 
     /** Runs a server action once at a time, then reloads the dashboard. */
     async function runAction(serverFunction, payload, buttonToLock) {
-      if (portalState.busy) return;
+      if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
       if (buttonToLock) buttonToLock.disabled = true;
       try {
-        const result = await callServerAsync(serverFunction, JSON.stringify(payload));
+        const result = await portalCall(serverFunction, JSON.stringify(payload));
         await loadDashboard(false);
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong. Please try again.');
       } catch (error) {
         showNotice('bad', 'The bank could not be reached. Please try again.');
         console.error(error);
       } finally {
-        portalState.busy = false;
+        // The cool-down keeps buttons from being hammered: the next action can start once it has passed.
+        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
       }
     }
+
+    // ------------------------------------------------------------------ keep the page up to date
+
+    let lastRefreshAt = Date.now();
+    let lastInteractionAt = 0;
+
+    function markDataFresh() { lastRefreshAt = Date.now(); }
+
+    ['input', 'click', 'keydown'].forEach(eventName => document.addEventListener(eventName, () => { lastInteractionAt = Date.now(); }, true));
+
+    /** True while somebody is typing in a box or has just touched the page: a refresh would wipe what they are doing. */
+    function personIsBusyEditing() {
+      const active = document.activeElement;
+      if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) && document.getElementById('portalMain').contains(active)) return true;
+      // Something typed but not sent yet (a note, an amount) must survive a refresh.
+      const hasUnsentText = [...document.querySelectorAll('#portalMain textarea'), document.getElementById('customAmount'), document.getElementById('depositAmount')].some(field => field && field.value);
+      if (hasUnsentText) return true;
+      return Date.now() - lastInteractionAt < EDITING_GRACE_MS;
+    }
+
+    /** Fetches the account again and redraws only when something changed (a new transaction, a request that was approved...). */
+    async function refreshQuietly() {
+      if (document.hidden || portalState.busy || !portalState.profile || !portalState.dashboard) return;
+      if (personIsBusyEditing()) return;
+      try {
+        const fresh = await portalCall('portalGetDashboard', JSON.stringify(portalState.profile));
+        markDataFresh();
+        if (!fresh || fresh.error || personIsBusyEditing() || portalState.busy) return;
+        if (JSON.stringify(fresh) !== JSON.stringify(portalState.dashboard)) {
+          portalState.dashboard = fresh;
+          renderPortal();
+        } else if (portalState.activeTab === 'home') {
+          loadActivity(true);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    setInterval(refreshQuietly, AUTO_REFRESH_MS);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Date.now() - lastRefreshAt > REFRESH_AFTER_RETURN_MS) refreshQuietly();
+    });
 
     // ------------------------------------------------------------------ start up
 
     async function startPortal() {
       try {
-        const session = await callServerAsync('portalBootstrap');
+        const session = await portalCall('portalBootstrap');
         portalState.session = session;
         document.getElementById('userEmail').textContent = session.email || '';
+        setElementDisplay(document.getElementById('experimentalBadge'), session.experimental ? 'flex' : 'none');
         const avatar = document.getElementById('userAvatar');
         avatar.textContent = (session.email || '?').charAt(0).toUpperCase();
         setElementDisplay(avatar, session.email ? 'flex' : 'none');
@@ -212,7 +285,7 @@
         return;
       }
       try {
-        const dashboard = await callServerAsync('portalGetDashboard', JSON.stringify(portalState.profile));
+        const dashboard = await portalCall('portalGetDashboard', JSON.stringify(portalState.profile));
         if (!dashboard || dashboard.error) {
           showMessageCard('We hit a snag', (dashboard && dashboard.error) || 'Your account could not load.');
           return;
@@ -333,7 +406,7 @@
       searchInput.maxLength = 80;
       searchInput.oninput = () => {
         clearTimeout(activityState.searchTimer);
-        activityState.searchTimer = setTimeout(() => { activityState.search = searchInput.value.trim(); activityState.page = 1; loadActivity(); }, 300);
+        activityState.searchTimer = setTimeout(() => { activityState.search = searchInput.value.trim(); activityState.page = 1; loadActivity(); }, SEARCH_TYPING_DELAY_MS);
       };
 
       const chips = h('div', 'segmented');
@@ -360,21 +433,28 @@
       return card;
     }
 
-    async function loadActivity() {
+    async function loadActivity(quietly) {
       const list = document.getElementById('activityList');
       const pager = document.getElementById('activityPager');
       if (!list || !pager || !portalState.profile) return;
       const thisRequest = ++activityState.requestNumber;
-      list.replaceChildren(emptyState('Loading...'));
-      pager.replaceChildren();
+      if (!quietly) {
+        list.replaceChildren(emptyState('Loading...'));
+        pager.replaceChildren();
+      }
       try {
-        const result = await callServerAsync('portalGetTransactions', JSON.stringify({
+        const result = await portalCall('portalGetTransactions', JSON.stringify({
           name: portalState.dashboard.student.name, period: portalState.dashboard.student.period,
           search: activityState.search, category: activityState.category, page: activityState.page
         }));
         if (thisRequest !== activityState.requestNumber) return; // a newer search is already running
+        if (!result || result.error) {
+          if (quietly) return; // a failed background refresh leaves what is on screen alone
+          list.replaceChildren(emptyState((result && result.error) || 'The history could not load.'));
+          return;
+        }
         list.replaceChildren();
-        if (!result || result.error) { list.appendChild(emptyState((result && result.error) || 'The history could not load.')); return; }
+        pager.replaceChildren();
 
         if (result.records.length === 0) {
           list.appendChild(emptyState(activityState.search || activityState.category !== 'all' ? 'No transactions match that search.' : 'No transactions yet.'));
@@ -406,7 +486,7 @@
         }
       } catch (error) {
         console.error(error);
-        if (thisRequest === activityState.requestNumber) { list.replaceChildren(emptyState('The history could not load. Please try again.')); }
+        if (thisRequest === activityState.requestNumber && !quietly) { list.replaceChildren(emptyState('The history could not load. Please try again.')); }
       }
     }
 
@@ -594,7 +674,13 @@
 
         const requestButton = h('button', 'button', 'Request');
         requestButton.disabled = soldOut;
-        requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value) }, requestButton);
+        const noteBox = h('textarea', 'note-box');
+        noteBox.rows = 3;
+        noteBox.maxLength = MAX_STUDENT_NOTE_LENGTH;
+        noteBox.placeholder = 'Tell your teacher the details: which assignment, which date, anything they need to know.';
+        noteBox.setAttribute('aria-label', 'Note about ' + item.itemName);
+        const noteToggle = h('details', 'note-toggle', null, [h('summary', '', 'Add a note (optional)'), noteBox]);
+        requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value), studentNote: noteBox.value }, requestButton);
 
         const pills = h('div', 'pill-row');
         if (typeof item.personRemaining === 'number' && typeof item.personLimit === 'number') pills.appendChild(h('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
@@ -605,6 +691,7 @@
           pills
         ]);
         if (soldOut) card.appendChild(h('div', 'row-sub', 'Sold out'));
+        card.appendChild(noteToggle);
         card.appendChild(h('div', 'item-actions', null, [h('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
         itemGrid.appendChild(card);
       });
@@ -623,7 +710,8 @@
         requestsCard.appendChild(h('div', 'list-row', null, [
           h('div', '', null, [
             h('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
-            h('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : ''))
+            h('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : '')),
+            request.studentNote ? h('details', 'request-details', null, [h('summary', '', 'Your note'), h('p', 'note-text', request.studentNote)]) : null
           ]),
           actions
         ]));
@@ -729,17 +817,22 @@
 
     async function loadAdminRequests(card) {
       try {
-        const response = await callServerAsync('portalAdminListRequests');
+        const response = await portalCall('portalAdminListRequests');
         card.replaceChildren(h('h2', '', 'Expenditure requests'));
         if (!response || response.error) { card.appendChild(emptyState((response && response.error) || 'The requests could not load.')); return; }
         if (response.requests.length === 0) { card.appendChild(emptyState('No requests yet.')); return; }
 
         response.requests.forEach(request => {
           const noteInput = h('input');
-          noteInput.placeholder = 'Note (optional)';
+          noteInput.placeholder = request.status === 'Approved' ? 'Completion note (optional)' : 'Note (optional)';
           noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
 
           const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+          if (request.status === 'Approved') {
+            const completeButton = h('button', 'button', 'Mark completed');
+            completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
+            actions.appendChild(completeButton);
+          }
           if (request.status === 'Pending') {
             const approveButton = h('button', 'button', 'Approve');
             const denyButton = h('button', 'button button-danger', 'Deny');
@@ -754,7 +847,17 @@
             h('div', 'row-title', request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
             h('div', 'row-sub', formatDate(request.requestedAt) + ' - ' + request.quarter + (request.resolvedBy ? ' - ' + request.status.toLowerCase() + ' by ' + request.resolvedBy : '') + (request.note && request.status !== 'Pending' ? ' - ' + request.note : ''))
           ]);
-          if (request.status === 'Pending') rowText.appendChild(noteInput);
+          // Everything about the request, including the student's own words, opens under the row.
+          const details = h('details', 'request-details', null, [
+            h('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
+            h('p', 'note-text', request.studentNote || 'The student did not write a note.'),
+            h('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
+            request.note ? h('div', 'row-sub', 'Teacher note: ' + request.note) : null,
+            request.resolvedBy ? h('div', 'row-sub', request.status === 'Denied' || request.status === 'Cancelled' ? request.status + ' by ' + request.resolvedBy : 'Approved by ' + request.resolvedBy) : null,
+            request.completedBy ? h('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null
+          ]);
+          rowText.appendChild(details);
+          if (request.status === 'Pending' || request.status === 'Approved') rowText.appendChild(noteInput);
           card.appendChild(h('div', 'list-row', null, [rowText, actions]));
         });
       } catch (error) {
@@ -763,18 +866,34 @@
       }
     }
 
-    async function resolveRequest(requestId, approve, note, button, card) {
-      if (portalState.busy) return;
+    async function completeRequest(requestId, note, button, card) {
+      if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
       button.disabled = true;
       try {
-        const result = await callServerAsync('portalAdminResolveRequest', JSON.stringify({ id: requestId, approve, note }));
+        const result = await portalCall('portalAdminCompleteRequest', JSON.stringify({ id: requestId, note }));
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
       } catch (error) {
         console.error(error);
         showNotice('bad', 'The bank could not be reached. Please try again.');
       } finally {
-        portalState.busy = false;
+        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
+      }
+      await loadAdminRequests(card);
+    }
+
+    async function resolveRequest(requestId, approve, note, button, card) {
+      if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
+      portalState.busy = true;
+      button.disabled = true;
+      try {
+        const result = await portalCall('portalAdminResolveRequest', JSON.stringify({ id: requestId, approve, note }));
+        showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
+      } catch (error) {
+        console.error(error);
+        showNotice('bad', 'The bank could not be reached. Please try again.');
+      } finally {
+        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
       }
       await loadAdminRequests(card);
     }
