@@ -53,7 +53,7 @@
     // Nobody can flood the server by clicking fast: calls wait for the previous one to finish and for a short gap. The server
     // enforces its own limits as well (see checkPortalRate_ in PortalUtils.ts), because a page can always be bypassed.
     const MAX_STUDENT_NOTE_LENGTH = 1000;   // characters in a note on a request (the server enforces the same limit)
-    const MIN_GAP_BETWEEN_CALLS_MS = 300;   // least time between two server calls
+    const MIN_GAP_BETWEEN_CALLS_MS = 120;   // least time between two server calls
     const ACTION_COOLDOWN_MS = 1500;        // buttons stay locked this long after an action finishes
     const SEARCH_TYPING_DELAY_MS = 150;     // the history search waits until typing stops (it only filters what the page already has)
     const AUTO_REFRESH_MS = 45000;          // how often the page quietly checks for new transactions
@@ -209,7 +209,9 @@
       const restoreButton = markButtonBusy(buttonToLock, ACTION_BUSY_LABELS[serverFunction] || 'Working...');
       try {
         const result = await portalCall(serverFunction, JSON.stringify(payload));
-        await loadDashboard(false);
+        // The server sends the fresh account with the answer; only an old or failed answer needs a second call.
+        if (result && result.dashboard && !result.dashboard.error) { portalState.dashboard = result.dashboard; renderPortal(); }
+        else await loadDashboard(false);
         loadHistory(true);
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong. Please try again.');
       } catch (error) {
@@ -301,7 +303,14 @@
           return;
         }
 
-        await loadDashboard(true);
+        const first = session.dashboardFor;
+        if (session.dashboard && first && first.name === portalState.profile.name && first.period === portalState.profile.period) {
+          portalState.dashboard = session.dashboard; // came with the first answer: no second round trip
+          portalState.activeTab = 'home';
+          renderPortal();
+        } else {
+          await loadDashboard(true);
+        }
       } catch (error) {
         console.error(error);
         showMessageCard('Something went wrong', 'The portal could not load. Please refresh the page.');
