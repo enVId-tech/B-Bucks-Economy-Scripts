@@ -21,8 +21,6 @@
 </head>
 
 <body>
-  <div id="spectateBanner" class="spectate-banner display-none"></div>
-
   <header class="portal-header">
     <div class="brand"><span class="brand-mark">B</span><span>Bank of Banderas</span></div>
     <div class="header-user">
@@ -31,6 +29,8 @@
       <span id="userAvatar" class="avatar display-none"></span>
     </div>
   </header>
+
+  <div id="spectateBanner" class="spectate-banner display-none"></div>
 
   <main class="portal-main" id="portalMain">
     <div class="card center-card" id="loadingCard">
@@ -218,12 +218,23 @@
 
     // ------------------------------------------------------------------ layout
 
+    /** Leaves a student's account: back to the admin's own account, or the Admin tab when they have none. */
+    function exitStudentView() {
+      const ownProfiles = portalState.session.profiles;
+      portalState.profile = ownProfiles.length > 0 ? ownProfiles[0] : null;
+      portalState.dashboard = null;
+      if (portalState.profile) loadDashboard(true);
+      else { portalState.activeTab = 'admin'; renderPortal(); }
+    }
+
     function renderPortal() {
       const dashboard = portalState.dashboard;
       const banner = document.getElementById('spectateBanner');
-      if (dashboard && dashboard.readOnly) {
-        banner.textContent = 'Spectating ' + dashboard.student.name + ' (' + dashboard.student.period + '). Read only.';
-        setElementDisplay(banner, 'block');
+      if (dashboard && dashboard.viewingAsAdmin) {
+        const exitButton = h('button', 'banner-button', 'Exit');
+        exitButton.onclick = exitStudentView;
+        banner.replaceChildren(h('span', '', 'You are in ' + dashboard.student.name + "'s account (" + dashboard.student.period + '). Everything you do here happens on their account.'), exitButton);
+        setElementDisplay(banner, 'flex');
       } else {
         setElementDisplay(banner, 'none');
       }
@@ -313,7 +324,7 @@
     function renderInvest(panel) {
       const dashboard = portalState.dashboard;
       const student = dashboard.student;
-      const readOnly = dashboard.readOnly;
+      const viewingAsAdmin = dashboard.viewingAsAdmin;
 
       const codCard = h('div', 'card', null, [h('h2', '', 'Your CoD')]);
       codCard.appendChild(h('div', 'grid grid-4', null, [
@@ -322,13 +333,13 @@
         tile('Value now', money(student.codNet)),
         tile('Gain', ((student.codPercentageGain || 0) * 100).toFixed(2) + '%')
       ]));
-      // When investing is blocked, the invest card already explains why, so the lock is only mentioned here for read-only views
-      if (student.hasActiveCod && student.lockoutDaysLeft > 0 && (!student.depositBlockedReason || readOnly)) {
+      // When investing is blocked, the invest card already explains why, so the lock is only mentioned here
+      if (student.hasActiveCod && student.lockoutDaysLeft > 0 && !student.depositBlockedReason) {
         codCard.appendChild(h('div', 'notice notice-warn', 'Locked for ' + student.lockoutDaysLeft + ' more day(s). You can withdraw or invest again after that.'));
       }
       panel.appendChild(codCard);
 
-      if (!readOnly) {
+      {
         const depositCard = h('div', 'card', null, [h('h2', '', 'Invest or withdraw')]);
         if (student.depositBlockedReason) depositCard.appendChild(h('div', 'notice notice-warn', student.depositBlockedReason));
 
@@ -491,7 +502,7 @@
         stepUp.onclick = () => { quantityInput.value = String((Number(quantityInput.value) || 0) + 1); };
 
         const requestButton = h('button', 'button', 'Request');
-        requestButton.disabled = soldOut || dashboard.readOnly;
+        requestButton.disabled = soldOut;
         requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value) }, requestButton);
 
         const pills = h('div', 'pill-row');
@@ -503,7 +514,7 @@
           pills
         ]);
         if (soldOut) card.appendChild(h('div', 'row-sub', 'Sold out'));
-        if (!dashboard.readOnly) card.appendChild(h('div', 'item-actions', null, [h('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
+        card.appendChild(h('div', 'item-actions', null, [h('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
         itemGrid.appendChild(card);
       });
       catalogCard.appendChild(itemGrid);
@@ -513,7 +524,7 @@
       if (dashboard.requests.length === 0) requestsCard.appendChild(emptyState('You have not requested anything yet.'));
       dashboard.requests.forEach(request => {
         const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
-        if (request.status === 'Pending' && !dashboard.readOnly) {
+        if (request.status === 'Pending') {
           const cancelButton = h('button', 'button button-secondary', 'Cancel');
           cancelButton.onclick = () => runAction('portalCancelRequest', { name: student.name, period: student.period, id: request.id }, cancelButton);
           actions.appendChild(cancelButton);
@@ -562,7 +573,8 @@
     // ------------------------------------------------------------------ admin
 
     function renderAdmin(panel) {
-      const spectateCard = h('div', 'card', null, [h('h2', '', 'Spectate a student')]);
+      const spectateCard = h('div', 'card', null, [h('h2', '', 'Go into a student\'s account')]);
+      spectateCard.appendChild(h('div', 'row-sub card-intro', 'You will see exactly what they see and can invest, withdraw and request for them.'));
       const directory = portalState.session.directory || [];
 
       spectateCard.appendChild(h('label', '', 'Period'));
@@ -582,7 +594,7 @@
       periodSelect.onchange = fillStudents;
       fillStudents();
 
-      const viewButton = h('button', 'button', 'View dashboard');
+      const viewButton = h('button', 'button', 'Open account');
       viewButton.onclick = () => {
         if (!periodSelect.value || !studentSelect.value) return;
         portalState.profile = { name: studentSelect.value, period: periodSelect.value };
@@ -590,12 +602,6 @@
       };
       spectateCard.appendChild(h('div', 'button-row', null, [viewButton]));
 
-      const ownProfiles = portalState.session.profiles;
-      if (portalState.dashboard && portalState.dashboard.readOnly && ownProfiles.length > 0) {
-        const backButton = h('button', 'button button-secondary', 'Back to my account');
-        backButton.onclick = () => { portalState.profile = ownProfiles[0]; loadDashboard(true); };
-        spectateCard.lastChild.appendChild(backButton);
-      }
       panel.appendChild(spectateCard);
 
       const requestsCard = h('div', 'card', null, [h('h2', '', 'Expenditure requests')]);
