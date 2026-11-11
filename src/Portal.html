@@ -27,7 +27,8 @@
     <div class="brand"><span class="brand-mark">B</span><span>Bank of Banderas</span></div>
     <div class="header-user">
       <select id="profileSelect" class="display-none" aria-label="Choose account" onchange="handleProfileChange()"></select>
-      <span id="userEmail"></span>
+      <span id="userEmail" class="header-email"></span>
+      <span id="userAvatar" class="avatar display-none"></span>
     </div>
   </header>
 
@@ -47,6 +48,8 @@
       projectionMode: 'custom',
       busy: false
     };
+
+    const TAB_ICONS = { home: '\u2302', invest: '\u2197', spend: '\u2610', leaderboard: '\u2605', admin: '\u2699' };
 
     const STUDENT_TABS = [
       { id: 'home', label: 'Home' },
@@ -137,6 +140,9 @@
         const session = await callServerAsync('portalBootstrap');
         portalState.session = session;
         document.getElementById('userEmail').textContent = session.email || '';
+        const avatar = document.getElementById('userAvatar');
+        avatar.textContent = (session.email || '?').charAt(0).toUpperCase();
+        setElementDisplay(avatar, session.email ? 'flex' : 'none');
 
         if (session.status === 'signin') {
           showMessageCard('Sign in to continue', 'Use your school Google account to open your bank account.', 'Sign in with Google', session.signInUrl);
@@ -225,9 +231,9 @@
       const tabs = dashboard ? STUDENT_TABS.slice() : [];
       if (portalState.session.isAdmin) tabs.push({ id: 'admin', label: 'Admin' });
 
-      const tabBar = h('nav', 'tab-bar');
+      const tabBar = h('nav', 'tab-bar main-nav');
       tabs.forEach(tab => {
-        const button = h('button', 'tab-button' + (tab.id === portalState.activeTab ? ' active' : ''), tab.label);
+        const button = h('button', 'tab-button' + (tab.id === portalState.activeTab ? ' active' : ''), null, [h('span', 'tab-icon', TAB_ICONS[tab.id] || ''), h('span', 'tab-label', tab.label)]);
         button.onclick = () => { portalState.activeTab = tab.id; renderPortal(); };
         tabBar.appendChild(button);
       });
@@ -244,27 +250,45 @@
       if (portalState.activeTab === 'invest') refreshProjection();
     }
 
-    function tile(label, value) {
-      return h('div', 'tile', null, [h('div', 'tile-label', label), h('div', 'tile-value', value)]);
+    function tile(label, value, tone) {
+      return h('div', 'tile ' + (tone || ''), null, [h('div', 'tile-label', label), h('div', 'tile-value', value)]);
     }
 
-    function emptyState(message) { return h('div', 'empty', message); }
+    /** An input with a "$" in front of it. */
+    function moneyInput(id, placeholder, onInput) {
+      const input = h('input');
+      input.type = 'number';
+      input.id = id;
+      input.min = '0';
+      input.step = '0.01';
+      input.inputMode = 'decimal';
+      input.placeholder = placeholder;
+      input.oninput = onInput;
+      return { input, wrapper: h('div', 'input-prefix', null, [h('span', 'prefix-symbol', '$'), input]) };
+    }
+
+    function emptyState(message) { return h('div', 'empty', null, [h('div', 'empty-icon', '\u2014'), h('div', '', message)]); }
 
     // ------------------------------------------------------------------ home
 
     function renderHome(panel) {
       const student = portalState.dashboard.student;
       panel.appendChild(h('div', 'card hero', null, [
-        h('div', 'hero-label', 'Hi ' + student.displayName + ' - cash balance'),
+        h('div', 'hero-label', 'Hi ' + student.displayName),
+        h('div', 'hero-caption', 'Cash balance'),
         h('div', 'hero-amount', money(student.balance)),
-        h('div', 'hero-sub', student.period)
+        h('div', 'hero-chips', null, [
+          h('span', 'hero-chip', student.period),
+          h('span', 'hero-chip', portalState.dashboard.quarter),
+          h('span', 'hero-chip', 'CoD ' + money(student.codNet))
+        ])
       ]));
 
       panel.appendChild(h('div', 'grid grid-4', null, [
-        tile('In your CoD', money(student.codPrincipal)),
-        tile('CoD value now', money(student.codNet)),
-        tile('Total spent', money(student.expenditures)),
-        tile('Quarter', portalState.dashboard.quarter)
+        tile('In your CoD', money(student.codPrincipal), 'tile-accent'),
+        tile('CoD value now', money(student.codNet), 'tile-good'),
+        tile('Total spent', money(student.expenditures), 'tile-warn'),
+        tile('Quarter', portalState.dashboard.quarter, '')
       ]));
 
       const recentCard = h('div', 'card', null, [h('h2', '', 'Recent activity')]);
@@ -274,7 +298,10 @@
         // Income and withdrawals add cash. Purchases and new deposits take cash out of the balance.
         const isGain = entry.type === 'Income' || (entry.type === 'Investment' && /^Withdrawal/i.test(entry.description || ''));
         recentCard.appendChild(h('div', 'list-row', null, [
-          h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' - ' + entry.type)]),
+          h('div', 'row-left', null, [
+            h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
+            h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
+          ]),
           h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(entry.amount).replace('-', ''))
         ]));
       });
@@ -295,7 +322,8 @@
         tile('Value now', money(student.codNet)),
         tile('Gain', ((student.codPercentageGain || 0) * 100).toFixed(2) + '%')
       ]));
-      if (student.hasActiveCod && student.lockoutDaysLeft > 0) {
+      // When investing is blocked, the invest card already explains why, so the lock is only mentioned here for read-only views
+      if (student.hasActiveCod && student.lockoutDaysLeft > 0 && (!student.depositBlockedReason || readOnly)) {
         codCard.appendChild(h('div', 'notice notice-warn', 'Locked for ' + student.lockoutDaysLeft + ' more day(s). You can withdraw or invest again after that.'));
       }
       panel.appendChild(codCard);
@@ -304,17 +332,12 @@
         const depositCard = h('div', 'card', null, [h('h2', '', 'Invest or withdraw')]);
         if (student.depositBlockedReason) depositCard.appendChild(h('div', 'notice notice-warn', student.depositBlockedReason));
 
-        depositCard.appendChild(h('label', '', 'Amount to invest ($)'));
-        const amountInput = h('input');
-        amountInput.type = 'number';
-        amountInput.id = 'depositAmount';
-        amountInput.min = '0';
-        amountInput.step = '0.01';
-        amountInput.placeholder = 'Up to ' + money(student.availableToInvest);
-        amountInput.oninput = refreshProjection;
-        depositCard.appendChild(amountInput);
+        depositCard.appendChild(h('label', '', 'Amount to invest'));
+        const amountField = moneyInput('depositAmount', 'Up to ' + money(student.availableToInvest), refreshProjection);
+        const amountInput = amountField.input;
+        depositCard.appendChild(amountField.wrapper);
 
-        const investButton = h('button', 'button', 'Invest');
+        const investButton = h('button', 'button button-primary-wide', 'Invest');
         investButton.disabled = !student.canDeposit;
         investButton.onclick = () => runAction('portalDeposit', { name: student.name, period: student.period, amount: Number(amountInput.value) }, investButton);
 
@@ -342,38 +365,29 @@
         { id: 'custom', label: 'Custom amount' },
         { id: 'depositInput', label: 'From deposit' }
       ];
-      const tabBar = h('div', 'tab-bar');
+      const tabBar = h('div', 'segmented');
       modes.forEach(mode => {
-        const button = h('button', 'tab-button' + (mode.id === portalState.projectionMode ? ' active' : ''), mode.label);
+        const button = h('button', 'segment' + (mode.id === portalState.projectionMode ? ' active' : ''), mode.label);
         button.onclick = () => { portalState.projectionMode = mode.id; renderPortal(); };
         tabBar.appendChild(button);
       });
       card.appendChild(tabBar);
 
       if (portalState.projectionMode === 'custom') {
-        card.appendChild(h('label', '', 'Principal amount ($)'));
-        const customInput = h('input');
-        customInput.type = 'number';
-        customInput.id = 'customAmount';
-        customInput.min = '0';
-        customInput.step = '0.01';
-        customInput.placeholder = 'Enter an amount';
-        customInput.oninput = refreshProjection;
-        card.appendChild(customInput);
+        card.appendChild(h('label', '', 'Principal amount'));
+        card.appendChild(moneyInput('customAmount', 'Enter an amount', refreshProjection).wrapper);
       }
 
-      card.appendChild(h('label', '', 'Weekly interest rate'));
-      const rateInput = h('input');
-      rateInput.readOnly = true;
-      rateInput.value = typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable';
-      card.appendChild(rateInput);
+      card.appendChild(h('div', 'rate-line', null, [
+        h('span', '', 'Weekly interest rate'),
+        h('strong', '', typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable')
+      ]));
 
-      const summary = h('div', 'tile');
+      const summary = h('div', 'result-tile');
       summary.id = 'projectionSummary';
-      summary.appendChild(h('div', 'tile-label', ''));
-      summary.appendChild(h('div', 'tile-value', ''));
-      const summaryWrapper = h('div', '', null, [h('h3', '', ''), summary]);
-      card.appendChild(summaryWrapper);
+      summary.appendChild(h('div', 'result-label', ''));
+      summary.appendChild(h('div', 'result-value', ''));
+      card.appendChild(summary);
 
       const breakdown = h('div', '');
       breakdown.id = 'projectionBreakdown';
@@ -433,10 +447,15 @@
         breakdownContainer.appendChild(emptyState('Investing has ended for this period, so there is nothing left to project.'));
         return;
       }
+      const topValue = projection.finalValue;
       projection.breakdown.forEach(entry => {
-        breakdownContainer.appendChild(h('div', 'list-row', null, [
-          h('div', '', null, [h('div', 'row-title', 'Week ' + entry.week), h('div', 'row-sub', (rate * 100).toFixed(2) + '% per week')]),
-          h('div', 'row-title', money(entry.value))
+        const bar = h('progress', 'mini-bar');
+        bar.max = topValue;
+        bar.value = entry.value;
+        breakdownContainer.appendChild(h('div', 'week-row', null, [
+          h('span', 'week-name', 'Week ' + entry.week),
+          bar,
+          h('span', 'week-value', money(entry.value))
         ]));
       });
     }
@@ -457,6 +476,7 @@
       catalogCard.appendChild(h('div', 'row-sub', 'Your teacher approves each request. You are only charged if it is approved.'));
 
       if (dashboard.catalog.length === 0) catalogCard.appendChild(emptyState('Nothing is for sale right now.'));
+      const itemGrid = h('div', 'item-grid');
       dashboard.catalog.forEach(item => {
         const soldOut = item.personRemaining === 0 || item.classRemaining === 0;
         const quantityInput = h('input');
@@ -465,18 +485,28 @@
         quantityInput.value = '1';
         quantityInput.setAttribute('aria-label', 'Quantity of ' + item.itemName);
 
+        const stepDown = h('button', 'stepper-button', '\u2212');
+        stepDown.onclick = () => { quantityInput.value = String(Math.max(1, (Number(quantityInput.value) || 1) - 1)); };
+        const stepUp = h('button', 'stepper-button', '+');
+        stepUp.onclick = () => { quantityInput.value = String((Number(quantityInput.value) || 0) + 1); };
+
         const requestButton = h('button', 'button', 'Request');
         requestButton.disabled = soldOut || dashboard.readOnly;
         requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value) }, requestButton);
 
-        const actions = h('div', 'row-actions');
-        if (!dashboard.readOnly) { actions.appendChild(quantityInput); actions.appendChild(requestButton); }
+        const pills = h('div', 'pill-row');
+        if (item.personRemaining !== null) pills.appendChild(h('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
+        if (item.classRemaining !== null) pills.appendChild(h('span', 'pill' + (item.classRemaining === 0 ? ' pill-out' : ''), item.classRemaining + ' of ' + item.classLimit + ' left for the class'));
 
-        catalogCard.appendChild(h('div', 'list-row', null, [
-          h('div', '', null, [h('div', 'row-title', item.itemName), h('div', 'row-sub', money(item.unitPrice) + (limitText(item) ? ' - ' + limitText(item) : '') + (soldOut ? ' - sold out' : ''))]),
-          actions
-        ]));
+        const card = h('div', 'item-card' + (soldOut ? ' sold-out' : ''), null, [
+          h('div', 'item-top', null, [h('div', 'item-name', item.itemName), h('div', 'item-price', money(item.unitPrice))]),
+          pills
+        ]);
+        if (soldOut) card.appendChild(h('div', 'row-sub', 'Sold out'));
+        if (!dashboard.readOnly) card.appendChild(h('div', 'item-actions', null, [h('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
+        itemGrid.appendChild(card);
       });
+      catalogCard.appendChild(itemGrid);
       panel.appendChild(catalogCard);
 
       const requestsCard = h('div', 'card', null, [h('h2', '', 'Your requests')]);
@@ -504,13 +534,26 @@
     function renderLeaderboard(panel) {
       const leaderboard = portalState.dashboard.leaderboard;
       const card = h('div', 'card', null, [h('h2', '', portalState.dashboard.student.period + ' leaderboard')]);
-      card.appendChild(h('div', 'row-sub', 'Cash plus the value of the CoD.'));
+      card.appendChild(h('div', 'row-sub card-intro', 'Cash plus the value of the CoD.'));
 
-      const visibleEntries = leaderboard.filter((entry, index) => index < 10 || entry.isYou);
-      visibleEntries.forEach(entry => {
+      const podiumOrder = [leaderboard[1], leaderboard[0], leaderboard[2]].filter(Boolean);
+      if (podiumOrder.length === 3) {
+        const podium = h('div', 'podium');
+        podiumOrder.forEach(entry => {
+          podium.appendChild(h('div', 'podium-spot podium-' + entry.rank + (entry.isYou ? ' podium-you' : ''), null, [
+            h('div', 'podium-medal', String(entry.rank)),
+            h('div', 'podium-name', entry.displayName + (entry.isYou ? ' (you)' : '')),
+            h('div', 'podium-total', money(entry.total))
+          ]));
+        });
+        card.appendChild(podium);
+      }
+
+      const startIndex = podiumOrder.length === 3 ? 3 : 0;
+      leaderboard.filter((entry, index) => index >= startIndex && (index < 10 || entry.isYou)).forEach(entry => {
         card.appendChild(h('div', 'list-row' + (entry.isYou ? ' rank-you' : ''), null, [
-          h('div', 'row-actions', null, [h('span', 'rank', '#' + entry.rank), h('span', 'row-title', entry.displayName + (entry.isYou ? ' (you)' : ''))]),
-          h('div', 'row-title', money(entry.total))
+          h('div', 'row-left', null, [h('span', 'rank', String(entry.rank)), h('span', 'row-title', entry.displayName + (entry.isYou ? ' (you)' : ''))]),
+          h('div', 'row-title money', money(entry.total))
         ]));
       });
       panel.appendChild(card);
