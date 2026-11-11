@@ -79,6 +79,15 @@
                 <button class="btn btn-success" id="importStudentNames"
                     onclick="callServer('importStudentNames')">Import All Students</button>
 
+                <label class="label-normal"><strong>Student Portal</strong>
+                    <span class="experimental-badge display-none" title="The student portal is new and still being tested.">EXPERIMENTAL</span></label>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="setPortalDomainBtn"
+                        onclick="callServer('configurePortalDomain')">Set Portal Domain</button>
+                    <button class="btn btn-primary" id="createPortalTabsBtn"
+                        onclick="callServer('createPortalSheets')">Create Portal Tabs</button>
+                </div>
+
                 <label class="label-normal"><strong>Historical Economic Records</strong></label>
                 <div class="btn-group">
                     <button class="btn btn-primary" id="saveHistoricalBtn"
@@ -193,10 +202,19 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Initialize the page by fetching current settings from the server and populating the form fields
+            showExperimentalLabels();
             await initializeBankingSettings(false);
             // After data is loaded, run the function again to load any new data
             await initializeBankingSettings(true);
         });
+
+        /** Shows the EXPERIMENTAL labels while PORTAL_EXPERIMENTAL is true in GlobalConsts.ts. */
+        function showExperimentalLabels() {
+            callServer('getPortalUiFlags', null, (flags) => {
+                if (!flags || !flags.experimental) return;
+                document.querySelectorAll('.experimental-badge').forEach(badge => setElementDisplay(badge, 'block'));
+            });
+        }
 
         const SECTION_META = {
             importantDates: { title: "📅 Important Dates", note: "Q2 represents the semester. All dates affect validation and reporting." },
