@@ -398,7 +398,8 @@
                     <ol class="steps">
                         <li>Banking Settings → Maintenance → <strong>Student Portal</strong> → <strong>Set Portal Domain</strong>. Enter the email domain your students sign in with. It is stored in the project's Script Properties, never in the code.</li>
                         <li>Banking Settings → Maintenance → Student Portal → <strong>Create Portal Tabs</strong>. This adds the <code>Portal Accounts</code> and <code>Expenditure Requests</code> tabs.</li>
-                        <li>In the Apps Script editor choose <strong>Deploy → New deployment → Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone in your organization</strong>. Share the link it gives you.</li>
+                        <li>In the Apps Script editor choose <strong>Deploy → New deployment → Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone with a Google account</strong>. That way a student who has the wrong Google account selected still lands on the portal, which then asks them to sign in with their school account, instead of Google's "Unable to open the file" page. Share the link it gives you.</li>
+                        <li>Know the catch: Apps Script only reveals a visitor's email when they are in the same Google Workspace domain as the project owner. The portal treats "no email" as "not a school account" and shows the sign-in help screen (choose the school account, or use a separate Chrome profile or a private window).</li>
                     </ol>
                     <div class="callout callout-danger">
                         <strong>Execute as "Me" is required.</strong> Students never get access to the spreadsheet itself; the portal works for them on your behalf and only ever shows or changes their own account.
@@ -568,7 +569,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
             <div id="d-portal" class="doc-section" data-audience="dev" data-title="Student Portal" data-icon="🎓">
                 <div class="section-card">
                     <h2>Student Portal</h2>
-                    <p>A web app served by <code>doGet()</code> in <code>utils/PortalUtils.ts</code>, rendered by <code>Portal.html</code> with <code>styles/Portal.html</code>. <code>appsscript.json</code> declares <code>executeAs: USER_DEPLOYING</code> and <code>access: DOMAIN</code>.</p>
+                    <p>A web app served by <code>doGet()</code> in <code>utils/PortalUtils.ts</code>, rendered by <code>Portal.html</code> with <code>styles/Portal.html</code>. <code>appsscript.json</code> declares <code>executeAs: USER_DEPLOYING</code> and <code>access: ANYONE</code> (any Google account). Identity comes from <code>Session.getActiveUser()</code>, which is empty for accounts outside the owner's domain; the portal then answers <code>signin</code> and the page shows the help screen.</p>
 
                     <h3 id="d-portal-security">Security model</h3>
                     <ul>
