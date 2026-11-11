@@ -253,7 +253,12 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
         Logger.log(`${formattedMessage}`);
 
         if (isVisibleToClient) {
-            SpreadsheetApp.getUi().alert(`${formattedMessage}`);
+            if (portalCapturedMessages) {
+                // A portal request has no spreadsheet window to alert, so its messages go back to the student instead
+                portalCapturedMessages.push(String(message));
+            } else {
+                SpreadsheetApp.getUi().alert(`${formattedMessage}`);
+            }
         }
 
         return true;
