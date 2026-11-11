@@ -576,11 +576,12 @@
       if (finalElement) finalElement.textContent = `$${projection.finalValue.toFixed(2)}`;
 
       // Only the Current CoD list says what week the CoD is in and what it should be worth right now.
-      const codDeposit = mode === 'currentCod' ? getCurrentCodTimeline().depositDate : null;
+      // Current CoD counts from its deposit date; the other modes start fresh today.
+      const codDeposit = mode === 'currentCod' ? getCurrentCodTimeline().depositDate : new Date();
       const currentCodNow = document.getElementById('currentCodNow');
       if (currentCodNow) {
         const nowEntry = mode === 'currentCod' && currentWeek !== null ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
-        const nowDate = codDeposit ? formatWeekDate(codDeposit, currentWeek) : '';
+        const nowDate = mode === 'currentCod' && codDeposit ? formatWeekDate(codDeposit, currentWeek) : '';
         currentCodNow.textContent = nowEntry ? `Now: week ${currentWeek}${nowDate ? ' (' + nowDate + ')' : ''}, expected value $${nowEntry.value.toFixed(2)}` : '';
       }
 
