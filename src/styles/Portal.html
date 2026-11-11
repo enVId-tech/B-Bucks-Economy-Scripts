@@ -257,15 +257,17 @@
     .rate-line { display: flex; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--portal-surface-alt); margin-top: 14px; color: var(--portal-muted); font-size: 14px; }
     .rate-line strong { color: var(--portal-text); }
     .result-tile { margin-top: 12px; padding: 16px; border-radius: 14px; background: var(--portal-accent-soft); color: var(--portal-accent-strong); }
-    .result-label { font-size: 13px; font-weight: 600; }
-    .result-value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
-    .week-row { display: grid; grid-template-columns: 64px 1fr 92px; align-items: center; gap: 12px; padding: 7px 0; }
+    .result-label { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+    .result-value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+    .result-value-long { font-size: 20px; }
+    .result-short { font-size: 14px; font-weight: 600; opacity: 0.85; letter-spacing: 0; }
+    .week-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1.2fr); align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--portal-border); }
+    .week-row > span { min-width: 0; overflow-wrap: anywhere; }
+    .week-row > span:not(:first-child) { text-align: right; }
+    .week-head { color: var(--portal-muted); font-size: 12px; font-weight: 600; }
+    .week-earned { color: var(--portal-muted); font-size: 13px; }
     .week-name { color: var(--portal-muted); font-size: 13px; font-weight: 600; }
     .week-value { text-align: right; font-weight: 700; }
-    .mini-bar { width: 100%; height: 8px; border: 0; border-radius: 999px; overflow: hidden; background: var(--portal-surface-alt); appearance: none; -webkit-appearance: none; }
-    .mini-bar::-webkit-progress-bar { background: var(--portal-surface-alt); }
-    .mini-bar::-webkit-progress-value { background: linear-gradient(90deg, var(--portal-accent), var(--portal-accent-grad-to)); border-radius: 999px; }
-    .mini-bar::-moz-progress-bar { background: var(--portal-accent); border-radius: 999px; }
 
     /* ---------- leaderboard ---------- */
     .podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 10px; margin: 6px 0 16px; }
