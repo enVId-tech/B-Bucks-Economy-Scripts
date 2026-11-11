@@ -491,10 +491,13 @@
     function historyRow(entry) {
       const isGain = entry.change > 0;
       const shownAmount = entry.change !== 0 ? Math.abs(entry.change) : entry.amount;
-      return h('div', 'list-row', null, [
+      return h('div', 'list-row' + (entry.undone ? ' row-undone' : ''), null, [
         h('div', 'row-left', null, [
           h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
-          h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
+          h('div', '', null, [
+            h('div', 'row-title', entry.description || entry.type),
+            h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type + (entry.undone ? ' \u00b7 reversed by your teacher' : ''))
+          ])
         ]),
         h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
       ]);
@@ -538,9 +541,9 @@
         if (historyState.error) purchasesList.appendChild(emptyState(historyState.error));
         else if (!historyState.all) purchasesList.appendChild(emptyState('Loading...'));
         else {
-          // Only spending (type Expense) counts as a purchase, and a purchase that was undone is not one any more.
-          const purchases = historyState.all.filter(entry => entry.type === 'Expense' && !entry.undone);
-          if (purchases.length === 0) purchasesList.appendChild(emptyState('You have not bought anything yet.'));
+          // Spending is every log row of type Expense. Reversed ones stay in the list (marked) because this is a record, not a to-do list.
+          const purchases = historyState.all.filter(entry => entry.type === 'Expense');
+          if (purchases.length === 0) purchasesList.appendChild(emptyState('Nothing has been spent yet.'));
           purchases.slice(0, historyState.purchasesShown).forEach(entry => purchasesList.appendChild(historyRow(entry)));
           if (purchases.length > historyState.purchasesShown) {
             const more = h('button', 'button button-secondary', 'Show more (' + (purchases.length - historyState.purchasesShown) + ' left)');
@@ -827,9 +830,9 @@
       });
       panel.appendChild(requestsCard);
 
-      // Read-only list of what the student has bought (spending only). Approved purchases cannot be undone from here.
-      const purchasesCard = h('div', 'card', null, [h('h2', '', 'Your purchases')]);
-      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'Everything you have bought. A request can only be cancelled while it is still pending; once it is approved, ask your teacher.'));
+      // Read-only record of what the student has spent money on (log rows of type Expense). Nothing here can be undone.
+      const purchasesCard = h('div', 'card', null, [h('h2', '', 'Your spending')]);
+      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'A record of what you have spent money on, newest first. It is for information only.'));
       const purchasesList = h('div', '');
       purchasesList.id = 'purchasesList';
       purchasesCard.appendChild(purchasesList);
