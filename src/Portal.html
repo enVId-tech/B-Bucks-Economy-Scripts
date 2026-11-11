@@ -144,6 +144,37 @@
       main.replaceChildren(card);
     }
 
+    /** A button that changes data on the server. While any action is running, every one of them is locked (see setWorking). */
+    function actionButton(className, label) {
+      const button = h('button', className, label);
+      button.dataset.action = '1';
+      return button;
+    }
+
+    /** Locks or unlocks every action button on the page (they dim and ignore clicks), so nothing can be sent twice. */
+    function setWorking(isWorking) { mainElement().classList.toggle('working', isWorking); }
+
+    /**
+     * Shows that a click was received: the button is disabled, shows a spinner and the given label.
+     * @returns A function that puts the button back (only needed when the page is not redrawn afterwards).
+     */
+    function markButtonBusy(button, busyLabel) {
+      if (!button) return () => { };
+      const originalLabel = button.textContent;
+      button.dataset.busy = '1';
+      button.disabled = true;
+      button.classList.add('is-busy');
+      button.textContent = busyLabel;
+      return () => {
+        delete button.dataset.busy;
+        button.disabled = false;
+        button.classList.remove('is-busy');
+        button.textContent = originalLabel;
+      };
+    }
+
+    const ACTION_BUSY_LABELS = { portalDeposit: 'Investing...', portalWithdraw: 'Withdrawing...', portalRequestExpenditure: 'Sending request...', portalCancelRequest: 'Cancelling...' };
+
     /** Shows a short message at the top of the page content, replacing the previous one. */
     function showNotice(kind, message) {
       const existing = document.getElementById('portalNotice');
@@ -158,7 +189,8 @@
     async function runAction(serverFunction, payload, buttonToLock) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
-      if (buttonToLock) buttonToLock.disabled = true;
+      setWorking(true);
+      const restoreButton = markButtonBusy(buttonToLock, ACTION_BUSY_LABELS[serverFunction] || 'Working...');
       try {
         const result = await portalCall(serverFunction, JSON.stringify(payload));
         await loadDashboard(false);
@@ -169,7 +201,8 @@
         console.error(error);
       } finally {
         // The cool-down keeps buttons from being hammered: the next action can start once it has passed.
-        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
+        if (buttonToLock && buttonToLock.isConnected) restoreButton();
+        setTimeout(() => { portalState.busy = false; setWorking(false); markDataFresh(); }, ACTION_COOLDOWN_MS);
       }
     }
 
@@ -277,6 +310,11 @@
       loadDashboard(true);
     }
 
+    /** Replaces the page content with a spinner while an account opens. */
+    function showLoadingCard(message) {
+      mainElement().replaceChildren(h('div', 'card center-card', null, [h('div', 'spinner'), h('p', '', message)]));
+    }
+
     async function loadDashboard(resetTab) {
       if (!portalState.profile) {
         // An admin who is not a student starts on the admin tab
@@ -284,6 +322,7 @@
         renderPortal();
         return;
       }
+      if (resetTab) showLoadingCard('Opening the account...');
       try {
         const dashboard = await portalCall('portalGetDashboard', JSON.stringify(portalState.profile));
         if (!dashboard || dashboard.error) {
@@ -315,7 +354,7 @@
       const banner = document.getElementById('spectateBanner');
       if (dashboard && dashboard.viewingAsAdmin) {
         const exitButton = h('button', 'banner-button', 'Exit');
-        exitButton.onclick = exitStudentView;
+        exitButton.onclick = () => { markButtonBusy(exitButton, 'Leaving...'); exitStudentView(); };
         banner.replaceChildren(h('span', '', 'You are in ' + dashboard.student.name + "'s account (" + dashboard.student.period + '). Everything you do here happens on their account.'), exitButton);
         setElementDisplay(banner, 'flex');
       } else {
@@ -579,7 +618,7 @@
         const amountInput = amountField.input;
         depositCard.appendChild(amountField.wrapper);
 
-        const investButton = h('button', 'button button-primary-wide', 'Invest');
+        const investButton = actionButton('button button-primary-wide', 'Invest');
         investButton.disabled = !student.canDeposit;
         investButton.onclick = () => runAction('portalDeposit', { name: student.name, period: student.period, amount: Number(amountInput.value) }, investButton);
 
@@ -587,7 +626,7 @@
         maxButton.disabled = !student.canDeposit;
         maxButton.onclick = () => { amountInput.value = student.availableToInvest.toFixed(2); refreshProjection(); };
 
-        const withdrawButton = h('button', 'button button-secondary', 'Withdraw CoD (' + money(student.codNet) + ')');
+        const withdrawButton = actionButton('button button-secondary', 'Withdraw CoD (' + money(student.codNet) + ')');
         withdrawButton.disabled = !student.canWithdraw;
         withdrawButton.onclick = () => runAction('portalWithdraw', { name: student.name, period: student.period }, withdrawButton);
 
@@ -624,6 +663,10 @@
         h('span', '', 'Weekly interest rate'),
         h('strong', '', typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable')
       ]));
+      card.appendChild(h('div', 'rate-line', null, [
+        h('span', '', 'Withdrawal tax (taken when you withdraw)'),
+        h('strong', '', typeof predictor.withdrawalTaxRate === 'number' ? (predictor.withdrawalTaxRate * 100).toFixed(2) + '%' : 'Unavailable')
+      ]));
 
       const summary = h('div', 'result-tile');
       summary.id = 'projectionSummary';
@@ -638,14 +681,18 @@
     }
 
     /** Same linear projection as the admin Investment Banking page: value(week) = principal + principal * weeklyRate * week. */
-    function buildProjection(principal, weeks, weeklyRate) {
+    /**
+     * What a deposit could be worth each week. The withdrawal tax from Settings (investmentWithdrawalTaxRate) is taken from the grown
+     * amount when money is withdrawn, so the value that counts is the amount AFTER tax: gross x (1 - tax).
+     */
+    function buildProjection(principal, weeks, weeklyRate, taxRate) {
       const breakdown = [];
-      let finalValue = principal;
       for (let week = 1; week <= weeks; week++) {
-        finalValue = principal + (principal * weeklyRate * week);
-        breakdown.push({ week, value: finalValue });
+        const gross = principal + (principal * weeklyRate * week);
+        breakdown.push({ week, gross, tax: gross * taxRate, net: gross * (1 - taxRate) });
       }
-      return { finalValue: weeks === 0 ? principal : finalValue, breakdown };
+      const last = breakdown[breakdown.length - 1] || { gross: principal, tax: principal * taxRate, net: principal * (1 - taxRate) };
+      return { finalGross: last.gross, finalTax: last.tax, finalNet: last.net, breakdown };
     }
 
     function getProjectionPrincipal() {
@@ -666,6 +713,7 @@
       const principal = getProjectionPrincipal();
       const weeks = predictor.weeksRemaining;
       const rate = predictor.weeklyInterestRate;
+      const taxRate = typeof predictor.withdrawalTaxRate === 'number' ? predictor.withdrawalTaxRate : 0;
       const labelElement = summary.children[0];
       const valueElement = summary.children[1];
       breakdownContainer.replaceChildren();
@@ -681,23 +729,24 @@
         return;
       }
 
-      const projection = buildProjection(principal, weeks, rate);
-      labelElement.textContent = 'Value at week ' + weeks + ' (principal ' + money(principal) + ')';
-      valueElement.textContent = money(projection.finalValue);
-      const shortForm = shortMoney(projection.finalValue);
+      const projection = buildProjection(principal, weeks, rate, taxRate);
+      labelElement.textContent = 'Value after tax at week ' + weeks + ' (principal ' + money(principal) + ')';
+      valueElement.textContent = money(projection.finalNet);
+      const shortForm = shortMoney(projection.finalNet);
       if (shortForm) valueElement.appendChild(h('div', 'result-short', 'About ' + shortForm));
-      valueElement.classList.toggle('result-value-long', money(projection.finalValue).length > 14);
+      if (weeks > 0) valueElement.appendChild(h('div', 'result-short', 'Before tax ' + money(projection.finalGross) + ' \u00b7 tax ' + (taxRate * 100).toFixed(2) + '% = -' + money(projection.finalTax)));
+      valueElement.classList.toggle('result-value-long', money(projection.finalNet).length > 14);
 
       if (weeks === 0) {
         breakdownContainer.appendChild(emptyState('Investing has ended for this period, so there is nothing left to project.'));
         return;
       }
-      breakdownContainer.appendChild(h('div', 'week-row week-head', null, [h('span', '', 'Week'), h('span', '', 'Earned so far'), h('span', '', 'Total value')]));
+      breakdownContainer.appendChild(h('div', 'week-row week-head', null, [h('span', '', 'Week'), h('span', '', 'Before tax'), h('span', '', 'After tax')]));
       projection.breakdown.forEach(entry => {
         breakdownContainer.appendChild(h('div', 'week-row', null, [
           h('span', 'week-name', 'Week ' + entry.week),
-          h('span', 'week-earned', '+' + money(entry.value - principal)),
-          h('span', 'week-value', money(entry.value))
+          h('span', 'week-earned', money(entry.gross)),
+          h('span', 'week-value', money(entry.net))
         ]));
       });
     }
@@ -732,7 +781,7 @@
         const stepUp = h('button', 'stepper-button', '+');
         stepUp.onclick = () => { quantityInput.value = String((Number(quantityInput.value) || 0) + 1); };
 
-        const requestButton = h('button', 'button', 'Request');
+        const requestButton = actionButton('button', 'Request');
         requestButton.disabled = soldOut;
         const noteBox = h('textarea', 'note-box');
         noteBox.rows = 3;
@@ -763,7 +812,7 @@
       dashboard.requests.forEach(request => {
         const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
         if (request.status === 'Pending') {
-          const cancelButton = h('button', 'button button-secondary', 'Cancel');
+          const cancelButton = actionButton('button button-secondary', 'Cancel');
           cancelButton.onclick = () => runAction('portalCancelRequest', { name: student.name, period: student.period, id: request.id }, cancelButton);
           actions.appendChild(cancelButton);
         }
@@ -842,11 +891,13 @@
       periodSelect.onchange = fillStudents;
       fillStudents();
 
-      const viewButton = h('button', 'button', 'Open account');
+      const viewButton = actionButton('button', 'Open account');
       viewButton.onclick = () => {
-        if (!periodSelect.value || !studentSelect.value) return;
+        if (!periodSelect.value || !studentSelect.value || viewButton.dataset.busy) return;
+        markButtonBusy(viewButton, 'Opening account...');
+        setWorking(true);
         portalState.profile = { name: studentSelect.value, period: periodSelect.value };
-        loadDashboard(true);
+        loadDashboard(true).finally(() => setWorking(false));
       };
       spectateCard.appendChild(h('div', 'button-row', null, [viewButton]));
 
@@ -873,13 +924,13 @@
 
           const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
           if (request.status === 'Approved') {
-            const completeButton = h('button', 'button', 'Mark completed');
+            const completeButton = actionButton('button', 'Mark completed');
             completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
             actions.appendChild(completeButton);
           }
           if (request.status === 'Pending') {
-            const approveButton = h('button', 'button', 'Approve');
-            const denyButton = h('button', 'button button-danger', 'Deny');
+            const approveButton = actionButton('button', 'Approve');
+            const denyButton = actionButton('button button-danger', 'Deny');
             const resolve = (approve, button) => resolveRequest(request.id, approve, noteInput.value, button, card);
             approveButton.onclick = () => resolve(true, approveButton);
             denyButton.onclick = () => resolve(false, denyButton);
@@ -913,7 +964,8 @@
     async function completeRequest(requestId, note, button, card) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
-      button.disabled = true;
+      setWorking(true);
+      markButtonBusy(button, 'Completing...');
       try {
         const result = await portalCall('portalAdminCompleteRequest', JSON.stringify({ id: requestId, note }));
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
@@ -921,7 +973,7 @@
         console.error(error);
         showNotice('bad', 'The bank could not be reached. Please try again.');
       } finally {
-        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
+        setTimeout(() => { portalState.busy = false; setWorking(false); markDataFresh(); }, ACTION_COOLDOWN_MS);
       }
       await loadAdminRequests(card);
     }
@@ -929,7 +981,8 @@
     async function resolveRequest(requestId, approve, note, button, card) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
-      button.disabled = true;
+      setWorking(true);
+      markButtonBusy(button, approve ? 'Approving...' : 'Denying...');
       try {
         const result = await portalCall('portalAdminResolveRequest', JSON.stringify({ id: requestId, approve, note }));
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
@@ -937,7 +990,7 @@
         console.error(error);
         showNotice('bad', 'The bank could not be reached. Please try again.');
       } finally {
-        setTimeout(() => { portalState.busy = false; markDataFresh(); }, ACTION_COOLDOWN_MS);
+        setTimeout(() => { portalState.busy = false; setWorking(false); markDataFresh(); }, ACTION_COOLDOWN_MS);
       }
       await loadAdminRequests(card);
     }
