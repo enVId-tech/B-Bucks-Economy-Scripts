@@ -182,6 +182,7 @@ const DEFAULT_TIMESTAMP_CELL: string = "A5"; // default for "timestampCell" (Set
 const PORTAL_ACCOUNTS_SHEET: string = "Portal Accounts"; // Email, Period, Name. Created on demand; an email listed here always wins over name matching
 const PORTAL_REQUESTS_SHEET: string = "Expenditure Requests"; // one row per student request, created on demand
 const PORTAL_DOMAIN_PROPERTY: string = "PORTAL_ALLOWED_DOMAIN"; // Script Property holding the allowed email domain. Never hard-code the domain in source
+const ENFORCE_EDITOR_GUARD: boolean = true; // true: admin, management and data server functions only run for people who can edit the spreadsheet (utils/AccessGuard.ts). Set to false only to find out why an admin dialog stopped working.
 const PORTAL_EXPERIMENTAL: boolean = true; // true: the student portal is labelled EXPERIMENTAL in Banking Settings and on the page. Set to false once it is stable.
 const PORTAL_ACTION_MIN_GAP_MS: number = 1000; // server side: least time between two actions (invest, withdraw, request, undo...) of one person
 const PORTAL_ACTIONS_PER_MINUTE: number = 20; // server side: most actions one person may run per minute
