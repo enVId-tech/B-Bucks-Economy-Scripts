@@ -392,7 +392,7 @@
             <div id="u-portal" class="doc-section" data-audience="user" data-title="Student Portal" data-icon="🎓">
                 <div class="section-card">
                     <h2>Student Portal</h2>
-                    <p>One link for everyone. Students sign in with their school Google account and see their own balance, can invest, request purchases and watch the class leaderboard. You open the same link and can spectate any student and approve requests.</p>
+                    <p>One link for everyone. Students sign in with their school Google account and see their own balance, can invest, request purchases and watch the class leaderboard. You open the same link, go into any student's account to act for them, and approve requests.</p>
 
                     <h3 id="u-portal-setup">Setting it up</h3>
                     <ol class="steps">
@@ -420,8 +420,8 @@
                         <li><strong>Leaderboard:</strong> the top ten of their period plus their own rank (cash plus CoD value, names shortened to first name and last initial).</li>
                     </ul>
 
-                    <h3 id="u-portal-admin">Approving requests and spectating</h3>
-                    <p>If you can edit the spreadsheet, the portal shows an <strong>Admin</strong> tab. Pick any period and student to see their dashboard (read-only, with a banner). The request list shows pending requests first. <strong>Approve</strong> charges the student exactly like the Services dialog (logged, counted against the caps, undoable in Transaction Records) after checking the price, balance and caps again. <strong>Deny</strong> charges nothing. An optional note is saved with the request.</p>
+                    <h3 id="u-portal-admin">Approving requests and acting in a student's account</h3>
+                    <p>If you can edit the spreadsheet, the portal shows an <strong>Admin</strong> tab. Pick any period and student and press <strong>Open account</strong>. You are then literally in their account: you can invest, withdraw, request purchases and cancel requests for them, under the same rules and caps as the student (no override). A banner at the top reminds you whose account it is, and <strong>Exit</strong> returns you to your own view. Each action is written to the log with your email and the student's name, and requests you make carry a note saying so. The request list shows pending requests first. <strong>Approve</strong> charges the student exactly like the Services dialog (logged, counted against the caps, undoable in Transaction Records) after checking the price, balance and caps again. <strong>Deny</strong> charges nothing. An optional note is saved with the request.</p>
                 </div>
             </div>
 
@@ -573,7 +573,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <h3 id="d-portal-security">Security model</h3>
                     <ul>
                         <li>The caller is read only from <code>Session.getActiveUser()</code>. Nothing the browser sends decides who someone is.</li>
-                        <li>Every endpoint re-checks the caller. Students may only use profiles linked to their email; admins (spreadsheet editors and owner) may read any student but spectating never writes.</li>
+                        <li>Every endpoint re-checks the caller. Students may only use profiles linked to their email; admins (spreadsheet editors and owner) may act for any student that exists, under the same rules, and every such action is logged with the admin's email.</li>
                         <li>Student IDs are read on the server only to match an email and are never sent to the browser.</li>
                         <li>The allowed domain is the Script Property named by <code>PORTAL_DOMAIN_PROPERTY</code>, read through <code>getPortalAllowedDomain()</code> in <code>Config.ts</code>. It is never written in source. With no domain set, only admins can open the portal.</li>
                         <li>The page builds every element with <code>textContent</code>, so item names or student names can never inject markup.</li>
@@ -583,7 +583,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <table class="doc-table">
                         <tr><th>Function</th><th>Who</th><th>What</th></tr>
                         <tr><td><code>portalBootstrap</code></td><td>anyone</td><td>Status (ok, signin, wrongDomain, notConfigured), linked profiles, admin directory.</td></tr>
-                        <tr><td><code>portalGetDashboard</code></td><td>owner of the profile, or admin (read-only)</td><td>Balance, CoD, lockout, catalog with caps left, requests, recent log entries, leaderboard, predictor inputs.</td></tr>
+                        <tr><td><code>portalGetDashboard</code></td><td>owner of the profile, or admin</td><td>Balance, CoD, lockout, catalog with caps left, requests, recent log entries, leaderboard, predictor inputs.</td></tr>
                         <tr><td><code>portalDeposit</code>, <code>portalWithdraw</code></td><td>owner of the profile</td><td>Call <code>handleDeposit</code> / <code>handleWithdraw</code> with override always false. The withdrawal lockout, which the admin dialog only checks in its page code, is enforced here on the server.</td></tr>
                         <tr><td><code>portalRequestExpenditure</code>, <code>portalCancelRequest</code></td><td>owner of the profile</td><td>Write or cancel a row in the Expenditure Requests tab. Nothing is charged yet.</td></tr>
                         <tr><td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code></td><td>admin</td><td>Approve charges through <code>applyMathToSelection</code> on the Expenditures cell, inside the transaction lock.</td></tr>
