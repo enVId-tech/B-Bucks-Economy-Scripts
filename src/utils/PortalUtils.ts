@@ -8,13 +8,13 @@
  *
  * Server side of the student portal, a web app that lets every student open ONE link, sign in with their school Google account and
  * see their own balance, invest, request expenditures and watch the class leaderboard. Admins (people who can edit the spreadsheet)
- * open the same link and can spectate any student and approve or deny expenditure requests.
+ * open the same link and can go into any student's account to act for them and approve or deny expenditure requests.
  *
  * Security model, read before changing anything:
  *  - The web app is deployed as "Execute as: me" so students never need access to the spreadsheet. Who is calling is therefore taken
  *    ONLY from Session.getActiveUser(), never from anything the browser sends.
  *  - Every endpoint re-checks the caller on the server. The browser is only a view.
- *  - A student can only act on the profiles linked to their own email. Admins can read any student but spectating never writes.
+ *  - A student can only act on the profiles linked to their own email. Admins can open any student's account and act on it exactly like the student would (same rules, no override); each such action is written to the log with the admin's email.
  *  - The allowed email domain comes from a Script Property (getPortalAllowedDomain), it is never written in the source.
  *  - Money only moves through the existing handlers (handleDeposit, handleWithdraw, applyMathToSelection) so every transaction
  *    still lands in the log, takes the transaction lock and respects the same caps as the admin dialogs.
@@ -323,7 +323,7 @@ function portalBootstrap(): any {
     }
 }
 
-/** Period tabs with their student names, used by the admin spectator picker. */
+/** Period tabs with their student names, used by the admin student picker. */
 function buildPortalDirectory_(): { period: string; students: string[] }[] {
     return getPortalPeriodSheets_().map(sheet => ({ period: sheet.getName(), students: readPortalPeriod_(sheet).map(student => student.name) }));
 }
@@ -489,7 +489,7 @@ function portalGetDashboard(data: string): any {
         const weeklyInterestRate = Number(fetchProperty("weeklyInterestRate", "standardPercentages"));
 
         return {
-            readOnly: !isOwnProfile,
+            viewingAsAdmin: !isOwnProfile,
             student: {
                 name, period,
                 displayName: abbreviateStudentName_(name),
@@ -551,14 +551,19 @@ function fetchPortalRecentTransactions_(name: string, period: string): any[] {
 // Student actions: invest, withdraw, request expenditures
 // ---------------------------------------------------------------------------------------------------------------------------
 
-/** Confirms the caller is signed in and may ACT as this profile (spectating admins can not). Returns the reason it is refused, or null. */
-function refuseUnlessOwnProfile_(name: string, period: string): { identity: PortalIdentity; reason: string | null } {
+/**
+ * Confirms the caller is signed in and may ACT as this profile: their own, or any student's when they are an admin.
+ * `onBehalf` is true when an admin is acting on somebody else's account. The same rules and caps apply either way.
+ */
+function authorizeProfileAction_(name: string, period: string): { identity: PortalIdentity; reason: string | null; onBehalf: boolean } {
     const identity = resolvePortalIdentity_();
-    if (identity.status !== "ok") return { identity, reason: "You are not signed in." };
-    if (!ownsPortalProfile_(findPortalProfiles_(identity), name, period)) {
-        return { identity, reason: identity.isAdmin ? "Spectating is read-only. Sign in as that student to act for them." : "That account is not linked to your email." };
+    if (identity.status !== "ok") return { identity, reason: "You are not signed in.", onBehalf: false };
+    if (ownsPortalProfile_(findPortalProfiles_(identity), name, period)) return { identity, reason: null, onBehalf: false };
+    if (identity.isAdmin) {
+        const exists = findPortalStudent_(name, period) !== null;
+        return { identity, reason: exists ? null : "That student was not found.", onBehalf: exists };
     }
-    return { identity, reason: null };
+    return { identity, reason: "That account is not linked to your email.", onBehalf: false };
 }
 
 function findPortalStudent_(name: string, period: string): PortalStudentRow | null {
@@ -578,7 +583,7 @@ function portalDeposit(data: string): PortalActionResult {
         const period = String(request.period ?? "");
         const amount = Number(Number(request.amount).toFixed(2));
 
-        const { reason } = refuseUnlessOwnProfile_(name, period);
+        const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
         if (reason) return failure_(reason);
         if (!Number.isFinite(amount) || amount <= 0) return failure_("Enter an amount greater than zero.");
 
@@ -586,7 +591,10 @@ function portalDeposit(data: string): PortalActionResult {
         if (windowMessage) return failure_(windowMessage);
 
         const { result, messages } = runCapturingMessages_(() => handleDeposit(JSON.stringify({ amount, student: name, period, override: false })));
-        if (result === true) return { ok: true, message: `Invested $${amount.toFixed(2)}.` };
+        if (result === true) {
+            if (onBehalf) log(`Portal: ${identity.email} invested $${amount.toFixed(2)} for ${name} (${period}).`, false);
+            return { ok: true, message: `Invested $${amount.toFixed(2)}.` };
+        }
         return failure_(messages.join(" ") || "The deposit could not be completed.");
     } catch (error: any) {
         log(`Error in portalDeposit: ${error.message}`, false);
@@ -604,7 +612,7 @@ function portalWithdraw(data: string): PortalActionResult {
         const name = String(request.name ?? "");
         const period = String(request.period ?? "");
 
-        const { reason } = refuseUnlessOwnProfile_(name, period);
+        const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
         if (reason) return failure_(reason);
 
         const student = findPortalStudent_(name, period);
@@ -615,7 +623,10 @@ function portalWithdraw(data: string): PortalActionResult {
         if (daysLeft > 0) return failure_(`Your CoD is locked for ${daysLeft} more day(s).`);
 
         const { result, messages } = runCapturingMessages_(() => handleWithdraw(JSON.stringify({ amount: student.netGain, student: name, period, override: false })));
-        if (result === true) return { ok: true, message: `Withdrew $${student.netGain.toFixed(2)} to your balance.` };
+        if (result === true) {
+            if (onBehalf) log(`Portal: ${identity.email} withdrew $${student.netGain.toFixed(2)} for ${name} (${period}).`, false);
+            return { ok: true, message: `Withdrew $${student.netGain.toFixed(2)} to the balance.` };
+        }
         return failure_(messages.join(" ") || "The withdrawal could not be completed.");
     } catch (error: any) {
         log(`Error in portalWithdraw: ${error.message}`, false);
@@ -673,7 +684,7 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const itemName = String(request.itemName ?? "").trim();
         const quantity = Math.floor(Number(request.quantity));
 
-        const { identity, reason } = refuseUnlessOwnProfile_(name, period);
+        const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
         if (reason) return failure_(reason);
         if (!itemName) return failure_("Choose something to request.");
         if (!Number.isFinite(quantity) || quantity < 1 || quantity > PORTAL_MAX_REQUEST_QUANTITY) return failure_(`Quantity must be between 1 and ${PORTAL_MAX_REQUEST_QUANTITY}.`);
@@ -691,8 +702,9 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const nextId = existingRequests.reduce((highest, existing) => Math.max(highest, existing.id), 0) + 1;
         const total = Number((item.unitPrice * quantity).toFixed(2));
 
-        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", ""]);
-        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). You will be charged if it is approved.` };
+        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : ""]);
+        if (onBehalf) log(`Portal: ${identity.email} requested ${quantity} x ${itemName} for ${name} (${period}).`, false);
+        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). It is charged only if it is approved.` };
     } catch (error: any) {
         log(`Error in portalRequestExpenditure: ${error.message}`, false);
         return failure_("The request could not be sent. Please try again.");
@@ -711,7 +723,7 @@ function portalCancelRequest(data: string): PortalActionResult {
             const period = String(request.period ?? "");
             const requestId = Number(request.id);
 
-            const { reason } = refuseUnlessOwnProfile_(name, period);
+            const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
             if (reason) return failure_(reason);
 
             const record = readPortalRequests_().find(candidate => candidate.id === requestId);
@@ -719,7 +731,8 @@ function portalCancelRequest(data: string): PortalActionResult {
             if (record.status !== "Pending") return failure_(`That request is already ${record.status.toLowerCase()}.`);
 
             const rowNumber = findPortalRequestRow_(requestId);
-            getSheetNamed(PORTAL_REQUESTS_SHEET)!.getRange(rowNumber, 11, 1, 3).setValues([["Cancelled", name, new Date()]]);
+            getSheetNamed(PORTAL_REQUESTS_SHEET)!.getRange(rowNumber, 11, 1, 3).setValues([["Cancelled", onBehalf ? identity.email : name, new Date()]]);
+            if (onBehalf) log(`Portal: ${identity.email} cancelled request ${requestId} for ${name} (${period}).`, false);
             return { ok: true, message: "Request cancelled." };
         } catch (error: any) {
             log(`Error in portalCancelRequest: ${error.message}`, false);
