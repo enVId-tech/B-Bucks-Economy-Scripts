@@ -384,7 +384,7 @@ function buildPortalCatalog_(quarter: QuarterId, studentName: string, period: st
             }
         }
 
-        items.push({ itemName: service.itemName, unitPrice, personLimit, personRemaining, classLimit, classRemaining });
+        items.push({ itemName: service.itemName, unitPrice, personLimit: personLimit ?? null, personRemaining, classLimit: classLimit ?? null, classRemaining });
     });
     return items;
 }
