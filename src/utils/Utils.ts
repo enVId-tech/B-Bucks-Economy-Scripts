@@ -208,7 +208,8 @@ function mergeStudentsIntoSheet_(sheet: GoogleAppsScript.Spreadsheet.Sheet, temp
 
 /**
  * Imports one period. If the period's tab already exists and mostly matches the import (same students, by ID or name), the tab is
- * updated in place so nobody loses data. If it barely matches, or does not exist, it is built fresh from the Template tab as before.
+ * updated in place so nobody loses data. If it exists with students but does not match, it is left untouched and reported.
+ * Only a missing (or empty) tab is built fresh from the Template tab.
  * @param data JSON string of CSVData: { identifier, individuals, studentIds? }.
  * @returns {FillSheetResult} What happened to the period.
  */
@@ -239,6 +240,12 @@ function fillSheetsWithData(data: string): FillSheetResult {
                     return failedResult(period, `Period ${period}: column ${getStudentIdColumn()} is already in use, nothing was changed.`);
                 }
                 return mergeStudentsIntoSheet_(existingSheet, templateSheet, entry, ids, plan, startRow);
+            }
+
+            // A tab that already has students is never deleted and rebuilt here: that would wipe balances, expenditures and CoDs.
+            if (existingRoster.length > 0) {
+                log(`Period ${period}: the file matches only ${plan.matched.length} of the ${existingRoster.length} student(s) on the tab, so the tab was left untouched.`, false);
+                return failedResult(period, `Period ${period}: the file does not match this tab (${plan.matched.length} of ${existingRoster.length} students found), so NOTHING was changed. If it really is a different class, rename or delete the old tab yourself and import again.`);
             }
         } else if (templateSheet && ids.some(id => id)) {
             const templateConflict = findStudentIdColumnConflict_(templateSheet, startRow);
