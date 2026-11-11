@@ -40,12 +40,39 @@
   </main>
 
   <script>
+    /*
+     * ================================ MAP OF THIS PAGE'S SCRIPT (read this first) ================================
+     * Top to bottom:
+     *   1. portalState + constants ..... everything the page remembers, and every timing knob (cool-downs, refresh).
+     *   2. Small helpers ............... makeElement (build a tag), money / shortMoney / formatDate / formatDay / formatWeekDate.
+     *   3. Server calls ................ portalCall (one call at a time), runAction (a button that changes data), refreshQuietly (auto refresh).
+     *   4. Start up .................... startPortal asks the server who you are, then draws the first dashboard.
+     *   5. Tabs ........................ renderPortal draws the tab bar + the active tab: renderHome, renderInvest, renderSpend,
+     *                                    renderLeaderboard, renderAdmin. Each fills a panel from portalState.dashboard.
+     *   6. History ..................... loadHistory fetches every transaction ONCE; search / category / paging only filter that list.
+     *   7. Predictor ................... buildPredictorCard, getProjectionPrincipal, buildProjection (the maths), refreshProjection (draws it).
+     *   8. Admin ....................... loadAdminRequests, resolveRequest, completeRequest.
+     *
+     * The data flow is one-directional: the SERVER's answer replaces portalState.dashboard, then renderPortal() redraws everything from it.
+     * Never edit the page's DOM to "fix" a number: change the server's answer (PortalUtils.ts buildPortalDashboard_) and redraw.
+     *
+     * To find the code behind something you see on screen, search for its visible text; every card and button label appears once.
+     * ==============================================================================================================
+     */
+
+    /** Everything the page remembers about the signed-in person. Replaced, never patched, whenever the server answers. */
     const portalState = {
+      /** The answer of portalBootstrap: { status, email, isAdmin, profiles[], directory[] (admins only), experimental }. */
       session: null,
+      /** The account being shown: { name, period }. For an admin acting in a student's account this is that student. */
       profile: null,
+      /** The answer of portalGetDashboard for `profile` (see buildPortalDashboard_ in PortalUtils.ts for every field). */
       dashboard: null,
+      /** Which tab is open: 'home' | 'invest' | 'spend' | 'leaderboard' | 'admin'. */
       activeTab: 'home',
+      /** Which predictor tab is open: 'custom' (any amount), 'depositInput' (from the cash to invest) or 'currentCod' (from the real CoD). */
       projectionMode: 'custom',
+      /** True while a server action runs and for ACTION_COOLDOWN_MS afterwards: buttons are locked so nothing is sent twice. */
       busy: false
     };
 
@@ -60,9 +87,12 @@
     const REFRESH_AFTER_RETURN_MS = 15000;  // coming back to the tab refreshes if the data is older than this
     const EDITING_GRACE_MS = 10000;         // no automatic refresh this soon after the person typed or clicked
 
+    /** The end of the chain of server calls: each new call starts after this one finishes (that is what makes calls go one at a time). */
     let callQueue = Promise.resolve();
+    /** When the last server call started (ms). Used to keep MIN_GAP_BETWEEN_CALLS_MS between two calls. */
     let lastCallStartedAt = 0;
 
+    /** Resolves after `milliseconds`. Use with await to pause. */
     function wait(milliseconds) { return new Promise(resolve => setTimeout(resolve, milliseconds)); }
 
     /** Runs a server function after every earlier call has finished, at least MIN_GAP_BETWEEN_CALLS_MS apart. */
@@ -97,7 +127,7 @@
      * @param text Optional text content.
      * @param children Optional child nodes.
      */
-    function h(tag, className, text, children) {
+    function makeElement(tag, className, text, children) {
       const element = document.createElement(tag);
       if (className) element.className = className;
       if (text !== undefined && text !== null) element.textContent = text;
@@ -105,6 +135,7 @@
       return element;
     }
 
+    /** 1234.5 -> "$1,234.50" (negative: "-$1,234.50"). Anything that is not a number shows as $0.00. */
     function money(amount) {
       const value = Number(amount) || 0;
       const formatted = Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -113,6 +144,7 @@
 
     // Very large amounts (a typo, or a curious student) get a short spoken-style form such as "$7.28 sextillion".
     const MONEY_SCALE_NAMES = ['million', 'billion', 'trillion', 'quadrillion', 'quintillion', 'sextillion', 'septillion', 'octillion', 'nonillion', 'decillion'];
+    /** A readable size for huge amounts, e.g. 7.1e21 -> "7.10 sextillion". Returns '' for amounts under a million (no short form needed). */
     function shortMoney(amount) {
       const value = Math.abs(Number(amount) || 0);
       if (value < 1e9) return '';
@@ -143,37 +175,39 @@
       return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     }
 
+    /** The container every tab and message card is drawn into. */
     function mainElement() { return document.getElementById('portalMain'); }
 
     /** Asks the visitor to use their school account, with the way out when Google keeps picking the wrong one. */
     function showSignInHelp(currentEmail, signInUrl) {
-      const chooser = h('a', 'button', 'Choose my school account');
+      const chooser = makeElement('a', 'button', 'Choose my school account');
       chooser.href = signInUrl;
       chooser.target = '_top';
-      const again = h('button', 'button button-secondary', 'I switched: try again');
+      const again = makeElement('button', 'button button-secondary', 'I switched: try again');
       again.addEventListener('click', () => { window.top.location.reload(); });
-      const card = h('div', 'card center-card', null, [
-        h('h1', '', 'Sign in with your school account'),
-        h('p', '', currentEmail
+      const card = makeElement('div', 'card center-card', null, [
+        makeElement('h1', '', 'Sign in with your school account'),
+        makeElement('p', '', currentEmail
           ? 'You are signed in as ' + currentEmail + ', which is not a school account.'
           : 'We could not tell which Google account you are using, or it is not a school account.'),
-        h('ol', 'help-steps', null, [
-          h('li', '', 'Press "Choose my school account" and pick your school account.'),
-          h('li', '', 'If you land back on this page, Google is still using another account. Add a new Chrome profile for school (click your picture at the top right of Chrome, then Add, then sign in with only your school account) and open this link in that profile.'),
-          h('li', '', 'A private (incognito) window where you sign in with only your school account works too.')
+        makeElement('ol', 'help-steps', null, [
+          makeElement('li', '', 'Press "Choose my school account" and pick your school account.'),
+          makeElement('li', '', 'If you land back on this page, Google is still using another account. Add a new Chrome profile for school (click your picture at the top right of Chrome, then Add, then sign in with only your school account) and open this link in that profile.'),
+          makeElement('li', '', 'A private (incognito) window where you sign in with only your school account works too.')
         ]),
-        h('div', 'button-row', null, [chooser, again])
+        makeElement('div', 'button-row', null, [chooser, again])
       ]);
       mainElement().replaceChildren(card);
     }
 
+    /** Replaces the page content with a card: a title, a message and an optional link button. Used for errors and "not ready" states. */
     function showMessageCard(title, message, actionLabel, actionHref) {
-      const card = h('div', 'card center-card', null, [
-        h('h1', '', title),
-        h('p', '', message)
+      const card = makeElement('div', 'card center-card', null, [
+        makeElement('h1', '', title),
+        makeElement('p', '', message)
       ]);
       if (actionLabel) {
-        const link = h('a', 'button', actionLabel);
+        const link = makeElement('a', 'button', actionLabel);
         link.href = actionHref;
         link.target = '_top';
         card.appendChild(link);
@@ -184,7 +218,7 @@
 
     /** A button that changes data on the server. While any action is running, every one of them is locked (see setWorking). */
     function actionButton(className, label) {
-      const button = h('button', className, label);
+      const button = makeElement('button', className, label);
       button.dataset.action = '1';
       return button;
     }
@@ -217,7 +251,7 @@
     function showNotice(kind, message) {
       const existing = document.getElementById('portalNotice');
       if (existing) existing.remove();
-      const notice = h('div', 'notice notice-' + kind, message);
+      const notice = makeElement('div', 'notice notice-' + kind, message);
       notice.id = 'portalNotice';
       mainElement().prepend(notice);
       notice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -251,6 +285,7 @@
     let lastRefreshAt = Date.now();
     let lastInteractionAt = 0;
 
+    /** Remembers that the data on screen is current, so the auto refresh knows when it is next due. */
     function markDataFresh() { lastRefreshAt = Date.now(); }
 
     ['input', 'click', 'keydown'].forEach(eventName => document.addEventListener(eventName, () => { lastInteractionAt = Date.now(); }, true));
@@ -334,18 +369,20 @@
       }
     }
 
+    /** Fills the account drop-down in the header (shown only when the person has more than one account, e.g. two periods). */
     function fillProfileSelect() {
       const select = document.getElementById('profileSelect');
       select.replaceChildren();
       const profiles = portalState.session.profiles;
       profiles.forEach((profile, index) => {
-        const option = h('option', '', profile.period);
+        const option = makeElement('option', '', profile.period);
         option.value = String(index);
         select.appendChild(option);
       });
       setElementDisplay(select, profiles.length > 1 ? 'block' : 'none');
     }
 
+    /** The person picked another account in the header drop-down: load that account's dashboard from scratch. */
     function handleProfileChange() {
       const index = Number(document.getElementById('profileSelect').value);
       portalState.profile = portalState.session.profiles[index];
@@ -354,9 +391,14 @@
 
     /** Replaces the page content with a spinner while an account opens. */
     function showLoadingCard(message) {
-      mainElement().replaceChildren(h('div', 'card center-card', null, [h('div', 'spinner'), h('p', '', message)]));
+      mainElement().replaceChildren(makeElement('div', 'card center-card', null, [makeElement('div', 'spinner'), makeElement('p', '', message)]));
     }
 
+    /**
+     * Fetches the dashboard of portalState.profile and draws it. resetTab = true shows a loading card first and returns to the Home tab
+     * (used when a different account opens); false keeps the current tab (used after an action that has no fresh dashboard in its answer).
+     * An admin with no student account of their own lands on the Admin tab instead.
+     */
     async function loadDashboard(resetTab) {
       if (!portalState.profile) {
         // An admin who is not a student starts on the admin tab
@@ -391,13 +433,17 @@
       else { portalState.activeTab = 'admin'; renderPortal(); }
     }
 
+    /**
+     * Redraws EVERYTHING from portalState: the "you are in X's account" banner, the tab bar and the open tab. Safe to call any time;
+     * it never fetches. Every change of data ends here.
+     */
     function renderPortal() {
       const dashboard = portalState.dashboard;
       const banner = document.getElementById('spectateBanner');
       if (dashboard && dashboard.viewingAsAdmin) {
-        const exitButton = h('button', 'banner-button', 'Exit');
+        const exitButton = makeElement('button', 'banner-button', 'Exit');
         exitButton.onclick = () => { markButtonBusy(exitButton, 'Leaving...'); exitStudentView(); };
-        banner.replaceChildren(h('span', '', 'You are in ' + dashboard.student.name + "'s account (" + dashboard.student.period + '). Everything you do here happens on their account.'), exitButton);
+        banner.replaceChildren(makeElement('span', '', 'You are in ' + dashboard.student.name + "'s account (" + dashboard.student.period + '). Everything you do here happens on their account.'), exitButton);
         setElementDisplay(banner, 'flex');
       } else {
         setElementDisplay(banner, 'none');
@@ -406,14 +452,14 @@
       const tabs = dashboard ? STUDENT_TABS.slice() : [];
       if (portalState.session.isAdmin) tabs.push({ id: 'admin', label: 'Admin' });
 
-      const tabBar = h('nav', 'tab-bar main-nav');
+      const tabBar = makeElement('nav', 'tab-bar main-nav');
       tabs.forEach(tab => {
-        const button = h('button', 'tab-button' + (tab.id === portalState.activeTab ? ' active' : ''), null, [h('span', 'tab-icon', TAB_ICONS[tab.id] || ''), h('span', 'tab-label', tab.label)]);
+        const button = makeElement('button', 'tab-button' + (tab.id === portalState.activeTab ? ' active' : ''), null, [makeElement('span', 'tab-icon', TAB_ICONS[tab.id] || ''), makeElement('span', 'tab-label', tab.label)]);
         button.onclick = () => { portalState.activeTab = tab.id; renderPortal(); };
         tabBar.appendChild(button);
       });
 
-      const panel = h('section', 'tab-panel');
+      const panel = makeElement('section', 'tab-panel');
       if (portalState.activeTab === 'home') renderHome(panel);
       else if (portalState.activeTab === 'invest') renderInvest(panel);
       else if (portalState.activeTab === 'spend') renderSpend(panel);
@@ -425,13 +471,14 @@
       if (portalState.activeTab === 'invest') refreshProjection();
     }
 
+    /** One small stat card (label above, value below). `tone` adds a colour class such as 'good' or 'bad'. */
     function tile(label, value, tone) {
-      return h('div', 'tile ' + (tone || ''), null, [h('div', 'tile-label', label), h('div', 'tile-value', value)]);
+      return makeElement('div', 'tile ' + (tone || ''), null, [makeElement('div', 'tile-label', label), makeElement('div', 'tile-value', value)]);
     }
 
     /** An input with a "$" in front of it. */
     function moneyInput(id, placeholder, onInput) {
-      const input = h('input');
+      const input = makeElement('input');
       input.type = 'number';
       input.id = id;
       input.min = '0';
@@ -439,27 +486,28 @@
       input.inputMode = 'decimal';
       input.placeholder = placeholder;
       input.oninput = onInput;
-      return { input, wrapper: h('div', 'input-prefix', null, [h('span', 'prefix-symbol', '$'), input]) };
+      return { input, wrapper: makeElement('div', 'input-prefix', null, [makeElement('span', 'prefix-symbol', '$'), input]) };
     }
 
-    function emptyState(message) { return h('div', 'empty', null, [h('div', 'empty-icon', '\u2014'), h('div', '', message)]); }
+    /** The grey "nothing here" block shown instead of an empty list. */
+    function emptyState(message) { return makeElement('div', 'empty', null, [makeElement('div', 'empty-icon', '\u2014'), makeElement('div', '', message)]); }
 
     // ------------------------------------------------------------------ home
 
     function renderHome(panel) {
       const student = portalState.dashboard.student;
-      panel.appendChild(h('div', 'card hero', null, [
-        h('div', 'hero-label', 'Hi ' + student.displayName),
-        h('div', 'hero-caption', 'Cash balance'),
-        h('div', 'hero-amount', money(student.balance)),
-        h('div', 'hero-chips', null, [
-          h('span', 'hero-chip', student.period),
-          h('span', 'hero-chip', portalState.dashboard.quarter),
-          h('span', 'hero-chip', 'CoD ' + money(student.codNet))
+      panel.appendChild(makeElement('div', 'card hero', null, [
+        makeElement('div', 'hero-label', 'Hi ' + student.displayName),
+        makeElement('div', 'hero-caption', 'Cash balance'),
+        makeElement('div', 'hero-amount', money(student.balance)),
+        makeElement('div', 'hero-chips', null, [
+          makeElement('span', 'hero-chip', student.period),
+          makeElement('span', 'hero-chip', portalState.dashboard.quarter),
+          makeElement('span', 'hero-chip', 'CoD ' + money(student.codNet))
         ])
       ]));
 
-      panel.appendChild(h('div', 'grid grid-4', null, [
+      panel.appendChild(makeElement('div', 'grid grid-4', null, [
         tile('In your CoD', money(student.codPrincipal), 'tile-accent'),
         tile('CoD value now', money(student.codNet), 'tile-good'),
         tile('Total spent', money(student.expenditures), 'tile-warn'),
@@ -478,13 +526,20 @@
 
     // The whole history is fetched ONCE per account. Searching, the category buttons and the page buttons only change what is
     // shown from this list, so they never wait for the server.
+    /**
+     * The fetched history and the controls that filter it. key = which account it belongs to, all = every record (newest first) or null
+     * until loaded, search = text in the search box, category = 'all' | one transaction type, page = 0-based page index shown,
+     * purchasesShown = how many spending rows the Spend tab shows, searchTimer = pending typing delay.
+     */
     const historyState = { key: '', all: null, error: '', loading: false, search: '', category: 'all', page: 0, purchasesShown: PURCHASES_STEP, searchTimer: null };
 
+    /** Identifies the account the history belongs to ("name|period"), so history is thrown away when another account opens. */
     function currentHistoryKey() {
       const student = portalState.dashboard.student;
       return student.name + '|' + student.period;
     }
 
+    /** Clears the remembered history, search and page when the open account is not the one the history was loaded for. */
     function resetHistoryIfAccountChanged() {
       const key = currentHistoryKey();
       if (historyState.key === key) return;
@@ -530,18 +585,19 @@
       });
     }
 
+    /** One line of the history list: arrow, description, date with time, and the signed amount (green plus for money in, red minus for money out). */
     function historyRow(entry) {
       const isGain = entry.change > 0;
       const shownAmount = entry.change !== 0 ? Math.abs(entry.change) : entry.amount;
-      return h('div', 'list-row' + (entry.undone ? ' row-undone' : ''), null, [
-        h('div', 'row-left', null, [
-          h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
-          h('div', '', null, [
-            h('div', 'row-title', entry.description || entry.type),
-            h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type + (entry.undone ? ' \u00b7 reversed by your teacher' : ''))
+      return makeElement('div', 'list-row' + (entry.undone ? ' row-undone' : ''), null, [
+        makeElement('div', 'row-left', null, [
+          makeElement('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
+          makeElement('div', '', null, [
+            makeElement('div', 'row-title', entry.description || entry.type),
+            makeElement('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type + (entry.undone ? ' \u00b7 reversed by your teacher' : ''))
           ])
         ]),
-        h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
+        makeElement('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
       ]);
     }
 
@@ -562,17 +618,17 @@
           rows.slice(historyState.page * HISTORY_PAGE_SIZE, (historyState.page + 1) * HISTORY_PAGE_SIZE).forEach(entry => list.appendChild(historyRow(entry)));
 
           if (pageCount > 1) {
-            const newer = h('button', 'button button-secondary', 'Newer');
+            const newer = makeElement('button', 'button button-secondary', 'Newer');
             newer.disabled = historyState.page === 0;
             newer.onclick = () => { historyState.page--; renderHistoryViews(); };
-            const older = h('button', 'button button-secondary', 'Older');
+            const older = makeElement('button', 'button button-secondary', 'Older');
             older.disabled = historyState.page >= pageCount - 1;
             older.onclick = () => { historyState.page++; renderHistoryViews(); };
             pager.appendChild(newer);
-            pager.appendChild(h('span', 'row-sub', 'Page ' + (historyState.page + 1) + ' of ' + pageCount + ' \u00b7 ' + rows.length + ' transactions'));
+            pager.appendChild(makeElement('span', 'row-sub', 'Page ' + (historyState.page + 1) + ' of ' + pageCount + ' \u00b7 ' + rows.length + ' transactions'));
             pager.appendChild(older);
           } else if (rows.length > 0) {
-            pager.appendChild(h('span', 'row-sub', rows.length + ' transaction' + (rows.length === 1 ? '' : 's')));
+            pager.appendChild(makeElement('span', 'row-sub', rows.length + ' transaction' + (rows.length === 1 ? '' : 's')));
           }
         }
       }
@@ -588,7 +644,7 @@
           if (purchases.length === 0) purchasesList.appendChild(emptyState('Nothing has been spent yet.'));
           purchases.slice(0, historyState.purchasesShown).forEach(entry => purchasesList.appendChild(historyRow(entry)));
           if (purchases.length > historyState.purchasesShown) {
-            const more = h('button', 'button button-secondary', 'Show more (' + (purchases.length - historyState.purchasesShown) + ' left)');
+            const more = makeElement('button', 'button button-secondary', 'Show more (' + (purchases.length - historyState.purchasesShown) + ' left)');
             more.onclick = () => { historyState.purchasesShown += PURCHASES_STEP; renderHistoryViews(); };
             purchasesList.appendChild(more);
           }
@@ -600,7 +656,7 @@
     function buildActivityCard() {
       resetHistoryIfAccountChanged();
 
-      const searchInput = h('input');
+      const searchInput = makeElement('input');
       searchInput.type = 'search';
       searchInput.placeholder = 'Search your transactions (for example "pencil" or "Oct")';
       searchInput.value = historyState.search;
@@ -610,9 +666,9 @@
         historyState.searchTimer = setTimeout(() => { historyState.search = searchInput.value.trim(); historyState.page = 0; renderHistoryViews(); }, SEARCH_TYPING_DELAY_MS);
       };
 
-      const chips = h('div', 'segmented');
+      const chips = makeElement('div', 'segmented');
       ACTIVITY_CATEGORIES.forEach(([category, label]) => {
-        const chip = h('button', 'segment' + (historyState.category === category ? ' active' : ''), label);
+        const chip = makeElement('button', 'segment' + (historyState.category === category ? ' active' : ''), label);
         chip.type = 'button';
         chip.onclick = () => {
           historyState.category = category;
@@ -623,12 +679,12 @@
         chips.appendChild(chip);
       });
 
-      const list = h('div', '');
+      const list = makeElement('div', '');
       list.id = 'activityList';
-      const pager = h('div', 'pager');
+      const pager = makeElement('div', 'pager');
       pager.id = 'activityPager';
 
-      const card = h('div', 'card', null, [h('h2', '', 'Transaction history'), searchInput, chips, list, pager]);
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', 'Transaction history'), searchInput, chips, list, pager]);
       // The card is not part of the page yet: draw what is already known (or "Loading...") and fetch once if nothing is loaded.
       setTimeout(() => { renderHistoryViews(); if (!historyState.all) loadHistory(false); }, 0);
       return card;
@@ -641,8 +697,8 @@
       const student = dashboard.student;
       const viewingAsAdmin = dashboard.viewingAsAdmin;
 
-      const codCard = h('div', 'card', null, [h('h2', '', 'Your CoD')]);
-      codCard.appendChild(h('div', 'grid grid-4', null, [
+      const codCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Your CoD')]);
+      codCard.appendChild(makeElement('div', 'grid grid-4', null, [
         tile('Invested', money(student.codPrincipal)),
         tile('Since', student.codDate ? formatDay(student.codDate) : '-'),
         tile('Value now', money(student.codNet)),
@@ -650,15 +706,15 @@
       ]));
       // When investing is blocked, the invest card already explains why, so the lock is only mentioned here
       if (student.hasActiveCod && student.lockoutDaysLeft > 0 && !student.depositBlockedReason) {
-        codCard.appendChild(h('div', 'notice notice-warn', 'Locked for ' + student.lockoutDaysLeft + ' more day(s). You can withdraw or invest again after that.'));
+        codCard.appendChild(makeElement('div', 'notice notice-warn', 'Locked for ' + student.lockoutDaysLeft + ' more day(s). You can withdraw or invest again after that.'));
       }
       panel.appendChild(codCard);
 
       {
-        const depositCard = h('div', 'card', null, [h('h2', '', 'Invest or withdraw')]);
-        if (student.depositBlockedReason) depositCard.appendChild(h('div', 'notice notice-warn', student.depositBlockedReason));
+        const depositCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Invest or withdraw')]);
+        if (student.depositBlockedReason) depositCard.appendChild(makeElement('div', 'notice notice-warn', student.depositBlockedReason));
 
-        depositCard.appendChild(h('label', '', 'Amount to invest'));
+        depositCard.appendChild(makeElement('label', '', 'Amount to invest'));
         const amountField = moneyInput('depositAmount', 'Up to ' + money(student.availableToInvest), refreshProjection);
         const amountInput = amountField.input;
         depositCard.appendChild(amountField.wrapper);
@@ -667,7 +723,7 @@
         investButton.disabled = !student.canDeposit;
         investButton.onclick = () => runAction('portalDeposit', { name: student.name, period: student.period, amount: Number(amountInput.value) }, investButton);
 
-        const maxButton = h('button', 'button button-secondary', 'Use everything available');
+        const maxButton = makeElement('button', 'button button-secondary', 'Use everything available');
         maxButton.disabled = !student.canDeposit;
         maxButton.onclick = () => { amountInput.value = student.availableToInvest.toFixed(2); refreshProjection(); };
 
@@ -675,7 +731,7 @@
         withdrawButton.disabled = !student.canWithdraw;
         withdrawButton.onclick = () => runAction('portalWithdraw', { name: student.name, period: student.period }, withdrawButton);
 
-        depositCard.appendChild(h('div', 'button-row', null, [investButton, maxButton, withdrawButton]));
+        depositCard.appendChild(makeElement('div', 'button-row', null, [investButton, maxButton, withdrawButton]));
         panel.appendChild(depositCard);
       }
 
@@ -684,42 +740,42 @@
 
     function buildPredictorCard() {
       const predictor = portalState.dashboard.predictor;
-      const card = h('div', 'card', null, [h('h2', '', 'Earnings predictor')]);
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', 'Earnings predictor')]);
 
       const modes = [
         { id: 'currentCod', label: 'Current CoD' },
         { id: 'custom', label: 'Custom amount' },
         { id: 'depositInput', label: 'From deposit' }
       ];
-      const tabBar = h('div', 'segmented');
+      const tabBar = makeElement('div', 'segmented');
       modes.forEach(mode => {
-        const button = h('button', 'segment' + (mode.id === portalState.projectionMode ? ' active' : ''), mode.label);
+        const button = makeElement('button', 'segment' + (mode.id === portalState.projectionMode ? ' active' : ''), mode.label);
         button.onclick = () => { portalState.projectionMode = mode.id; renderPortal(); };
         tabBar.appendChild(button);
       });
       card.appendChild(tabBar);
 
       if (portalState.projectionMode === 'custom') {
-        card.appendChild(h('label', '', 'Principal amount'));
+        card.appendChild(makeElement('label', '', 'Principal amount'));
         card.appendChild(moneyInput('customAmount', 'Enter an amount', refreshProjection).wrapper);
       }
 
-      card.appendChild(h('div', 'rate-line', null, [
-        h('span', '', 'Weekly interest rate'),
-        h('strong', '', typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable')
+      card.appendChild(makeElement('div', 'rate-line', null, [
+        makeElement('span', '', 'Weekly interest rate'),
+        makeElement('strong', '', typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable')
       ]));
-      card.appendChild(h('div', 'rate-line', null, [
-        h('span', '', 'Withdrawal tax (taken when you withdraw)'),
-        h('strong', '', typeof predictor.withdrawalTaxRate === 'number' ? (predictor.withdrawalTaxRate * 100).toFixed(2) + '%' : 'Unavailable')
+      card.appendChild(makeElement('div', 'rate-line', null, [
+        makeElement('span', '', 'Withdrawal tax (taken when you withdraw)'),
+        makeElement('strong', '', typeof predictor.withdrawalTaxRate === 'number' ? (predictor.withdrawalTaxRate * 100).toFixed(2) + '%' : 'Unavailable')
       ]));
 
-      const summary = h('div', 'result-tile');
+      const summary = makeElement('div', 'result-tile');
       summary.id = 'projectionSummary';
-      summary.appendChild(h('div', 'result-label', ''));
-      summary.appendChild(h('div', 'result-value', ''));
+      summary.appendChild(makeElement('div', 'result-label', ''));
+      summary.appendChild(makeElement('div', 'result-value', ''));
       card.appendChild(summary);
 
-      const breakdown = h('div', '');
+      const breakdown = makeElement('div', '');
       breakdown.id = 'projectionBreakdown';
       card.appendChild(breakdown);
       return card;
@@ -740,6 +796,11 @@
       return { finalGross: last.gross, finalTax: last.tax, finalNet: last.net, breakdown };
     }
 
+    /**
+     * The starting amount of the open predictor tab.
+     *  - currentCod: the INITIAL deposit (not today's grown value), because the weeks are counted from the deposit date.
+     *  - custom / depositInput: whatever is typed in that tab's box (0 when empty or not a number).
+     */
     function getProjectionPrincipal() {
       const mode = portalState.projectionMode;
       if (mode === 'currentCod') return portalState.dashboard.predictor.codPrincipal;
@@ -749,6 +810,11 @@
       return Number.isFinite(value) ? value : 0;
     }
 
+    /**
+     * Draws the predictor result for the open tab from the dashboard's predictor numbers and the typed amount. Never calls the server.
+     * Steps: pick the principal and the number of weeks -> buildProjection does the maths -> write the headline value, the before-tax
+     * line and the week-by-week list. Current CoD starts at week 0 on the deposit date and marks the current week; the other tabs start today.
+     */
     function refreshProjection() {
       const summary = document.getElementById('projectionSummary');
       const breakdownContainer = document.getElementById('projectionBreakdown');
@@ -789,9 +855,9 @@
       labelElement.textContent = 'Value after tax at week ' + weeks + ' (principal ' + money(principal) + ')';
       valueElement.textContent = money(projection.finalNet);
       const shortForm = shortMoney(projection.finalNet);
-      if (shortForm) valueElement.appendChild(h('div', 'result-short', 'About ' + shortForm));
-      if (nowEntry) valueElement.appendChild(h('div', 'result-short', 'You are in week ' + currentWeek + (formatWeekDate(depositIso, currentWeek) ? ' (' + formatWeekDate(depositIso, currentWeek) + ')' : '') + ': expect ' + money(nowEntry.net) + ' after tax right now.'));
-      if (weeks > 0) valueElement.appendChild(h('div', 'result-short', 'Before tax ' + money(projection.finalGross) + ' \u00b7 tax ' + (taxRate * 100).toFixed(2) + '% = -' + money(projection.finalTax)));
+      if (shortForm) valueElement.appendChild(makeElement('div', 'result-short', 'About ' + shortForm));
+      if (nowEntry) valueElement.appendChild(makeElement('div', 'result-short', 'You are in week ' + currentWeek + (formatWeekDate(depositIso, currentWeek) ? ' (' + formatWeekDate(depositIso, currentWeek) + ')' : '') + ': expect ' + money(nowEntry.net) + ' after tax right now.'));
+      if (weeks > 0) valueElement.appendChild(makeElement('div', 'result-short', 'Before tax ' + money(projection.finalGross) + ' \u00b7 tax ' + (taxRate * 100).toFixed(2) + '% = -' + money(projection.finalTax)));
       valueElement.classList.toggle('result-value-long', money(projection.finalNet).length > 14);
 
       if (weeks === 0) {
@@ -799,13 +865,13 @@
         return;
       }
       const dated = Boolean(depositIso);
-      breakdownContainer.appendChild(h('div', 'week-row week-head' + (dated ? ' week-dated' : ''), null, [h('span', '', 'Week'), h('span', '', 'Before tax'), h('span', '', 'After tax')]));
+      breakdownContainer.appendChild(makeElement('div', 'week-row week-head' + (dated ? ' week-dated' : ''), null, [makeElement('span', '', 'Week'), makeElement('span', '', 'Before tax'), makeElement('span', '', 'After tax')]));
       projection.breakdown.forEach(entry => {
         const isNow = currentWeek !== null && entry.week === currentWeek;
-        breakdownContainer.appendChild(h('div', 'week-row' + (isNow ? ' week-now' : '') + (dated ? ' week-dated' : ''), null, [
-          h('span', 'week-name', 'Week ' + entry.week + (isNow ? ' (now)' : ''), dated ? [h('span', 'week-date', formatWeekDate(depositIso, entry.week))] : null),
-          h('span', 'week-earned', money(entry.gross)),
-          h('span', 'week-value', money(entry.net))
+        breakdownContainer.appendChild(makeElement('div', 'week-row' + (isNow ? ' week-now' : '') + (dated ? ' week-dated' : ''), null, [
+          makeElement('span', 'week-name', 'Week ' + entry.week + (isNow ? ' (now)' : ''), dated ? [makeElement('span', 'week-date', formatWeekDate(depositIso, entry.week))] : null),
+          makeElement('span', 'week-earned', money(entry.gross)),
+          makeElement('span', 'week-value', money(entry.net))
         ]));
       });
     }
@@ -822,64 +888,64 @@
     function renderSpend(panel) {
       const dashboard = portalState.dashboard;
       const student = dashboard.student;
-      const catalogCard = h('div', 'card', null, [h('h2', '', 'Request something (' + dashboard.quarter + ' prices)')]);
-      catalogCard.appendChild(h('div', 'row-sub', 'Your teacher approves each request. You are only charged if it is approved.'));
+      const catalogCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Request something (' + dashboard.quarter + ' prices)')]);
+      catalogCard.appendChild(makeElement('div', 'row-sub', 'Your teacher approves each request. You are only charged if it is approved.'));
 
       if (dashboard.catalog.length === 0) catalogCard.appendChild(emptyState('Nothing is for sale right now.'));
-      const itemGrid = h('div', 'item-grid');
+      const itemGrid = makeElement('div', 'item-grid');
       dashboard.catalog.forEach(item => {
         const soldOut = item.personRemaining === 0 || item.classRemaining === 0;
-        const quantityInput = h('input');
+        const quantityInput = makeElement('input');
         quantityInput.type = 'number';
         quantityInput.min = '1';
         quantityInput.value = '1';
         quantityInput.setAttribute('aria-label', 'Quantity of ' + item.itemName);
 
-        const stepDown = h('button', 'stepper-button', '\u2212');
+        const stepDown = makeElement('button', 'stepper-button', '\u2212');
         stepDown.onclick = () => { quantityInput.value = String(Math.max(1, (Number(quantityInput.value) || 1) - 1)); };
-        const stepUp = h('button', 'stepper-button', '+');
+        const stepUp = makeElement('button', 'stepper-button', '+');
         stepUp.onclick = () => { quantityInput.value = String((Number(quantityInput.value) || 0) + 1); };
 
         const requestButton = actionButton('button', 'Request');
         requestButton.disabled = soldOut;
-        const noteBox = h('textarea', 'note-box');
+        const noteBox = makeElement('textarea', 'note-box');
         noteBox.rows = 3;
         noteBox.maxLength = MAX_STUDENT_NOTE_LENGTH;
         noteBox.placeholder = 'Tell your teacher the details: which assignment, which date, anything they need to know.';
         noteBox.setAttribute('aria-label', 'Note about ' + item.itemName);
-        const noteToggle = h('details', 'note-toggle', null, [h('summary', '', 'Add a note (optional)'), noteBox]);
+        const noteToggle = makeElement('details', 'note-toggle', null, [makeElement('summary', '', 'Add a note (optional)'), noteBox]);
         requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value), studentNote: noteBox.value }, requestButton);
 
-        const pills = h('div', 'pill-row');
-        if (typeof item.personRemaining === 'number' && typeof item.personLimit === 'number') pills.appendChild(h('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
-        if (typeof item.classRemaining === 'number' && typeof item.classLimit === 'number') pills.appendChild(h('span', 'pill' + (item.classRemaining === 0 ? ' pill-out' : ''), item.classRemaining + ' of ' + item.classLimit + ' left for the class'));
+        const pills = makeElement('div', 'pill-row');
+        if (typeof item.personRemaining === 'number' && typeof item.personLimit === 'number') pills.appendChild(makeElement('span', 'pill' + (item.personRemaining === 0 ? ' pill-out' : ''), item.personRemaining + ' of ' + item.personLimit + ' left for you'));
+        if (typeof item.classRemaining === 'number' && typeof item.classLimit === 'number') pills.appendChild(makeElement('span', 'pill' + (item.classRemaining === 0 ? ' pill-out' : ''), item.classRemaining + ' of ' + item.classLimit + ' left for the class'));
 
-        const card = h('div', 'item-card' + (soldOut ? ' sold-out' : ''), null, [
-          h('div', 'item-top', null, [h('div', 'item-name', item.itemName), h('div', 'item-price', money(item.unitPrice))]),
+        const card = makeElement('div', 'item-card' + (soldOut ? ' sold-out' : ''), null, [
+          makeElement('div', 'item-top', null, [makeElement('div', 'item-name', item.itemName), makeElement('div', 'item-price', money(item.unitPrice))]),
           pills
         ]);
-        if (soldOut) card.appendChild(h('div', 'row-sub', 'Sold out'));
+        if (soldOut) card.appendChild(makeElement('div', 'row-sub', 'Sold out'));
         card.appendChild(noteToggle);
-        card.appendChild(h('div', 'item-actions', null, [h('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
+        card.appendChild(makeElement('div', 'item-actions', null, [makeElement('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
         itemGrid.appendChild(card);
       });
       catalogCard.appendChild(itemGrid);
       panel.appendChild(catalogCard);
 
-      const requestsCard = h('div', 'card', null, [h('h2', '', 'Your requests')]);
+      const requestsCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Your requests')]);
       if (dashboard.requests.length === 0) requestsCard.appendChild(emptyState('You have not requested anything yet.'));
       dashboard.requests.forEach(request => {
-        const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+        const actions = makeElement('div', 'row-actions', null, [makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
         if (request.status === 'Pending') {
           const cancelButton = actionButton('button button-secondary', 'Cancel');
           cancelButton.onclick = () => runAction('portalCancelRequest', { name: student.name, period: student.period, id: request.id }, cancelButton);
           actions.appendChild(cancelButton);
         }
-        requestsCard.appendChild(h('div', 'list-row', null, [
-          h('div', '', null, [
-            h('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
-            h('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : '')),
-            request.studentNote ? h('details', 'request-details', null, [h('summary', '', 'Your note'), h('p', 'note-text', request.studentNote)]) : null
+        requestsCard.appendChild(makeElement('div', 'list-row', null, [
+          makeElement('div', '', null, [
+            makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
+            makeElement('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : '')),
+            request.studentNote ? makeElement('details', 'request-details', null, [makeElement('summary', '', 'Your note'), makeElement('p', 'note-text', request.studentNote)]) : null
           ]),
           actions
         ]));
@@ -887,9 +953,9 @@
       panel.appendChild(requestsCard);
 
       // Read-only record of what the student has spent money on (log rows of type Expense). Nothing here can be undone.
-      const purchasesCard = h('div', 'card', null, [h('h2', '', 'Your spending')]);
-      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'A record of what you have spent money on, newest first. It is for information only.'));
-      const purchasesList = h('div', '');
+      const purchasesCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Your spending')]);
+      purchasesCard.appendChild(makeElement('div', 'row-sub card-intro', 'A record of what you have spent money on, newest first. It is for information only.'));
+      const purchasesList = makeElement('div', '');
       purchasesList.id = 'purchasesList';
       purchasesCard.appendChild(purchasesList);
       panel.appendChild(purchasesCard);
@@ -900,17 +966,17 @@
 
     function renderLeaderboard(panel) {
       const leaderboard = portalState.dashboard.leaderboard;
-      const card = h('div', 'card', null, [h('h2', '', portalState.dashboard.student.period + ' leaderboard')]);
-      card.appendChild(h('div', 'row-sub card-intro', 'Cash plus the value of the CoD.'));
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', portalState.dashboard.student.period + ' leaderboard')]);
+      card.appendChild(makeElement('div', 'row-sub card-intro', 'Cash plus the value of the CoD.'));
 
       const podiumOrder = [leaderboard[1], leaderboard[0], leaderboard[2]].filter(Boolean);
       if (podiumOrder.length === 3) {
-        const podium = h('div', 'podium');
+        const podium = makeElement('div', 'podium');
         podiumOrder.forEach(entry => {
-          podium.appendChild(h('div', 'podium-spot podium-' + entry.rank + (entry.isYou ? ' podium-you' : ''), null, [
-            h('div', 'podium-medal', String(entry.rank)),
-            h('div', 'podium-name', entry.displayName + (entry.isYou ? ' (you)' : '')),
-            h('div', 'podium-total', money(entry.total))
+          podium.appendChild(makeElement('div', 'podium-spot podium-' + entry.rank + (entry.isYou ? ' podium-you' : ''), null, [
+            makeElement('div', 'podium-medal', String(entry.rank)),
+            makeElement('div', 'podium-name', entry.displayName + (entry.isYou ? ' (you)' : '')),
+            makeElement('div', 'podium-total', money(entry.total))
           ]));
         });
         card.appendChild(podium);
@@ -918,9 +984,9 @@
 
       const startIndex = podiumOrder.length === 3 ? 3 : 0;
       leaderboard.filter((entry, index) => index >= startIndex && (index < 10 || entry.isYou)).forEach(entry => {
-        card.appendChild(h('div', 'list-row' + (entry.isYou ? ' rank-you' : ''), null, [
-          h('div', 'row-left', null, [h('span', 'rank', String(entry.rank)), h('span', 'row-title', entry.displayName + (entry.isYou ? ' (you)' : ''))]),
-          h('div', 'row-title money', money(entry.total))
+        card.appendChild(makeElement('div', 'list-row' + (entry.isYou ? ' rank-you' : ''), null, [
+          makeElement('div', 'row-left', null, [makeElement('span', 'rank', String(entry.rank)), makeElement('span', 'row-title', entry.displayName + (entry.isYou ? ' (you)' : ''))]),
+          makeElement('div', 'row-title money', money(entry.total))
         ]));
       });
       panel.appendChild(card);
@@ -929,23 +995,23 @@
     // ------------------------------------------------------------------ admin
 
     function renderAdmin(panel) {
-      const spectateCard = h('div', 'card', null, [h('h2', '', 'Go into a student\'s account')]);
-      spectateCard.appendChild(h('div', 'row-sub card-intro', 'You will see exactly what they see and can invest, withdraw and request for them.'));
+      const spectateCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Go into a student\'s account')]);
+      spectateCard.appendChild(makeElement('div', 'row-sub card-intro', 'You will see exactly what they see and can invest, withdraw and request for them.'));
       const directory = portalState.session.directory || [];
 
-      spectateCard.appendChild(h('label', '', 'Period'));
-      const periodSelect = h('select');
-      directory.forEach(entry => { const option = h('option', '', entry.period); option.value = entry.period; periodSelect.appendChild(option); });
+      spectateCard.appendChild(makeElement('label', '', 'Period'));
+      const periodSelect = makeElement('select');
+      directory.forEach(entry => { const option = makeElement('option', '', entry.period); option.value = entry.period; periodSelect.appendChild(option); });
       spectateCard.appendChild(periodSelect);
 
-      spectateCard.appendChild(h('label', '', 'Student'));
-      const studentSelect = h('select');
+      spectateCard.appendChild(makeElement('label', '', 'Student'));
+      const studentSelect = makeElement('select');
       spectateCard.appendChild(studentSelect);
 
       const fillStudents = () => {
         studentSelect.replaceChildren();
         const entry = directory.find(candidate => candidate.period === periodSelect.value);
-        (entry ? entry.students : []).forEach(name => { const option = h('option', '', name); option.value = name; studentSelect.appendChild(option); });
+        (entry ? entry.students : []).forEach(name => { const option = makeElement('option', '', name); option.value = name; studentSelect.appendChild(option); });
       };
       periodSelect.onchange = fillStudents;
       fillStudents();
@@ -958,30 +1024,31 @@
         portalState.profile = { name: studentSelect.value, period: periodSelect.value };
         loadDashboard(true).finally(() => setWorking(false));
       };
-      spectateCard.appendChild(h('div', 'button-row', null, [viewButton]));
+      spectateCard.appendChild(makeElement('div', 'button-row', null, [viewButton]));
 
       panel.appendChild(spectateCard);
 
-      const requestsCard = h('div', 'card', null, [h('h2', '', 'Expenditure requests')]);
+      const requestsCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Expenditure requests')]);
       requestsCard.id = 'adminRequests';
       requestsCard.appendChild(emptyState('Loading requests...'));
       panel.appendChild(requestsCard);
       loadAdminRequests(requestsCard);
     }
 
+    /** (Admins) Fetches every expenditure request and draws one row each, with Approve / Deny for pending ones and Mark completed for approved ones. */
     async function loadAdminRequests(card) {
       try {
         const response = await portalCall('portalAdminListRequests');
-        card.replaceChildren(h('h2', '', 'Expenditure requests'));
+        card.replaceChildren(makeElement('h2', '', 'Expenditure requests'));
         if (!response || response.error) { card.appendChild(emptyState((response && response.error) || 'The requests could not load.')); return; }
         if (response.requests.length === 0) { card.appendChild(emptyState('No requests yet.')); return; }
 
         response.requests.forEach(request => {
-          const noteInput = h('input');
+          const noteInput = makeElement('input');
           noteInput.placeholder = request.status === 'Approved' ? 'Completion note (optional)' : 'Note (optional)';
           noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
 
-          const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+          const actions = makeElement('div', 'row-actions', null, [makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
           if (request.status === 'Approved') {
             const completeButton = actionButton('button', 'Mark completed');
             completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
@@ -997,29 +1064,30 @@
             actions.appendChild(denyButton);
           }
 
-          const rowText = h('div', '', null, [
-            h('div', 'row-title', request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
-            h('div', 'row-sub', formatDate(request.requestedAt) + ' - ' + request.quarter + (request.resolvedBy ? ' - ' + request.status.toLowerCase() + ' by ' + request.resolvedBy : '') + (request.note && request.status !== 'Pending' ? ' - ' + request.note : ''))
+          const rowText = makeElement('div', '', null, [
+            makeElement('div', 'row-title', request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
+            makeElement('div', 'row-sub', formatDate(request.requestedAt) + ' - ' + request.quarter + (request.resolvedBy ? ' - ' + request.status.toLowerCase() + ' by ' + request.resolvedBy : '') + (request.note && request.status !== 'Pending' ? ' - ' + request.note : ''))
           ]);
           // Everything about the request, including the student's own words, opens under the row.
-          const details = h('details', 'request-details', null, [
-            h('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
-            h('p', 'note-text', request.studentNote || 'The student did not write a note.'),
-            h('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
-            request.note ? h('div', 'row-sub', 'Teacher note: ' + request.note) : null,
-            request.resolvedBy ? h('div', 'row-sub', request.status === 'Denied' || request.status === 'Cancelled' ? request.status + ' by ' + request.resolvedBy : 'Approved by ' + request.resolvedBy) : null,
-            request.completedBy ? h('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null
+          const details = makeElement('details', 'request-details', null, [
+            makeElement('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
+            makeElement('p', 'note-text', request.studentNote || 'The student did not write a note.'),
+            makeElement('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
+            request.note ? makeElement('div', 'row-sub', 'Teacher note: ' + request.note) : null,
+            request.resolvedBy ? makeElement('div', 'row-sub', request.status === 'Denied' || request.status === 'Cancelled' ? request.status + ' by ' + request.resolvedBy : 'Approved by ' + request.resolvedBy) : null,
+            request.completedBy ? makeElement('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null
           ]);
           rowText.appendChild(details);
           if (request.status === 'Pending' || request.status === 'Approved') rowText.appendChild(noteInput);
-          card.appendChild(h('div', 'list-row', null, [rowText, actions]));
+          card.appendChild(makeElement('div', 'list-row', null, [rowText, actions]));
         });
       } catch (error) {
         console.error(error);
-        card.replaceChildren(h('h2', '', 'Expenditure requests'), emptyState('The requests could not load.'));
+        card.replaceChildren(makeElement('h2', '', 'Expenditure requests'), emptyState('The requests could not load.'));
       }
     }
 
+    /** (Admins) Marks an APPROVED request as completed (the teacher did the work). Locks the page like any action, then redraws the request list. */
     async function completeRequest(requestId, note, button, card) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
@@ -1037,6 +1105,7 @@
       await loadAdminRequests(card);
     }
 
+    /** (Admins) Approves (the student is charged on the server) or denies a PENDING request, with an optional note. Locks the page, then redraws the request list. */
     async function resolveRequest(requestId, approve, note, button, card) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
