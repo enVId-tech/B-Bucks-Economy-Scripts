@@ -416,7 +416,7 @@
                     <ul>
                         <li><strong>Home:</strong> balance, CoD, spending and recent activity.</li>
                         <li><strong>Invest:</strong> invest cash, withdraw once the withdrawal window is over, and use the same earnings predictor as Investment Banking. Students can never use the admin override.</li>
-                        <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and requests that are still waiting also count against them.</li>
+                        <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and requests that are still waiting also count against them. Under <strong>Your purchases</strong> a student can undo any purchase for as long as it is still on the Transaction Records tab (tap Undo twice). The money goes back and the item no longer counts against the caps. Once the record is deleted from the tab, the purchase can no longer be undone.</li>
                         <li><strong>Leaderboard:</strong> the top ten of their period plus their own rank (cash plus CoD value, names shortened to first name and last initial).</li>
                     </ul>
 
@@ -586,6 +586,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr><td><code>portalGetDashboard</code></td><td>owner of the profile, or admin</td><td>Balance, CoD, lockout, catalog with caps left, requests, recent log entries, leaderboard, predictor inputs.</td></tr>
                         <tr><td><code>portalDeposit</code>, <code>portalWithdraw</code></td><td>owner of the profile</td><td>Call <code>handleDeposit</code> / <code>handleWithdraw</code> with override always false. The withdrawal lockout, which the admin dialog only checks in its page code, is enforced here on the server.</td></tr>
                         <tr><td><code>portalRequestExpenditure</code>, <code>portalCancelRequest</code></td><td>owner of the profile</td><td>Write or cancel a row in the Expenditure Requests tab. Nothing is charged yet.</td></tr>
+                        <tr><td><code>portalUndoPurchase</code></td><td>owner of the profile, or admin</td><td>Runs the normal undo for one purchase record of that student. Refuses anything that is not a purchase, is already undone, or is gone from the log.</td></tr>
                         <tr><td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code></td><td>admin</td><td>Approve charges through <code>applyMathToSelection</code> on the Expenditures cell, inside the transaction lock.</td></tr>
                     </table>
 
