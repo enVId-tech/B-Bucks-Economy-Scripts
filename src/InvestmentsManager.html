@@ -447,11 +447,19 @@
       const studentData = window.appStateCache['selectedStudentData'];
       const principal = Number(studentData?.initAmount) || 0;
       const depositDate = studentData?.date ? new Date(studentData.date) : null;
-      if (!(principal > 0) || !depositDate || isNaN(depositDate.getTime())) return { principal: 0, weekNow: 0, weeksTotal: 0 };
+      if (!(principal > 0) || !depositDate || isNaN(depositDate.getTime())) return { principal: 0, weekNow: 0, weeksTotal: 0, depositDate: null };
 
       const msPerWeek = 1000 * 60 * 60 * 24 * 7;
       const weekNow = Math.max(0, Math.floor((Date.now() - depositDate.getTime()) / msPerWeek));
-      return { principal, weekNow, weeksTotal: weekNow + getProjectionWeekValue() };
+      return { principal, weekNow, weeksTotal: weekNow + getProjectionWeekValue(), depositDate };
+    }
+
+    /** "January 21, 2026": the date a given week lands on, counted from the initial deposit date. */
+    function formatWeekDate(depositDate, week) {
+      if (!depositDate) return '';
+      const date = new Date(depositDate.getTime());
+      date.setDate(date.getDate() + week * 7);
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     }
 
     /**
@@ -568,10 +576,12 @@
       if (finalElement) finalElement.textContent = `$${projection.finalValue.toFixed(2)}`;
 
       // Only the Current CoD list says what week the CoD is in and what it should be worth right now.
+      const codDeposit = mode === 'currentCod' ? getCurrentCodTimeline().depositDate : null;
       const currentCodNow = document.getElementById('currentCodNow');
       if (currentCodNow) {
         const nowEntry = mode === 'currentCod' && currentWeek !== null ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
-        currentCodNow.textContent = nowEntry ? `Now: week ${currentWeek}, expected value $${nowEntry.value.toFixed(2)}` : '';
+        const nowDate = codDeposit ? formatWeekDate(codDeposit, currentWeek) : '';
+        currentCodNow.textContent = nowEntry ? `Now: week ${currentWeek}${nowDate ? ' (' + nowDate + ')' : ''}, expected value $${nowEntry.value.toFixed(2)}` : '';
       }
 
       if (breakdownContainer) {
@@ -590,7 +600,7 @@
           breakdownItem.className = isCurrentWeek ? 'week-item week-current' : 'week-item';
           breakdownItem.innerHTML = `
             <div class="week-left">
-              <div class="week-label">Week ${entry.week}${isCurrentWeek ? ' (now, expect this amount)' : ''}</div>
+              <div class="week-label">Week ${entry.week}${codDeposit ? ' - ' + formatWeekDate(codDeposit, entry.week) : ''}${isCurrentWeek ? ' (now, expect this amount)' : ''}</div>
               <div class="week-rate">${rateDisplay || 'Rate unavailable'}</div>
             </div>
             <div class="week-right">
