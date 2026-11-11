@@ -93,6 +93,7 @@ const DEFAULT_DATE_DEPOSIT_COL: number = 8; // default for "timeDepositCol" (Set
 const DEFAULT_GROSS_INVESTMENT_GAIN_COL: number = 9; // default for "grossInvestmentGainCol" (Settings sheet value wins, read it with getGrossInvestmentGainColumn())
 const DEFAULT_NET_INVESTMENT_GAIN_COL: number = 10; // default for "netInvestmentGainCol" (Settings sheet value wins, read it with getNetInvestmentGainColumn())
 const DEFAULT_NET_PERCENTAGE_GAIN_COL: number = 11; // default for "netPercentageGainCol" (Settings sheet value wins, read it with getNetPercentageGainColumn())
+const DEFAULT_STUDENT_ID_COL: number = 12; // default for "studentIdCol" (Settings sheet value wins, read it with getStudentIdColumn()). Hidden column holding each student's ID so rosters and portal sign-ins can be matched
 
 // --- Services Sheet ---
 const DEFAULT_SERVICES_SHEET: string = "Main Services"; // default for "defaultServicesSheet" (Settings sheet value wins, read it with getServicesSheetName())
