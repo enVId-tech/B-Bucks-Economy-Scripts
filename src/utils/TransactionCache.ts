@@ -291,6 +291,7 @@ function emptyTransactionIndex(): TransactionCacheIndex {
     return { v: 1, blockSize: TRANSACTION_BLOCK_SIZE, clock: 0, blocks: {} };
 }
 
+/** Reads the cache bookkeeping (which blocks of the log are cached and how recent) from the script cache. Returns an empty index when none is stored or it is unreadable. */
 function readTransactionIndex(cache: GoogleAppsScript.Cache.Cache): TransactionCacheIndex {
     requireEditor_();
     try {
@@ -308,6 +309,7 @@ function readTransactionIndex(cache: GoogleAppsScript.Cache.Cache): TransactionC
     }
 }
 
+/** Saves the cache bookkeeping with the standard server-cache lifetime. */
 function writeTransactionIndex(cache: GoogleAppsScript.Cache.Cache, index: TransactionCacheIndex): void {
     requireEditor_();
     cache.put(TRANSACTION_INDEX_KEY, JSON.stringify(index), SERVER_SIDE_CACHE_AGE);

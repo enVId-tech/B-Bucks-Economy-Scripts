@@ -19,6 +19,7 @@ const WARM_CACHE_INTERVAL_MINUTES: number = 10;
 /** Refills any cache that has expired. Safe to run at any time. */
 function warmCaches(): boolean { return runTrusted_(warmCachesEntry_); }
 
+/** The real work of warmCaches: refills any cold server cache using the same cached fetchers the dialogs use. Skips when another operation holds the script lock. */
 function warmCachesEntry_(): boolean {
     const startedAt = Date.now();
     try {

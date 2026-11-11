@@ -530,6 +530,7 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
  */
 function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void { runTrusted_(() => onEditEntry_(e)); }
 
+/** Stamps the edited sheet with who changed it and when. Split from onEdit so onEdit can run it trusted (a simple trigger may not see the editor's email). */
 function onEditEntry_(e: GoogleAppsScript.Events.SheetsOnEdit): void {
     // Guard against running manually from the Apps Script IDE without an event object
     if (!e || !e.range) return;

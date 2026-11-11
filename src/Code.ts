@@ -15,6 +15,7 @@
  */
 function onOpen(): void { runTrusted_(onOpenEntry_); }
 
+/** Builds the custom menu. Split from onOpen so onOpen can run it trusted (a simple trigger has no signed-in editor). */
 function onOpenEntry_(): void {
   const ui = SpreadsheetApp.getUi();
 

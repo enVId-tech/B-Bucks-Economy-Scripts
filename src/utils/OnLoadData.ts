@@ -189,6 +189,7 @@ function launchModelessDialog(templateName: string, title: string, width: number
     SpreadsheetApp.getUi().showModelessDialog(html, title);
 }
 
+/** Refills the server caches of every dialog (settings, services, investments, transactions) from the sheets right now, ignoring what is cached. Editors only. */
 function preloadCacheForAllDialogs(): void {
     requireEditor_();
     fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
@@ -197,6 +198,7 @@ function preloadCacheForAllDialogs(): void {
     preloadTransactionCache();
 }
 
+/** Stores one value in the server cache from a dialog. `data` is JSON { key, value }. Editors only: a cache value is trusted by later reads, so nobody else may write one. */
 function setServerCacheValue(data: string): boolean {
     requireEditor_();
     try {
@@ -245,6 +247,7 @@ function clearGlobalCache(requestedKeys?: string[] | null): boolean {
         return false;
     }
 }
+/** Removes one entry from the server cache (and its stored copy) so the next read comes from the sheet. Editors only. */
 function clearServerCacheValue(key: string): boolean {
     requireEditor_();
     try {
@@ -277,6 +280,7 @@ function clearServerCacheValues(keys: string[] | string): boolean {
     }
 }
 
+/** Writes the "Last modified" stamp on every sheet listed in TIMESTAMP_LIST. Editors only. */
 function bulkUpdateTimestamps(): void {
     requireEditor_();
     try {
@@ -295,6 +299,7 @@ function bulkUpdateTimestamps(): void {
     }
 }
 
+/** Writes the "Last modified" stamp on the sheet that is open right now, if it is one of the stamped sheets. Editors only. */
 function updateTimestampForSheet(): void {
     requireEditor_();
     try {
@@ -309,6 +314,7 @@ function updateTimestampForSheet(): void {
     }
 }
 
+/** Stamps every tracked sheet and refreshes all investments, the work behind the "update" buttons. Editors only. */
 function updateTimestamps(): void {
     requireEditor_();
     try {
@@ -411,8 +417,10 @@ function evaluatePeriodFormulas(spreadsheet: GoogleAppsScript.Spreadsheet.Spread
     }
 }
 
+/** Trigger entry: records one daily snapshot of the economy on the Historical Records sheet. Runs trusted because a time-driven trigger has no signed-in editor. Skips Sundays, Mondays and when daily logging is paused in Settings. */
 function recordDailyData(): void { runTrusted_(recordDailyDataEntry_); }
 
+/** The real work of recordDailyData: evaluates the live totals (evaluatePeriodFormulas), inserts one new block of rows, one per metric, at the top of the Historical Records list stamped with now, copies the formatting of the rows below and sorts the list newest first. */
 function recordDailyDataEntry_(): void {
     const logDaily = fetchProperty("logBankingDaily", "ledgersAndRecords");
 
@@ -482,6 +490,7 @@ function recordDailyDataEntry_(): void {
     }
 }
 
+/** Archives the live Historical Records sheet by copying it to a new tab named Records_<timestamp>. Returns false (and alerts) if the sheet is missing. Editors only. */
 function saveHistoricalRecords(): boolean {
     requireEditor_();
     try {
@@ -507,6 +516,7 @@ function saveHistoricalRecords(): boolean {
     }
 }
 
+/** Clears every data row of the live Historical Records sheet (from the row set by getHistoricalRecordsRowStart, header kept) and trims the empty rows. This deletes history: archive first with saveHistoricalRecords. Editors only. */
 function resetHistoricalRecords(): boolean {
     requireEditor_();
     try {

@@ -147,6 +147,7 @@ function addTransactionRecordsInsideLock_(records: TransactionRecord[]): boolean
   }
 }
 
+/** Reverses transactions by id. `data` is JSON: an array of transaction ids, or { transactionIds: [...] }. Each undo is a NEW log row ("Undo transaction ID <id> - ..."); the original row is never deleted. Holds the transaction lock. Editors only. */
 function undoTransactions(data?: string): boolean {
     requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
@@ -343,6 +344,7 @@ function findRecordsNoLongerInEffect(ids: number[], idColumn: any[][]): number[]
   return ids.filter(id => !activeRecords.has(id));
 }
 
+/** Deletes every row of the transaction log from the first data row (getTransactionsRowStart) down and clears the transaction cache. Cannot be undone. Holds the transaction lock. Editors only. */
 function resetAllTransactionRecords(): boolean {
     requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts

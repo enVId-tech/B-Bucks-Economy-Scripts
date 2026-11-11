@@ -24,6 +24,7 @@ const NOTE_SCAN_CHUNK_SIZE: number = 2000;
 // While a batch is open (for example during a multi-transaction undo) the targets are collected and synced once at the end.
 let pendingNoteTargets: Map<string, NoteTarget> | null = null;
 
+/** The key that identifies one student ("name|period") when notes are batched, so each student's note is rebuilt once per batch. */
 function noteTargetKey(target: NoteTarget): string {
     return `${String(target.individual).trim()}|${target.period ?? ""}`;
 }
