@@ -134,6 +134,15 @@
       return isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
     }
 
+    // "January 21, 2026": the date a given week of the CoD lands on, counted from the initial deposit date.
+    function formatWeekDate(depositIso, week) {
+      if (!depositIso) return '';
+      const date = new Date(depositIso);
+      if (isNaN(date.getTime())) return '';
+      date.setDate(date.getDate() + week * 7);
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
     function mainElement() { return document.getElementById('portalMain'); }
 
     function showMessageCard(title, message, actionLabel, actionHref) {
@@ -748,12 +757,13 @@
 
       const projection = buildProjection(principal, weeks, rate, taxRate, isCurrentCod ? 0 : 1);
       const currentWeek = isCurrentCod ? predictor.codWeekNow : null;
+      const depositIso = isCurrentCod ? predictor.codDepositDate : null;
       const nowEntry = isCurrentCod ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
       labelElement.textContent = 'Value after tax at week ' + weeks + ' (principal ' + money(principal) + ')';
       valueElement.textContent = money(projection.finalNet);
       const shortForm = shortMoney(projection.finalNet);
       if (shortForm) valueElement.appendChild(h('div', 'result-short', 'About ' + shortForm));
-      if (nowEntry) valueElement.appendChild(h('div', 'result-short', 'You are in week ' + currentWeek + ': expect ' + money(nowEntry.net) + ' after tax right now.'));
+      if (nowEntry) valueElement.appendChild(h('div', 'result-short', 'You are in week ' + currentWeek + (formatWeekDate(depositIso, currentWeek) ? ' (' + formatWeekDate(depositIso, currentWeek) + ')' : '') + ': expect ' + money(nowEntry.net) + ' after tax right now.'));
       if (weeks > 0) valueElement.appendChild(h('div', 'result-short', 'Before tax ' + money(projection.finalGross) + ' \u00b7 tax ' + (taxRate * 100).toFixed(2) + '% = -' + money(projection.finalTax)));
       valueElement.classList.toggle('result-value-long', money(projection.finalNet).length > 14);
 
@@ -761,11 +771,12 @@
         breakdownContainer.appendChild(emptyState('Investing has ended for this period, so there is nothing left to project.'));
         return;
       }
-      breakdownContainer.appendChild(h('div', 'week-row week-head', null, [h('span', '', 'Week'), h('span', '', 'Before tax'), h('span', '', 'After tax')]));
+      const dated = Boolean(depositIso);
+      breakdownContainer.appendChild(h('div', 'week-row week-head' + (dated ? ' week-dated' : ''), null, [h('span', '', 'Week'), h('span', '', 'Before tax'), h('span', '', 'After tax')]));
       projection.breakdown.forEach(entry => {
         const isNow = currentWeek !== null && entry.week === currentWeek;
-        breakdownContainer.appendChild(h('div', 'week-row' + (isNow ? ' week-now' : ''), null, [
-          h('span', 'week-name', 'Week ' + entry.week + (isNow ? ' (now)' : '')),
+        breakdownContainer.appendChild(h('div', 'week-row' + (isNow ? ' week-now' : '') + (dated ? ' week-dated' : ''), null, [
+          h('span', 'week-name', 'Week ' + entry.week + (isNow ? ' (now)' : ''), dated ? [h('span', 'week-date', formatWeekDate(depositIso, entry.week))] : null),
           h('span', 'week-earned', money(entry.gross)),
           h('span', 'week-value', money(entry.net))
         ]));
