@@ -515,7 +515,6 @@ function portalGetDashboard(data: string): any {
             quarter,
             catalog: buildPortalCatalog_(quarter, name, period),
             requests: readPortalRequests_().filter(candidate => candidate.student === name && candidate.period === period).slice(-20).reverse(),
-            recent: fetchPortalRecentTransactions_(name, period),
             purchases: fetchPortalUndoablePurchases_(name, period),
             leaderboard
         };
@@ -525,27 +524,54 @@ function portalGetDashboard(data: string): any {
     }
 }
 
-/** The student's newest transaction log entries. */
-function fetchPortalRecentTransactions_(name: string, period: string): any[] {
-    const response = queryTransactions(JSON.stringify({
-        page: 1,
-        pageSize: PORTAL_RECENT_TRANSACTIONS,
-        filters: { student: name, period: period.replace(/\D/g, "") }
-    }));
-    if ('error' in response) return [];
+/** The log filters the portal offers, mapped to the log's own type labels. */
+const PORTAL_ACTIVITY_CATEGORIES: { [category: string]: string } = { income: "income", spending: "spending", investments: "deposit" };
 
-    return response.window.records
-        .filter(record => record.individual === name)
-        .slice(0, PORTAL_RECENT_TRANSACTIONS)
-        .map(record => ({
-            id: record.id,
-            timestamp: record.timestamp,
-            type: record.type,
-            description: (record.serviceProvided ?? "").trim(),
-            amount: record.tenderedMoney ?? 0,
-            operation: record.operation,
-            newBalance: record.newBalance ?? null
-        }));
+/**
+ * One page of a student's transaction history, newest first, read from the transactions sheet named in Settings. Every transaction
+ * of the student is included. The text search looks at the description (what was bought, invested or earned).
+ * @param data JSON string: { name, period, page?, search?, category?: "all" | "income" | "spending" | "investments" }
+ */
+function portalGetTransactions(data: string): any {
+    try {
+        const request = JSON.parse(data);
+        const name = String(request.name ?? "");
+        const period = String(request.period ?? "");
+        const search = String(request.search ?? "").trim().slice(0, 80);
+        const category = String(request.category ?? "all");
+        const requestedPage = Math.max(1, Math.floor(Number(request.page)) || 1);
+
+        const identity = resolvePortalIdentity_();
+        if (identity.status !== "ok") return { error: "You are not signed in." };
+        if (!ownsPortalProfile_(findPortalProfiles_(identity), name, period) && !identity.isAdmin) return { error: "That account is not linked to your email." };
+
+        const filters: TransactionFilters = { student: name, period: period.replace(/\D/g, "") };
+        if (search) { filters.search = search; filters.scope = "item"; }
+        if (PORTAL_ACTIVITY_CATEGORIES[category]) filters.type = PORTAL_ACTIVITY_CATEGORIES[category];
+
+        const response = queryTransactions(JSON.stringify({ page: requestedPage, pageSize: PORTAL_RECENT_TRANSACTIONS, filters }));
+        if ('error' in response) {
+            log(`Portal: the transaction history could not be read: ${response.error}`, false);
+            return { error: `The transaction history is not available (the "${getTransactionsSheetName()}" tab could not be read).` };
+        }
+
+        const firstOnPage = (response.page - 1) * response.pageSize - response.window.startIndex;
+        const records = response.window.records
+            .slice(Math.max(0, firstOnPage), Math.max(0, firstOnPage) + response.pageSize)
+            .map(record => ({
+                id: record.id,
+                timestamp: record.timestamp,
+                type: record.type,
+                description: (record.serviceProvided ?? "").trim(),
+                amount: Math.abs(Number(record.tenderedMoney) || 0),
+                change: transactionBalanceChange(record)
+            }));
+
+        return { records, total: response.total, page: response.page, totalPages: response.totalPages };
+    } catch (error: any) {
+        log(`Error in portalGetTransactions: ${error.message}`, false);
+        return { error: "The transaction history could not load. Please try again." };
+    }
 }
 
 /**
