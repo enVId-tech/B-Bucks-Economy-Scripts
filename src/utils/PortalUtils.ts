@@ -569,7 +569,6 @@ function portalGetDashboard(data: string): any {
             quarter,
             catalog: buildPortalCatalog_(quarter, name, period),
             requests: readPortalRequests_().filter(candidate => candidate.student === name && candidate.period === period).slice(-20).reverse(),
-            purchases: fetchPortalUndoablePurchases_(name, period),
             leaderboard
         };
     } catch (error: any) {
@@ -578,22 +577,18 @@ function portalGetDashboard(data: string): any {
     }
 }
 
-/** The log filters the portal offers, mapped to the log's own type labels. */
-const PORTAL_ACTIVITY_CATEGORIES: { [category: string]: string } = { income: "income", spending: "spending", investments: "deposit" };
-
 /**
- * One page of a student's transaction history, newest first, read from the transactions sheet named in Settings. Every transaction
- * of the student is included. The text search looks at the description (what was bought, invested or earned).
- * @param data JSON string: { name, period, page?, search?, category?: "all" | "income" | "spending" | "investments" }
+ * Every transaction of one student, newest first, read from the transactions sheet named in Settings. Searching, the category buttons
+ * and paging all happen in the page, so this is fetched once and not again for every click.
+ * Only two reads are needed however long the log is: columns A to C of the whole log (to find the student's rows), then one block
+ * covering the student's first to last row. The result is cached until the log gets a new row.
+ * @param data JSON string: { name, period }
  */
 function portalGetTransactions(data: string): any {
     try {
         const request = JSON.parse(data);
         const name = String(request.name ?? "");
         const period = String(request.period ?? "");
-        const search = String(request.search ?? "").trim().slice(0, 80);
-        const category = String(request.category ?? "all");
-        const requestedPage = Math.max(1, Math.floor(Number(request.page)) || 1);
 
         const identity = resolvePortalIdentity_();
         if (identity.status !== "ok") return { error: "You are not signed in." };
@@ -601,92 +596,73 @@ function portalGetTransactions(data: string): any {
         if (readLimit) return { error: readLimit };
         if (!ownsPortalProfile_(findPortalProfiles_(identity), name, period) && !identity.isAdmin) return { error: "That account is not linked to your email." };
 
-        const filters: TransactionFilters = { student: name, period: period.replace(/\D/g, "") };
-        if (search) { filters.search = search; filters.scope = "item"; }
-        if (PORTAL_ACTIVITY_CATEGORIES[category]) filters.type = PORTAL_ACTIVITY_CATEGORIES[category];
-
-        const response = queryTransactions(JSON.stringify({ page: requestedPage, pageSize: PORTAL_RECENT_TRANSACTIONS, filters }));
-        if ('error' in response) {
-            log(`Portal: the transaction history could not be read: ${response.error}`, false);
-            return { error: `The transaction history is not available (the "${getTransactionsSheetName()}" tab could not be read).` };
+        const sheet = getTransactionsSheet();
+        if (!sheet) {
+            log(`Portal: the transactions sheet "${getTransactionsSheetName()}" was not found.`, false);
+            return { error: `The transaction history is not available (the "${getTransactionsSheetName()}" tab could not be found).` };
         }
 
-        const firstOnPage = (response.page - 1) * response.pageSize - response.window.startIndex;
-        const records = response.window.records
-            .slice(Math.max(0, firstOnPage), Math.max(0, firstOnPage) + response.pageSize)
-            .map(record => ({
-                id: record.id,
-                timestamp: record.timestamp,
-                type: record.type,
-                description: (record.serviceProvided ?? "").trim(),
-                amount: Math.abs(Number(record.tenderedMoney) || 0),
-                change: transactionBalanceChange(record)
-            }));
+        const total = countTransactionRows(sheet);
+        if (total === 0) return { records: [], total: 0 };
 
-        return { records, total: response.total, page: response.page, totalPages: response.totalPages };
+        const firstRow = getTransactionsRowStart();
+        const keyColumns = sheet.getRange(firstRow, 1, total, 3).getValues(); // id, student, period
+        const lastId = Number(keyColumns[total - 1][0]);
+        const wantedName = normalizeTransactionText(name);
+        const wantedPeriod = period.replace(/\D/g, "");
+
+        const cache = CacheService.getScriptCache();
+        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, `${wantedName}|${wantedPeriod}`, Utilities.Charset.UTF_8);
+        const cacheKey = `portalHistory:${Utilities.base64EncodeWebSafe(digest)}`;
+        try {
+            const cachedText = cache.get(cacheKey);
+            if (cachedText) {
+                const cached = JSON.parse(cachedText);
+                if (cached.total === total && cached.lastId === lastId) return { records: cached.records, total: cached.records.length };
+            }
+        } catch (cacheError) { /* rebuild below */ }
+
+        const matchedIndexes: number[] = [];
+        keyColumns.forEach((row, index) => {
+            if (normalizeTransactionText(row[1]) === wantedName && String(row[2]) === wantedPeriod) matchedIndexes.push(index);
+        });
+
+        let records: any[] = [];
+        if (matchedIndexes.length > 0) {
+            const first = matchedIndexes[0];
+            const last = matchedIndexes[matchedIndexes.length - 1];
+            // Columns D..N: type, description, unit price, quantity, column, tendered, initial/new column amount, initial/new balance, timestamp
+            const block = sheet.getRange(firstRow + first, 4, last - first + 1, 11).getValues();
+            const oldestFirst = matchedIndexes.map(index => {
+                const row = block[index - first];
+                const timestamp = row[10];
+                return {
+                    id: Number(keyColumns[index][0]),
+                    timestamp: timestamp instanceof Date ? timestamp.toISOString() : String(timestamp ?? ""),
+                    type: String(row[0] || "Unknown"),
+                    description: String(row[1] ?? "").trim(),
+                    amount: Math.abs(Number(row[5]) || 0),
+                    change: transactionBalanceChange({ initialBalance: row[8], newBalance: row[9] }),
+                    undone: false
+                };
+            });
+
+            // A purchase that was undone later is flagged so the page can leave it out of the purchases list.
+            const inEffect = resolveRecordsInEffect(oldestFirst.map(record => ({ id: record.id, serviceProvided: record.description, unitPrice: 0 } as TransactionRecord)));
+            oldestFirst.forEach(record => { if (!inEffect.has(record.id) && !/^Undo transaction ID \d+ - /.test(record.description)) record.undone = true; });
+            records = oldestFirst.reverse();
+        }
+
+        try {
+            const serialized = JSON.stringify({ total, lastId, records });
+            if (serialized.length < 90000) cache.put(cacheKey, serialized, 600);
+        } catch (cacheError) { /* too big or the cache is full: it is only a speed-up */ }
+
+        return { records, total: records.length };
     } catch (error: any) {
         log(`Error in portalGetTransactions: ${error.message}`, false);
         return { error: "The transaction history could not load. Please try again." };
     }
-}
-
-/**
- * The student's purchases that can still be undone: purchase records that are still in effect (not undone) and still on the log.
- * A purchase stops being listed once its row is deleted from the transaction log.
- */
-function fetchPortalUndoablePurchases_(name: string, period: string): any[] {
-    const response = queryTransactions(JSON.stringify({
-        page: 1,
-        pageSize: PORTAL_PURCHASE_SCAN_SIZE,
-        filters: { student: name, period: period.replace(/\D/g, "") }
-    }));
-    if ('error' in response) return [];
-
-    const ownRecords = response.window.records.filter(record => record.individual === name);
-    // The window is newest first, the in-effect walk needs oldest first.
-    const inEffect = resolveRecordsInEffect([...ownRecords].reverse());
-    return ownRecords
-        .filter(record => parsePurchaseItemName(record.serviceProvided) !== null && inEffect.has(Number(record.id)))
-        .map(record => ({
-            id: record.id,
-            timestamp: record.timestamp,
-            description: (record.serviceProvided ?? "").trim(),
-            amount: Number(((record.unitPrice ?? 0) * (record.quantity ?? 1)).toFixed(2))
-        }));
-}
-
-/**
- * Takes back a purchase. Works until the purchase's row is deleted from the transaction log; the money goes back and the
- * quantity no longer counts against the caps. The same undo as the admin Transaction Records dialog runs.
- * @param data JSON string: { name, period, transactionId }
- */
-function portalUndoPurchase(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
-        try {
-            const request = JSON.parse(data);
-            const name = String(request.name ?? "");
-            const period = String(request.period ?? "");
-            const transactionId = Number(request.transactionId);
-
-            const { identity, reason, onBehalf } = authorizeProfileAction_(name, period);
-            if (reason) return failure_(reason);
-            if (!Number.isInteger(transactionId)) return failure_("That purchase was not found.");
-
-            const record = fetchTransactionsByIds([transactionId])[0];
-            if (!record) return failure_("That purchase is no longer on the transaction log, so it cannot be undone.");
-            if (record.individual !== name || String(record.period) !== period.replace(/\D/g, "")) return failure_("That purchase was not found.");
-            if (parsePurchaseItemName(record.serviceProvided) === null) return failure_("Only purchases can be undone here.");
-
-            const { result, messages } = runCapturingMessages_(() => undoTransactions(JSON.stringify({ transactionIds: [transactionId] })));
-            if (result !== true) return failure_(messages.join(" ") || "The purchase could not be undone.");
-
-            if (onBehalf) log(`Portal: ${identity.email} undid transaction ${transactionId} for ${name} (${period}).`, false);
-            return { ok: true, message: "Purchase undone. The money is back in the balance." };
-        } catch (error: any) {
-            log(`Error in portalUndoPurchase: ${error.message}`, false);
-            return failure_("The purchase could not be undone. Please try again.");
-        }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
