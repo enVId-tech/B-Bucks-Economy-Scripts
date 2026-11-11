@@ -76,6 +76,7 @@
         border-bottom: 1px solid var(--portal-border);
     }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; white-space: nowrap; }
+    .experimental-badge { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--portal-warn); color: var(--portal-warn); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
     .brand-mark {
         width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
         background: linear-gradient(135deg, var(--portal-accent-grad-from), var(--portal-accent-grad-to));
@@ -177,6 +178,22 @@
         font: inherit;
         transition: border-color 0.15s, box-shadow 0.15s;
     }
+    textarea {
+        width: 100%;
+        padding: 11px 13px;
+        border: 1px solid var(--portal-border);
+        border-radius: 12px;
+        background: var(--portal-surface);
+        color: var(--portal-text);
+        font: inherit;
+        resize: vertical;
+        min-height: 72px;
+    }
+    textarea:focus { outline: none; border-color: var(--portal-accent); box-shadow: 0 0 0 3px var(--portal-accent-soft); }
+    .note-toggle, .request-details { margin: 8px 0; font-size: 13px; }
+    .note-toggle > summary, .request-details > summary { cursor: pointer; color: var(--portal-accent-strong); font-weight: 600; }
+    .note-toggle textarea { margin-top: 8px; }
+    .note-text { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--portal-surface-alt); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
     input:focus, select:focus { outline: none; border-color: var(--portal-accent); box-shadow: 0 0 0 3px var(--portal-accent-soft); }
     button:focus-visible { outline: 2px solid var(--portal-accent); outline-offset: 2px; }
 
@@ -225,6 +242,7 @@
 
     .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--portal-surface-alt); color: var(--portal-muted); }
     .badge-pending { background: var(--portal-warn-soft); color: var(--portal-warn); }
+    .badge-completed { background: var(--portal-accent-soft); color: var(--portal-accent-strong); }
     .badge-approved { background: var(--portal-good-soft); color: var(--portal-good); }
     .badge-denied, .badge-cancelled { background: var(--portal-bad-soft); color: var(--portal-bad); }
 
