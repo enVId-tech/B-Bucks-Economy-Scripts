@@ -266,16 +266,19 @@ function mapTransactionRow(row: any[]): TransactionRecord {
 // ----------------------------------------------------------------------------------------------------------------------
 
 function getTransactionsSheet(): GoogleAppsScript.Spreadsheet.Sheet | null {
+    requireEditor_();
     return getSheetNamed(getTransactionsSheetName());
 }
 
 /** Number of transaction rows currently on the sheet (the header rows above getTransactionsRowStart() are excluded). */
 function countTransactionRows(sheet: GoogleAppsScript.Spreadsheet.Sheet): number {
+    requireEditor_();
     return Math.max(0, sheet.getLastRow() - getTransactionsRowStart() + 1);
 }
 
 /** Reads `count` rows starting at chronological index `firstIndex` (0 = oldest) in a single range read. */
 function readTransactionRows(sheet: GoogleAppsScript.Spreadsheet.Sheet, firstIndex: number, count: number): TransactionRecord[] {
+    requireEditor_();
     if (count <= 0) return [];
     return sheet.getRange(getTransactionsRowStart() + firstIndex, 1, count, TRANSACTION_COLUMN_COUNT).getValues().map(mapTransactionRow);
 }
@@ -289,6 +292,7 @@ function emptyTransactionIndex(): TransactionCacheIndex {
 }
 
 function readTransactionIndex(cache: GoogleAppsScript.Cache.Cache): TransactionCacheIndex {
+    requireEditor_();
     try {
         const raw = cache.get(TRANSACTION_INDEX_KEY);
         if (!raw) return emptyTransactionIndex();
@@ -305,11 +309,13 @@ function readTransactionIndex(cache: GoogleAppsScript.Cache.Cache): TransactionC
 }
 
 function writeTransactionIndex(cache: GoogleAppsScript.Cache.Cache, index: TransactionCacheIndex): void {
+    requireEditor_();
     cache.put(TRANSACTION_INDEX_KEY, JSON.stringify(index), SERVER_SIDE_CACHE_AGE);
 }
 
 /** Removes every cached transaction block, the bookkeeping, and the derived facets/stats. Call after bulk edits or a reset. */
 function invalidateTransactionCache(): boolean {
+    requireEditor_();
     try {
         const cache = CacheService.getScriptCache();
         const index = readTransactionIndex(cache);
@@ -324,6 +330,7 @@ function invalidateTransactionCache(): boolean {
 
 /** Called after rows are appended. Blocks self-validate by row count, so only the derived facets need dropping. */
 function onTransactionsAppended(): void {
+    requireEditor_();
     try { CacheService.getScriptCache().remove(TRANSACTION_FACETS_KEY); } catch (cacheError) { /* non-critical */ }
 }
 
@@ -342,6 +349,7 @@ function parseTransactionPayload(data?: string): any {
  * @param data JSON: { page?: number, pageSize?: number, direction?: "forward"|"backward"|"jump", forceRefresh?: boolean, includeStats?: boolean }
  */
 function fetchTransactionsPage(data?: string): TransactionPageResponse | { error: string } {
+    requireEditor_();
     const startedAt = Date.now();
     try {
         const payload = parseTransactionPayload(data);
@@ -472,6 +480,7 @@ function fetchTransactionsPage(data?: string): TransactionPageResponse | { error
  * Net is accumulated in whole cents to avoid floating point drift.
  */
 function getUnfilteredTransactionStats(sheet: GoogleAppsScript.Spreadsheet.Sheet, total: number, cache: GoogleAppsScript.Cache.Cache, writable: boolean): TransactionStats {
+    requireEditor_();
     let state = { rows: 0, income: 0, spending: 0, netCents: 0 };
     try {
         const raw = cache.get(TRANSACTION_STATS_KEY);
@@ -503,6 +512,7 @@ function getUnfilteredTransactionStats(sheet: GoogleAppsScript.Spreadsheet.Sheet
  * @param data JSON: { filters?: TransactionFilters, page?: number, pageSize?: number, direction?: TransactionDirection }
  */
 function queryTransactions(data?: string): TransactionPageResponse | { error: string } {
+    requireEditor_();
     const startedAt = Date.now();
     try {
         const payload = parseTransactionPayload(data);
@@ -569,6 +579,7 @@ function queryTransactions(data?: string): TransactionPageResponse | { error: st
  * @returns { periods: number[], types: string[], studentsByPeriod: { [period: string]: string[] }, allStudents: string[] }
  */
 function fetchTransactionFacets(data?: string): any {
+    requireEditor_();
     try {
         const payload = parseTransactionPayload(data);
         const hasRange = (payload.fromMs !== undefined && payload.fromMs !== null) || (payload.toMs !== undefined && payload.toMs !== null);
@@ -644,6 +655,7 @@ function fetchTransactionFacets(data?: string): any {
  * @param idColumn Column A of the log, when the caller already read it.
  */
 function fetchTransactionsByIds(ids: number[], idColumn?: any[][]): TransactionRecord[] {
+    requireEditor_();
     const sheet = getTransactionsSheet();
     if (!sheet || !ids || ids.length === 0) return [];
 
@@ -670,12 +682,14 @@ function fetchTransactionsByIds(ids: number[], idColumn?: any[][]): TransactionR
 
 /** Warms the cache with the newest page so the first dialog open is instant. */
 function preloadTransactionCache(): boolean {
+    requireEditor_();
     const result = fetchTransactionsPage(JSON.stringify({ page: 1, pageSize: 25, forceRefresh: true, includeStats: true }));
     return !('error' in result);
 }
 
 /** Diagnostics for developers: what the rolling cache currently holds. Run from the Apps Script editor. */
 function getTransactionCacheStatus(): any {
+    requireEditor_();
     const cache = CacheService.getScriptCache();
     const index = readTransactionIndex(cache);
     const keys = Object.keys(index.blocks).map(Number).sort((smaller, larger) => smaller - larger);

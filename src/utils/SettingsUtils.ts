@@ -100,6 +100,7 @@ type SettingsPropertyKey = keyof SettingsPropertyMap;
  * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
  */
 function fetchSettingsDataCached(data?: string): SettingsData | { error: string } {
+    requireEditor_();
     try {
         if (data && typeof data === 'string') {
             log(`Received data for fetchSettingsDataCached: ${data}`, false);
@@ -149,6 +150,7 @@ function fetchSettingsDataCached(data?: string): SettingsData | { error: string 
  * @returns {SettingsData | { error: string }} An object containing the structured settings data or an error message if the sheet is not found or an error occurs. The settings data includes important dates, standard percentages, mandated policies, ledgers and records preferences, and limits, all organized into their respective categories for easy access throughout the application.
  */
 function fetchSettingsData(): SettingsData | { error: string } {
+    requireEditor_();
     try {
         const spreadsheet = getSS();
 
@@ -262,6 +264,7 @@ function fetchProperty(propertyKey: SettingsPropertyKey, propertySection?: keyof
  * @returns { boolean } Returns true if the property was successfully set; otherwise, returns false.
  */
 function setSettingsProperty(data: any): boolean {
+    requireEditor_();
     const parseResult = typeof data === 'string' ? JSON.parse(data) : data;
     // Key is the column identifer for the setting (importantDates, standardPercentages, mandatedPolicies, ledgersAndRecords, limits, advancedTechnicalSettings)
     // Property value is every setting within that column as an object (e.g. { incomeTaxRate: 0.1, weeklyInterestRate: 0.02 } for standardPercentages)
@@ -372,6 +375,7 @@ function columnNumberToLetter(columnNumber: number): string {
  * Applies the income tax rate to every person in the sheet as a formula
  */
 function applyIncomeTaxRateToAll(): boolean {
+    requireEditor_();
     try {
         const incomeTaxRateResult = fetchProperty("incomeTaxRate");
         if (typeof incomeTaxRateResult === 'object' && 'error' in incomeTaxRateResult) {

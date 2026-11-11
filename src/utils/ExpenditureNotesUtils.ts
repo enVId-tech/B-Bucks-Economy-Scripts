@@ -30,11 +30,13 @@ function noteTargetKey(target: NoteTarget): string {
 
 /** Starts collecting note updates instead of applying them one by one. Always pair with endNoteSyncBatch() in a finally block. */
 function beginNoteSyncBatch(): void {
+    requireEditor_();
     pendingNoteTargets = new Map<string, NoteTarget>();
 }
 
 /** Applies every note update collected since beginNoteSyncBatch() in one pass over the log. */
 function endNoteSyncBatch(): void {
+    requireEditor_();
     const targets = pendingNoteTargets ? Array.from(pendingNoteTargets.values()) : [];
     pendingNoteTargets = null;
     if (targets.length > 0) syncExpenditureNotes(targets);
@@ -51,6 +53,7 @@ function recordAffectsExpenditureNote(record: TransactionRecord): boolean {
  * Inside a batch the work is postponed until endNoteSyncBatch().
  */
 function syncNotesForRecords(records: TransactionRecord[]): void {
+    requireEditor_();
     try {
         const targets = records
             .filter(recordAffectsExpenditureNote)
@@ -123,6 +126,7 @@ function toNoteRecord(record: TransactionRecord): TransactionRecord {
 
 /** Id stored on the log row at a chronological index (0 = oldest). */
 function readTransactionIdAt(sheet: GoogleAppsScript.Spreadsheet.Sheet, index: number): number {
+    requireEditor_();
     return Number(sheet.getRange(getTransactionsRowStart() + index, 1).getValue());
 }
 
@@ -136,6 +140,7 @@ function scanExpenditureLog(
     toIndex: number,
     onRecord: (key: string, record: TransactionRecord, index: number) => void
 ): number | null {
+    requireEditor_();
     let lastIdRead: number | null = null;
     for (let chunkStart = fromIndex; chunkStart < toIndex; chunkStart += NOTE_SCAN_CHUNK_SIZE) {
         const chunk = readTransactionRows(sheet, chunkStart, Math.min(NOTE_SCAN_CHUNK_SIZE, toIndex - chunkStart));
@@ -155,6 +160,7 @@ function loadCachedNoteRecords(
     wantedKeys: Set<string>,
     total: number
 ): Map<string, CachedNoteRecords> | null {
+    requireEditor_();
     const keys = Array.from(wantedKeys);
     const cachedRaw = cache.getAll(keys.map(key => EXPENDITURE_NOTE_CACHE_PREFIX + key));
     const entries = new Map<string, CachedNoteRecords>();
@@ -183,6 +189,7 @@ function loadCachedNoteRecords(
 
 /** Saves student histories to the cache. A history too large for one cache value is simply left out (it is rebuilt next time). */
 function saveCachedNoteRecords(cache: GoogleAppsScript.Cache.Cache, entries: Map<string, CachedNoteRecords>): void {
+    requireEditor_();
     const values: { [key: string]: string } = {};
     entries.forEach((entry, key) => { values[EXPENDITURE_NOTE_CACHE_PREFIX + key] = JSON.stringify(entry); });
     try {
@@ -201,6 +208,7 @@ function saveCachedNoteRecords(cache: GoogleAppsScript.Cache.Cache, entries: Map
  * @param wantedKeys keys from noteTargetKey(). Pass null to collect every student (always reads the whole log).
  */
 function collectExpenditureRecords(wantedKeys: Set<string> | null): Map<string, TransactionRecord[]> {
+    requireEditor_();
     const recordsByStudent = new Map<string, TransactionRecord[]>();
     const sheet = getTransactionsSheet();
     if (!sheet) return recordsByStudent;
@@ -266,6 +274,7 @@ function buildExpenditureNoteText(studentRecords: TransactionRecord[]): string {
  * @returns true when every note was written.
  */
 function syncExpenditureNotes(targets: NoteTarget[]): boolean {
+    requireEditor_();
     try {
         const uniqueTargets = new Map<string, NoteTarget>();
         targets.forEach(target => uniqueTargets.set(noteTargetKey(target), target));
@@ -335,6 +344,7 @@ function syncExpenditureNotes(targets: NoteTarget[]): boolean {
  * Students with no entries in the log keep whatever note they have. Run it from the menu after upgrading, or any time notes look off.
  */
 function rebuildAllExpenditureNotes(): string {
+    requireEditor_();
     try {
         const recordsByStudent = collectExpenditureRecords(null);
         const targets: NoteTarget[] = [];
@@ -356,6 +366,7 @@ function rebuildAllExpenditureNotes(): string {
 
 /** Menu entry: rebuilds every expenditure note from the log and tells the user how it went. */
 function rebuildExpenditureNotesFromMenu(): void {
+    requireEditor_();
     const message = runWithTransactionLock(() => rebuildAllExpenditureNotes(), "Another transaction is still running, try again in a moment.");
     SpreadsheetApp.getActive().toast(message, "Expenditure notes", 8);
 }

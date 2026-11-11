@@ -17,7 +17,9 @@ const WARM_CACHE_HANDLER: string = "warmCaches";
 const WARM_CACHE_INTERVAL_MINUTES: number = 10;
 
 /** Refills any cache that has expired. Safe to run at any time. */
-function warmCaches(): boolean {
+function warmCaches(): boolean { return runTrusted_(warmCachesEntry_); }
+
+function warmCachesEntry_(): boolean {
     const startedAt = Date.now();
     try {
         // Skip while another run (or a real user action) holds the script lock: never compete with the admin.
@@ -45,11 +47,13 @@ function warmCaches(): boolean {
 
 /** Triggers currently installed for warmCaches. */
 function getWarmCacheTriggers(): GoogleAppsScript.Script.Trigger[] {
+    requireEditor_();
     return ScriptApp.getProjectTriggers().filter(trigger => trigger.getHandlerFunction() === WARM_CACHE_HANDLER);
 }
 
 /** True when background warming is installed. */
 function isCacheWarmingEnabled(): boolean {
+    requireEditor_();
     return getWarmCacheTriggers().length > 0;
 }
 
@@ -58,6 +62,7 @@ function isCacheWarmingEnabled(): boolean {
  * @returns A short human-readable status message.
  */
 function enableCacheWarming(): string {
+    requireEditor_();
     try {
         getWarmCacheTriggers().forEach(trigger => ScriptApp.deleteTrigger(trigger));
         ScriptApp.newTrigger(WARM_CACHE_HANDLER).timeBased().everyMinutes(WARM_CACHE_INTERVAL_MINUTES).create();
@@ -74,6 +79,7 @@ function enableCacheWarming(): string {
  * @returns A short human-readable status message.
  */
 function disableCacheWarming(): string {
+    requireEditor_();
     try {
         const existing = getWarmCacheTriggers();
         existing.forEach(trigger => ScriptApp.deleteTrigger(trigger));

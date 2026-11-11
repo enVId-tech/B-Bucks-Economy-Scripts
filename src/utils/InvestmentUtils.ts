@@ -34,6 +34,7 @@ interface InvestmentRecord {
  * @returns {PeriodData[] | { error: string }} An array of period data objects containing the period name and an array of investment records for that period, or an error message if the sheet is not found or an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
  */
 function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: string } {
+    requireEditor_();
     try {
         if (data && typeof data === 'string') {
             log(`Received data for fetchInvestmentsDataCached: ${data}`, false);
@@ -119,6 +120,7 @@ function fetchInvestmentsDataCached(data?: string): PeriodData[] | { error: stri
  * Shared by the full ledger fetch and the single-student refresh so both read exactly the same way.
  */
 function readInvestmentsFromSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): InvestmentRecord[] {
+    requireEditor_();
     const values = sheet.getDataRange().getValues();
     const investments: InvestmentRecord[] = [];
 
@@ -155,6 +157,7 @@ function readInvestmentsFromSheet(sheet: GoogleAppsScript.Spreadsheet.Sheet): In
  * @returns {PeriodData[] | { error: string }} An array of period data objects containing the period name and an array of investment records for that period, or an error object if an error occurs. Each period data object is structured to allow easy access to its details throughout the application, facilitating operations such as investments management and performance tracking. The investment records include details such as the date of the investment, the individual's name, the initial amount invested, the returns amount, and optionally the current amount for ongoing investments.
  */
 function fetchInvestmentsLedgerData(onlyPeriods?: string[] | null): PeriodData[] | { error: string } {
+    requireEditor_();
     try {
         const allSheets = getAllSheets();
         const periodSheets = allSheets.filter(sheet => sheet.getName().includes("Period") && (!onlyPeriods || onlyPeriods.includes(sheet.getName())));
@@ -180,6 +183,7 @@ function fetchInvestmentsLedgerData(onlyPeriods?: string[] | null): PeriodData[]
  * @returns A boolean indicating whether the operation was successful.
  */
 function refreshAllInvestments(): boolean {
+    requireEditor_();
     try {
         const periodDataArray = fetchInvestmentsLedgerData();
         if ('error' in periodDataArray) return false;
@@ -264,6 +268,7 @@ function refreshAllInvestments(): boolean {
  * @returns A boolean indicating whether the operation was successful.
  */
 function refreshSingleInvestment(individualName: string, periodName: string): boolean {
+    requireEditor_();
     try {
         const targetSheet = getSheetNamed(periodName);
         if (!targetSheet || !targetSheet.getName().includes("Period")) return false;
@@ -330,6 +335,7 @@ function refreshSingleInvestment(individualName: string, periodName: string): bo
  * @returns A boolean indicating whether the operation was successful.
  */
 function writeSingleInvestmentToSheet(periodData: PeriodData, investment: InvestmentRecord): boolean {
+    requireEditor_();
     try {
         const sheet = getSheetNamed(periodData.periodName);
         if (!sheet) return false;
@@ -382,6 +388,7 @@ function writeSingleInvestmentToSheet(periodData: PeriodData, investment: Invest
  * @returns A boolean indicating whether the operation was successful.
  */
 function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
+    requireEditor_();
     try {
         const allSheets = getAllSheets();
 
@@ -445,6 +452,7 @@ function writeInvestmentsDataToSheet(periodDataArray: PeriodData[]): boolean {
  * @returns A boolean indicating whether the operation was successful.
  */
 function handleDeposit(data: string): boolean {
+    requireEditor_();
     // Money moves only while holding the transaction lock, see LockUtils.ts
     return runWithTransactionLock(() => handleDepositInsideLock_(data), false);
 }
@@ -602,6 +610,7 @@ function handleDepositInsideLock_(data: string): boolean {
  * @returns A boolean indicating whether the withdrawal was successful.
  */
 function handleWithdraw(data: string): boolean {
+    requireEditor_();
     // Money moves only while holding the transaction lock, see LockUtils.ts
     return runWithTransactionLock(() => handleWithdrawInsideLock_(data), false);
 }

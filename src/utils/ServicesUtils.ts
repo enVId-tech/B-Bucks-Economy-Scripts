@@ -30,6 +30,7 @@ interface ItemData {
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
 function fetchServicesDataCached(data?: string): ItemData[] | { error: string } {
+    requireEditor_();
     try {
         if (data && typeof data === 'string') {
             log(`Received data for fetchServicesDataCached: ${data}`, false);
@@ -84,6 +85,7 @@ function fetchServicesDataCached(data?: string): ItemData[] | { error: string } 
  * @returns {ItemData[] | { error: string }} An array of service item objects containing the item name, category, pricing for each quarter, and limits for each quarter, or an error message if the sheet is not found or an error occurs. Each service item is structured to allow easy access to its details throughout the application, facilitating operations such as pricing management and service categorization.
  */
 function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): ItemData[] | { error: string } {
+    requireEditor_();
     try {
         // Fetch all sheets with the name "Services" to implement multi-service sheet support in the future
         const allSheets = getAllSheets();
@@ -171,6 +173,7 @@ function fetchServicesData(sheetName: string = fetchServicesSheetNames()[0]): It
  * @returns The result of the operation or an error message.
  */
 function executeServiceAction(payloadStr: string): string | void {
+    requireEditor_();
     // Money moves only while holding the transaction lock, see LockUtils.ts
     return runWithTransactionLock(() => executeServiceActionInsideLock_(payloadStr), "Another transaction is still running. Nothing was changed, please try again.");
 }
@@ -305,6 +308,7 @@ function executeServiceActionInsideLock_(payloadStr: string): string | void {
  * @returns {string[] | { error: string }} An array of sheet names that contain the word "services" in their name, or an error message if no such sheets are found or an error occurs. This allows for flexible management of multiple services sheets within the application, enabling users to select and view different sets of services data as needed.
  */
 function fetchServicesSheetNames(): string[] | { error: string } {
+    requireEditor_();
     try {
         const allSheets = getAllSheets();
 

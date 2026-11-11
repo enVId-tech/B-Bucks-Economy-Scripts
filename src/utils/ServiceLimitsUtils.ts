@@ -161,6 +161,7 @@ function toLimitRecord(record: TransactionRecord): TransactionRecord {
  * @returns a map "<individual>|<period>" -> units bought (undone purchases excluded).
  */
 function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string, number> {
+    requireEditor_();
     const counts = new Map<string, number>();
     const sheet = getTransactionsSheet();
     if (!sheet) return counts;
@@ -257,6 +258,7 @@ function countPurchasesFromLog(itemName: string, quarter: QuarterId): Map<string
 
 /** The people on the currently selected rows of the active sheet (name + period), without duplicates. */
 function getSelectedIndividuals(): { individual: string; period?: number }[] {
+    requireEditor_();
     const people: { individual: string; period?: number }[] = [];
     const seen = new Set<string>();
 
@@ -297,6 +299,7 @@ function lookupItemLimits(itemName: string, quarter: QuarterId): { personLimit: 
  * @param data JSON string: { itemName: string, quarter: "Q1".."Q4" }
  */
 function fetchServiceLimitStatus(data?: string): ServiceLimitReport | { error: string } {
+    requireEditor_();
     try {
         const parsed = data ? JSON.parse(data) : {};
         const itemName = String(parsed.itemName ?? "").trim();
@@ -348,6 +351,7 @@ function fetchServiceLimitStatus(data?: string): ServiceLimitReport | { error: s
  * @returns an error message when somebody would go over their cap, otherwise null.
  */
 function checkServiceLimit(itemName: string, quarter: QuarterId, quantity: number): string | null {
+    requireEditor_();
     if (!isServicesLimitEnforced()) return null;
 
     const report = fetchServiceLimitStatus(JSON.stringify({ itemName, quarter }));

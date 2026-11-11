@@ -22,6 +22,7 @@ interface PeriodConfig {
  * @returns The cached string payload, or null if no data is found.
  */
 function getCachedData(cacheKey: string): string | null {
+    requireEditor_();
     try {
         const cache = CacheService.getScriptCache();
         const cached = cache.get(cacheKey);
@@ -46,6 +47,7 @@ function getCachedData(cacheKey: string): string | null {
  * Retrieves the current ordered list of cached keys (oldest to newest).
  */
 function getCacheIndex(): string[] {
+    requireEditor_();
     try {
         const raw = PropertiesService.getScriptProperties().getProperty(CACHE_INDEX_KEY);
         return raw ? JSON.parse(raw) : [];
@@ -58,6 +60,7 @@ function getCacheIndex(): string[] {
  * Updates the cache key index, maintaining LRU order and enforcing MAX_CACHE_ENTRIES.
  */
 function touchCacheIndex(key: string): void {
+    requireEditor_();
     try {
         const props = PropertiesService.getScriptProperties();
         let index = getCacheIndex();
@@ -125,6 +128,7 @@ function enforcePayloadSizeLimit(data: any, maxBytes: number = MAX_PROPERTY_BYTE
  * Centralized setter with mutex locking, byte-size bounds, and max entry eviction.
  */
 function setCachedData(cacheKey: string, data: any): boolean {
+    requireEditor_();
     try {
         // Enforce payload size limits (prune to keep most recent entries)
         const safePayload = enforcePayloadSizeLimit(data, MAX_PROPERTY_BYTES);
@@ -186,6 +190,7 @@ function launchModelessDialog(templateName: string, title: string, width: number
 }
 
 function preloadCacheForAllDialogs(): void {
+    requireEditor_();
     fetchSettingsDataCached(JSON.stringify({ forceRefresh: true }));
     fetchServicesDataCached(JSON.stringify({ forceRefresh: true }));
     fetchInvestmentsDataCached(JSON.stringify({ forceRefresh: true }));
@@ -193,6 +198,7 @@ function preloadCacheForAllDialogs(): void {
 }
 
 function setServerCacheValue(data: string): boolean {
+    requireEditor_();
     try {
         const { key, value } = JSON.parse(data);
         const cache = CacheService.getScriptCache();
@@ -210,6 +216,7 @@ function setServerCacheValue(data: string): boolean {
  * Clears specific keys and cleans up the key index.
  */
 function clearGlobalCache(requestedKeys?: string[] | null): boolean {
+    requireEditor_();
     try {
         // The Settings "Clear Client Cache" button calls this with no argument: treat that as "clear everything".
         const keys: string[] = Array.isArray(requestedKeys) && requestedKeys.length > 0
@@ -239,6 +246,7 @@ function clearGlobalCache(requestedKeys?: string[] | null): boolean {
     }
 }
 function clearServerCacheValue(key: string): boolean {
+    requireEditor_();
     try {
         const cache = CacheService.getScriptCache();
         const props = PropertiesService.getScriptProperties();
@@ -254,6 +262,7 @@ function clearServerCacheValue(key: string): boolean {
 
 /** Batch version of clearServerCacheValue: one server round trip for any number of keys. */
 function clearServerCacheValues(keys: string[] | string): boolean {
+    requireEditor_();
     try {
         const list: string[] = (Array.isArray(keys) ? keys : [keys]).map(k => String(k));
         if (list.length === 0) return true;
@@ -269,6 +278,7 @@ function clearServerCacheValues(keys: string[] | string): boolean {
 }
 
 function bulkUpdateTimestamps(): void {
+    requireEditor_();
     try {
         const spreadsheet = getSS();
         const sheetsToUpdate = getAllSheets().filter(sheet => TIMESTAMP_LIST.includes(sheet.getName()));
@@ -286,6 +296,7 @@ function bulkUpdateTimestamps(): void {
 }
 
 function updateTimestampForSheet(): void {
+    requireEditor_();
     try {
         const activeSheet = getSS().getActiveSheet();
         if (TIMESTAMP_LIST.includes(activeSheet.getName())) {
@@ -299,6 +310,7 @@ function updateTimestampForSheet(): void {
 }
 
 function updateTimestamps(): void {
+    requireEditor_();
     try {
         bulkUpdateTimestamps();
         if (typeof refreshAllInvestments === 'function') {
@@ -327,6 +339,7 @@ interface EvaluatedPeriodRow {
  * @param historySheet The Historical Records sheet holding the formula rows.
  */
 function evaluatePeriodFormulas(spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet, historySheet: GoogleAppsScript.Spreadsheet.Sheet): EvaluatedPeriodRow[] {
+    requireEditor_();
     const settingsBlock = historySheet.getRange("B3:Z10").getValues();
     const numCols = settingsBlock[0].length;
 
@@ -398,7 +411,9 @@ function evaluatePeriodFormulas(spreadsheet: GoogleAppsScript.Spreadsheet.Spread
     }
 }
 
-function recordDailyData(): void {
+function recordDailyData(): void { runTrusted_(recordDailyDataEntry_); }
+
+function recordDailyDataEntry_(): void {
     const logDaily = fetchProperty("logBankingDaily", "ledgersAndRecords");
 
     if (logDaily === false) {
@@ -468,6 +483,7 @@ function recordDailyData(): void {
 }
 
 function saveHistoricalRecords(): boolean {
+    requireEditor_();
     try {
         const sheetName = getHistoricalRecordsSheetName();
 
@@ -492,6 +508,7 @@ function saveHistoricalRecords(): boolean {
 }
 
 function resetHistoricalRecords(): boolean {
+    requireEditor_();
     try {
         const sheetName = getHistoricalRecordsSheetName();
 

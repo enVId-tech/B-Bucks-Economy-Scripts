@@ -215,6 +215,7 @@ function mergeStudentsIntoSheet_(sheet: GoogleAppsScript.Spreadsheet.Sheet, temp
  * @returns {FillSheetResult} What happened to the period.
  */
 function fillSheetsWithData(data: string): FillSheetResult {
+    requireEditor_();
     const failedResult = (period: number, message: string): FillSheetResult => ({ ok: false, period, mode: "skipped", added: 0, kept: 0, idsFilled: 0, skippedNames: [], message });
     let period = NaN;
     try {
@@ -527,7 +528,9 @@ function log(message: any[] | string | number | boolean, isVisibleToClient: bool
  * Simple trigger that executes automatically when a user alters a cell in the spreadsheet.
  * @param {GoogleAppsScript.Events.SheetsOnEdit} e - The edit event object.
  */
-function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
+function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void { runTrusted_(() => onEditEntry_(e)); }
+
+function onEditEntry_(e: GoogleAppsScript.Events.SheetsOnEdit): void {
     // Guard against running manually from the Apps Script IDE without an event object
     if (!e || !e.range) return;
 
@@ -541,6 +544,7 @@ function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
  * @param targetSheet The Google Sheets sheet object where the timestamp should be stamped.
  */
 function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): void {
+    requireEditor_();
     try {
         const sheet = targetSheet || getSS().getActiveSheet();
 

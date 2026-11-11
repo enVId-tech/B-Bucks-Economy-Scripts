@@ -45,6 +45,7 @@ interface TransactionRecord {
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
 function addTransactionRecords(records: TransactionRecord[]): boolean {
+    requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => addTransactionRecordsInsideLock_(records), false);
 }
@@ -147,6 +148,7 @@ function addTransactionRecordsInsideLock_(records: TransactionRecord[]): boolean
 }
 
 function undoTransactions(data?: string): boolean {
+    requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => undoTransactionsInsideLock_(data), false);
 }
@@ -342,6 +344,7 @@ function findRecordsNoLongerInEffect(ids: number[], idColumn: any[][]): number[]
 }
 
 function resetAllTransactionRecords(): boolean {
+    requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => resetAllTransactionRecordsInsideLock_(), false);
 }

@@ -33,6 +33,7 @@ function transactionTypeForChange(operation: Operation, column: number): Transac
  * @returns The result of the operation or an error message.
  */
 function executeBalanceAction(payloadStr: string): string | void {
+    requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => executeBalanceActionInsideLock_(payloadStr), "Another transaction is still running. Nothing was changed, please try again.");
 }
@@ -84,6 +85,7 @@ function applyMathToSelection(
   fixedRow?: number,
   fixedCol?: number
 ): string | boolean {
+    requireEditor_();
   try {
     // must explicitly include undefined check because isManualTransaction is a boolean
     if (
@@ -406,6 +408,7 @@ function applyMathToSelection(
  * (previously one read per student).
  */
 function fillNewBalances(records: TransactionRecord[]): void {
+    requireEditor_();
   const rowsByPeriod = new Map<number, number[]>();
   records.forEach(record => {
     const recordRow = Number(record.row);

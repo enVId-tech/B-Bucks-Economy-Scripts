@@ -13,7 +13,9 @@
  * Creates a custom dropdown menu in the Google Sheets UI when the spreadsheet is opened, 
  * allowing users to access various functions related to the B-Bucks Economy Scripts project.
  */
-function onOpen(): void {
+function onOpen(): void { runTrusted_(onOpenEntry_); }
+
+function onOpenEntry_(): void {
   const ui = SpreadsheetApp.getUi();
 
   ui.createMenu('The Central Bank of Banderas')
