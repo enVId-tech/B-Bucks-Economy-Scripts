@@ -1038,6 +1038,7 @@
       syncProjectionModeInputs();
     }
 
+    /** The "Current CoD" tab button: switches the calculator to project the selected student's real CoD (initial deposit + deposit date). */
     function currentCodCalculations() {
       try {
         setProjectionMode('currentCod');
@@ -1046,6 +1047,12 @@
       }
     }
 
+    /**
+     * Recalculates and draws the earnings calculator for the open mode (Current CoD / Custom Amount / From Deposit).
+     * Steps: work out the principal and number of weeks (Current CoD: from the selected student's initial deposit and deposit date via
+     * getCurrentCodTimeline; the others: the typed amount and week box) -> ask the server for the rate if needed -> buildProjection does the
+     * simple-interest maths -> renderProjection draws the list. The admin page does NOT apply the withdrawal tax (the portal does).
+     */
     async function handlePredictions() {
       try {
         const isCurrentCod = projectionState.activeMode === 'currentCod';
