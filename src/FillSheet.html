@@ -37,8 +37,8 @@
       </div>
 
       <div class="warning-box">
-        ⚠️ <strong>Destructive Action:</strong> Importing data WILL overwrite any existing data and cannot be undone.
-        Review carefully before confirming.
+        ⚠️ <strong>Careful:</strong> A Period tab that mostly matches the file is updated in place: everyone keeps their data and only missing students are added.
+        A tab that does not match the file is replaced, and that cannot be undone.
       </div>
 
       <div class="button-row">
@@ -52,8 +52,8 @@
     <div class="modal">
       <div class="modal-title">⚠️ Confirm Import</div>
       <div class="modal-content">
-        <p>This action will import the selected CSV data into your spreadsheet.</p>
-        <p class="warning-text">This cannot be undone easily. Please review the preview above.</p>
+        <p>Period tabs that mostly match the file are updated (nothing is removed). Tabs that do not match are rebuilt from the Template.</p>
+        <p class="warning-text">Replacing a tab cannot be undone easily.</p>
       </div>
       <div id="progressBar" class="progress-container">
         <progress id="progressFill" class="progress-fill" max="100" value="0"></progress>
@@ -148,6 +148,7 @@
           document.getElementById('cancelBtn').disabled = true;
 
           // Show progress bar
+          importResults = [];
           document.getElementById('progressBar').classList.add('active');
 
           // Start processing our queue index 0
@@ -215,7 +216,7 @@
      * 3. Short attendance class roster: the same, but the column line is only "Period,Teacher,Year".
      * Sections that repeat (page breaks, Fall and Spring terms, several courses in one period) are merged into a single period, and a student listed more than once in a period is kept once.
      * @param csvData The raw roster file as a string.
-     * @returns {CSVData[]} An array of objects, each containing a period identifier and the sorted names of its students.
+     * @returns {CSVData[]} An array of objects, each containing a period identifier, the sorted names of its students and their student IDs in the same order ('' when the file has none).
      */
     function parseCsvData(csvData) {
       try {
@@ -233,7 +234,7 @@
 
         const startSheet = (identifier) => {
           if (!sheetsByIdentifier[identifier]) {
-            sheetsByIdentifier[identifier] = { identifier: identifier, individuals: [] };
+            sheetsByIdentifier[identifier] = { identifier: identifier, individuals: [], studentIds: [] };
             seenStudentIds[identifier] = {};
             data.push(sheetsByIdentifier[identifier]);
           }
@@ -291,20 +292,41 @@
               }
 
               currentSheet.individuals.push(name);
+              currentSheet.studentIds.push(studentId || '');
             }
           }
         }
 
-        // Sort the individuals inside each group
+        // Sort the individuals inside each group, keeping every student ID next to its name
         // Time complexity here depends on the number of individuals per group: O(K log K)
         for (const entry of data) {
-          entry.individuals.sort((a, b) => a.localeCompare(b));
+          const pairs = entry.individuals.map((name, index) => ({ name, studentId: entry.studentIds[index] }));
+          pairs.sort((a, b) => a.name.localeCompare(b.name));
+          entry.individuals = pairs.map(pair => pair.name);
+          entry.studentIds = pairs.map(pair => pair.studentId);
         }
 
         return data;
       } catch (err) {
         return [];
       }
+    }
+
+    // What the server said about each period, in the order they were imported
+    let importResults = [];
+
+    /**
+     * Tells the teacher what happened to every period: kept, added, rebuilt or failed.
+     * Older servers answered with a plain true/false, which is still understood.
+     */
+    function showImportSummary() {
+      const lines = importResults.map(result => {
+        if (result && typeof result === 'object') return (result.ok ? '' : 'Problem - ') + result.message;
+        return result ? 'Period imported.' : 'A period could not be imported.';
+      });
+      const hasProblem = importResults.some(result => result === false || (result && typeof result === 'object' && !result.ok));
+      showStatusMessage((hasProblem ? 'Import finished with problems:\n' : 'Import finished:\n') + lines.join('\n'), hasProblem ? 'error' : 'success');
+      importResults = [];
     }
 
     /**
@@ -317,7 +339,7 @@
       try {
         document.getElementById('progressText').textContent = `Periods processed: ${index} / ${queue.length}`;
         if (index >= queue.length) {
-          showStatusMessage("Data import completed successfully!", "success");
+          showImportSummary();
           closeModal();
           return;
         }
@@ -327,6 +349,7 @@
         const stringifiedData = JSON.stringify(currentItem);
 
         callServer('fillSheetsWithData', stringifiedData, (response) => {
+          importResults.push(response);
           setTimeout(() => {
             document.getElementById('progressFill').value = ((index + 1) / queue.length) * 100;
             document.getElementById('progressText').textContent = `Periods processed: ${index + 1} / ${queue.length}`;
