@@ -184,3 +184,7 @@ const PORTAL_REQUESTS_SHEET: string = "Expenditure Requests"; // one row per stu
 const PORTAL_DOMAIN_PROPERTY: string = "PORTAL_ALLOWED_DOMAIN"; // Script Property holding the allowed email domain. Never hard-code the domain in source
 const PORTAL_RECENT_TRANSACTIONS: number = 15; // how many recent log entries a student sees
 const PORTAL_PURCHASE_SCAN_SIZE: number = 60; // how many of a student's newest log entries are checked for purchases that can be undone
+const PORTAL_EXPERIMENTAL: boolean = true; // true: the student portal is labelled EXPERIMENTAL in Banking Settings and on the page. Set to false once it is stable.
+const PORTAL_ACTION_MIN_GAP_MS: number = 1000; // server side: least time between two actions (invest, withdraw, request, undo...) of one person
+const PORTAL_ACTIONS_PER_MINUTE: number = 20; // server side: most actions one person may run per minute
+const PORTAL_READS_PER_MINUTE: number = 90; // server side: most dashboard / history loads one person may run per minute
