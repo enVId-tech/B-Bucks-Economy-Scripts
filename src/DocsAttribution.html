@@ -614,6 +614,274 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                 </div>
             </div>
 
+            <!-- D2b. PORTAL INTERNALS -->
+            <div id="d-portalalgo" class="doc-section" data-audience="dev" data-title="Portal Internals (Algorithms)" data-icon="🧠">
+                <div class="section-card">
+                    <h2>Portal Internals (Algorithms)</h2>
+                    <p class="lead">Every decision the portal makes, as numbered steps you can follow with the sheet open next to you. The code carries the same step numbers in its comments, so you can search for a step and land on the line.</p>
+
+                    <h3 id="d-portalalgo-flow">One click, end to end</h3>
+                    <ol>
+                        <li>The button calls <code>runAction</code> (<code>Portal.html</code>): it refuses when another action is running, locks every action button, and shows a busy label.</li>
+                        <li><code>portalCall</code> puts the call at the end of a queue, so calls go one at a time with at least <code>MIN_GAP_BETWEEN_CALLS_MS</code> between them, then calls <code>google.script.run.&lt;function&gt;</code>.</li>
+                        <li>The server function at the bottom of <code>PortalUtils.ts</code> (for example <code>portalDeposit</code>) runs inside <code>runTrusted_</code> and calls <code>portalDepositEntry_</code>.</li>
+                        <li><code>portalDepositCore_</code> asks <code>authorizeProfileAction_</code> whether this caller may act on this student, validates the input, then calls the shared handler (<code>handleDeposit</code>) with the admin override forced off.</li>
+                        <li><code>withFreshDashboard_</code> builds the dashboard again and attaches it to the answer <code>{ ok, message, dashboard }</code>.</li>
+                        <li>The page replaces <code>portalState.dashboard</code> with it and calls <code>renderPortal()</code>. It shows <code>message</code> in a green or red notice. The buttons unlock after <code>ACTION_COOLDOWN_MS</code>.</li>
+                    </ol>
+
+                    <h3 id="d-portalalgo-identity">Who is calling? (<code>resolvePortalIdentity_</code>)</h3>
+                    <p>The first rule that matches wins:</p>
+                    <ol>
+                        <li>Google shows no email for the caller: status <code>signin</code>. This is a visitor who is not signed in, or whose account is outside the script owner's Google Workspace domain (Apps Script hides the email of outsiders). The page shows the sign-in help screen.</li>
+                        <li>No allowed domain is set: <code>ok</code> for admins, <code>notConfigured</code> for everybody else.</li>
+                        <li>The email does not end with <code>@&lt;allowed domain&gt;</code> and the person is not an admin: <code>wrongDomain</code>.</li>
+                        <li>Otherwise: <code>ok</code>.</li>
+                    </ol>
+                    <p>A caller is an <strong>admin</strong> when their email is in <code>getPortalAdminEmails_()</code>: everyone who can edit the spreadsheet, plus the owner, plus the account the script runs as. That list is cached for 10 minutes (key <code>portalAdminEmails</code>), so removing someone's edit access can take up to 10 minutes to apply.</p>
+
+                    <h3 id="d-portalalgo-profile">Which student is this email? (<code>findPortalProfiles_</code>)</h3>
+                    <ol>
+                        <li><strong>Override list first.</strong> Read the "Portal Accounts" tab (email, period, name). Every row whose email matches and whose student really is on that period tab becomes a profile. If there is at least one, stop here.</li>
+                        <li><strong>Otherwise match by student ID.</strong> Take the part of the email before the <code>@</code> and cut it into runs of digits. A student matches when their ID equals one run <em>exactly</em>. A student on two periods has the same ID on both, so they get one profile per period.</li>
+                    </ol>
+                    <table class="doc-table">
+                        <tr><th>Email</th><th>Student ID</th><th>Match?</th><th>Why</th></tr>
+                        <tr><td><code>123456@school.org</code></td><td>123456</td><td>Yes</td><td>One digit run, equal to the ID.</td></tr>
+                        <tr><td><code>jdoe123456@school.org</code></td><td>123456</td><td>Yes</td><td>Letters around the run do not matter.</td></tr>
+                        <tr><td><code>x1234567@school.org</code></td><td>123456</td><td>No</td><td>The run is 1234567, longer than the ID: exact match only.</td></tr>
+                        <tr><td><code>jane.doe@school.org</code></td><td>123456</td><td>No</td><td>Names are never used to match; add a row to Portal Accounts instead.</td></tr>
+                    </table>
+                    <p><strong>Where the IDs come from:</strong> the hidden student ID column of each period sheet (<code>getStudentIdColumn()</code>), written by Fill Sheet. IDs never leave the server.</p>
+                    <p><strong>Why it is cached:</strong> matching needs every period's roster. <code>getPortalRosterIndex_</code> reads them once and remembers <code>{ period, name, studentId }</code> for 5 minutes (<code>PORTAL_ROSTER_CACHE_SECONDS</code>, key <code>portalRosterIndex</code>). Fill Sheet, <code>resetSheetMemo</code> and "Create Portal Tabs" clear it at once. The Portal Accounts tab is not cached, so a line you add there works immediately. Balances are never cached by this index.</p>
+
+                    <h3 id="d-portalalgo-dashboard">Building the dashboard (<code>buildPortalDashboard_</code>)</h3>
+                    <ol>
+                        <li>Read the Expenditure Requests tab once into <code>portalRequestsMemo</code>; the item caps and the request list both reuse it.</li>
+                        <li>Check access: a student needs a profile linked to their email; an admin may open any student.</li>
+                        <li>Read the whole period sheet once. It supplies this student's row and every classmate for the leaderboard.</li>
+                        <li>CoD facts. <em>Has a CoD</em> means the initial deposit is above 0 or there is still a net gain. <code>lockoutDaysLeft</code> is the withdrawal lockout (Settings, default 14 days) minus the days since the deposit date, never below 0.</li>
+                        <li>Leaderboard: balance plus any positive CoD gain, highest first, names shortened to "Jane D.".</li>
+                        <li>Predictor inputs: the weekly rate and withdrawal tax from Settings, the weeks left before investing ends, and the CoD's own timeline (initial deposit, deposit date, current week).</li>
+                        <li>Assemble <code>{ student, predictor, quarter, catalog, requests, leaderboard, viewingAsAdmin }</code>. <strong>Any new number you want on the page starts here.</strong></li>
+                    </ol>
+
+                    <h3 id="d-portalalgo-history">Fetching the history (<code>portalGetTransactions</code>)</h3>
+                    <ol>
+                        <li>Cheap freshness check: the number of log rows and the id of the last row (two tiny reads).</li>
+                        <li>If a cached history exists under <code>portalHistory:&lt;hash of name and period&gt;</code> and both numbers still match, return it. Any new log row changes one of them, so the cache can never serve a stale history.</li>
+                        <li>Otherwise read columns A to C of the whole log once and note which rows belong to this student.</li>
+                        <li>Read one block that spans their first to last row (columns D to N).</li>
+                        <li>Mark purchases that a later "Undo transaction ID ..." row reversed (<code>resolveRecordsInEffect</code>).</li>
+                        <li>Store the result for 10 minutes (when it is under 90,000 characters) and return it newest first. The page filters, searches and pages it locally.</li>
+                    </ol>
+
+                    <h3 id="d-portalalgo-requests">The life of an expenditure request</h3>
+                    <table class="doc-table">
+                        <tr><th>Status</th><th>How it gets there</th><th>Money</th></tr>
+                        <tr><td>Pending</td><td>Student (or an admin for them) presses Request. Counts against Max/Person and Max/Class.</td><td>None.</td></tr>
+                        <tr><td>Cancelled</td><td>Student cancels while it is still Pending.</td><td>None.</td></tr>
+                        <tr><td>Denied</td><td>An admin denies a Pending request, with an optional note.</td><td>None.</td></tr>
+                        <tr><td>Approved</td><td>An admin approves. The server re-checks price, balance and caps against <em>today's</em> values, then charges through <code>applyMathToSelection</code> on the Expenditures cell.</td><td>Charged and logged like any purchase.</td></tr>
+                        <tr><td>Completed</td><td>An admin marks an Approved request as done.</td><td>None (already charged).</td></tr>
+                    </table>
+                    <p>Once Approved, a student can no longer cancel. To reverse the charge, undo it in Transaction Records; that does not change the request's status.</p>
+
+                    <h3 id="d-portalalgo-invest">Deposit and withdraw rules</h3>
+                    <ul>
+                        <li><strong>Deposit</strong> (<code>portalDepositCore_</code>): amount above 0 (rounded to cents) &rarr; investing window open (<code>investingWindowMessage_</code>: closed before the start date, and 24 hours after the end date) &rarr; <code>handleDeposit</code> with <code>override: false</code>, which applies the CoD lockout and cash rules.</li>
+                        <li><strong>Withdraw</strong> (<code>portalWithdrawCore_</code>): has a CoD &rarr; lockout over &rarr; <code>handleWithdraw</code> for the full net amount.</li>
+                        <li>Interest is simple, not compounding: gross = initial deposit &times; (1 + weekly rate &times; whole weeks since the deposit date); net = gross &times; (1 &minus; withdrawal tax).</li>
+                    </ul>
+
+                    <h3 id="d-portalalgo-predictor">Earnings predictor maths</h3>
+                    <p>For week <em>w</em>: gross(<em>w</em>) = principal &times; (1 + weekly rate &times; <em>w</em>). On the portal, net(<em>w</em>) = gross(<em>w</em>) &times; (1 &minus; withdrawal tax). Worked example, principal $100, 2% a week, 10% tax:</p>
+                    <table class="doc-table">
+                        <tr><th>Week</th><th>Gross</th><th>After 10% tax</th></tr>
+                        <tr><td>0</td><td>$100.00</td><td>$90.00</td></tr>
+                        <tr><td>2</td><td>$104.00</td><td>$93.60</td></tr>
+                        <tr><td>6</td><td>$112.00</td><td>$100.80</td></tr>
+                    </table>
+                    <ul>
+                        <li><strong>Current CoD</strong> uses the <em>initial deposit</em> and the <em>deposit date</em>, never the grown value. Week 0 is the deposit day. The current week is <code>floor((today &minus; deposit date) / 7 days)</code>, and the list runs to that week plus the weeks left before investing ends. The row for the current week is highlighted: that is the amount to expect right now. It is the only mode that marks a week.</li>
+                        <li><strong>Custom Amount</strong> and <strong>From Deposit</strong> start today. Week 1 is today plus 7 days.</li>
+                        <li>The date next to each week is the start date plus 7 &times; week days.</li>
+                        <li>The admin page (<code>InvestmentsManager.html</code>, <code>getCurrentCodTimeline</code>) uses the same timeline but does not apply the withdrawal tax. The portal does (<code>buildProjection</code> in <code>Portal.html</code>).</li>
+                        <li>Very large amounts: <code>shortMoney</code> adds a readable size ("7.10 sextillion") and the layout wraps long numbers instead of overflowing.</li>
+                    </ul>
+
+                    <h3 id="d-portalalgo-limits">Flood control (<code>checkPortalRate_</code>)</h3>
+                    <ol>
+                        <li>Key = kind ("action" or "read") plus a hash of the email, stored in the script cache for 2 minutes.</li>
+                        <li>Start a fresh 60-second window when the last one is over.</li>
+                        <li>For actions: refuse if less than <code>PORTAL_ACTION_MIN_GAP_MS</code> (1 second) passed since the last action.</li>
+                        <li>Refuse if the window already holds <code>PORTAL_ACTIONS_PER_MINUTE</code> (20) actions or <code>PORTAL_READS_PER_MINUTE</code> (90) reads. Otherwise count this call and let it through.</li>
+                        <li>If the limiter itself fails, the call is allowed. A broken limiter must never lock everybody out.</li>
+                    </ol>
+
+                    <h3 id="d-portalalgo-refresh">Keeping the page current (client)</h3>
+                    <ul>
+                        <li><code>refreshQuietly</code> runs every <code>AUTO_REFRESH_MS</code> (45 s) and when the tab becomes visible after <code>REFRESH_AFTER_RETURN_MS</code> (15 s).</li>
+                        <li>It skips the refresh while an action runs, while the tab is hidden, while the person has typed or clicked in the last <code>EDITING_GRACE_MS</code> (10 s), or while any box holds unsent text. A refresh would otherwise wipe what they are writing.</li>
+                        <li>It redraws only when the fresh dashboard differs from the one on screen.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- D2c. DEBUGGING PLAYBOOK -->
+            <div id="d-debug" class="doc-section" data-audience="dev" data-title="Debugging Playbook" data-icon="🔍">
+                <div class="section-card">
+                    <h2>Debugging Playbook</h2>
+                    <p class="lead">Start from what you see, find the row, follow it left to right. Most problems are a setting or a sheet cell, not code.</p>
+
+                    <h3 id="d-debug-logs">Where to read what happened</h3>
+                    <ol>
+                        <li>Apps Script editor &rarr; <strong>Executions</strong> (left bar). Every portal call is one row with its function name, duration and status. Open a failed one to see its log.</li>
+                        <li>Portal problems are logged as <code>Error in portalXxx: &hellip;</code>. Blocked admin calls are logged as <code>Blocked a call from &hellip;</code>.</li>
+                        <li>The page itself: browser developer tools &rarr; Console. Failed server calls print there with <code>console.error</code>.</li>
+                    </ol>
+
+                    <h3 id="d-debug-table">Symptom to fix</h3>
+                    <table class="doc-table">
+                        <tr><th>What you see</th><th>Most likely cause</th><th>Where to look</th><th>Fix</th></tr>
+                        <tr><td>Google's "Unable to open the file at this time"</td><td>The deployment is limited to your organization and the visitor has another account selected.</td><td>Deploy &rarr; Manage deployments</td><td>Set <em>Who has access</em> to <em>Anyone with a Google account</em> and publish a new version.</td></tr>
+                        <tr><td>"Sign in with your school account" for a school student</td><td>Apps Script shows no email for people outside the owner's Workspace domain, or Google is using the wrong account.</td><td><code>resolvePortalIdentity_</code>, rule 1</td><td>The student switches account (new Chrome profile or private window). If every school student sees it, the script owner is in a different domain than the students: use an owner account in the school domain.</td></tr>
+                        <tr><td>"Wrong account"/same help screen with an email shown</td><td>Signed in with a non-school email.</td><td><code>getPortalAllowedDomain()</code></td><td>Check the domain in Banking Settings &rarr; Set Portal Domain.</td></tr>
+                        <tr><td>"Portal not ready"</td><td>No allowed domain is set.</td><td>Script Properties, <code>PORTAL_ALLOWED_DOMAIN</code></td><td>Banking Settings &rarr; Set Portal Domain.</td></tr>
+                        <tr><td>"We cannot find your account"</td><td>The student's ID is not in the ID column, the email has no ID in it, or the roster cache is stale.</td><td>Hidden ID column; "Portal Accounts" tab</td><td>Run Fill Sheet to write IDs, or add a row to Portal Accounts. Wait 5 minutes, or run Fill Sheet to clear the roster cache.</td></tr>
+                        <tr><td>History or Spend says the transaction history is not available</td><td>The transactions tab name in Settings does not match a real tab.</td><td>Settings &rarr; <code>defaultTransactionsSheet</code>; <code>getTransactionsSheet()</code></td><td>Correct the setting or rename the tab.</td></tr>
+                        <tr><td>"Please wait a moment" or "You are going too fast"</td><td>The server flood limit (see Flood control).</td><td><code>PORTAL_ACTION_MIN_GAP_MS</code>, <code>PORTAL_ACTIONS_PER_MINUTE</code>, <code>PORTAL_READS_PER_MINUTE</code> in <code>GlobalConsts.ts</code></td><td>Wait; raise the constants if it is too strict for your class size.</td></tr>
+                        <tr><td>"Only people who can edit this spreadsheet can do that" in an admin dialog</td><td>The editors-only guard did not recognise the caller.</td><td>Log line <code>Blocked a call from &hellip;</code></td><td>If that person is an editor, wait 10 minutes (editor list cache) or set <code>ENFORCE_EDITOR_GUARD</code> to <code>false</code> to confirm the cause and look at the email Google reports.</td></tr>
+                        <tr><td>A button stays busy or nothing happens</td><td>The server call failed or timed out.</td><td>Executions list; browser Console</td><td>Fix the error shown there; the page unlocks by itself after the cool-down.</td></tr>
+                        <tr><td>Approve says a price, cap or balance problem</td><td>Approval re-checks against today's values.</td><td><code>checkPortalPurchase_</code>, <code>buildPortalCatalog_</code></td><td>Fix the price table, caps or the student's balance, then approve again.</td></tr>
+                        <tr><td>Predictor says "no CoD yet"</td><td>Initial deposit is 0 and there is no net gain on the student's row.</td><td>Period sheet, initial deposit and net gain columns</td><td>Deposit through the portal or Investment Banking.</td></tr>
+                        <tr><td>The "now" week looks wrong</td><td>Wrong deposit date, or the sheet's timezone differs from the viewer's.</td><td>Period sheet deposit date column; <code>codWeekNow</code> in <code>buildPortalDashboard_</code></td><td>Correct the date. Week = whole weeks since that date.</td></tr>
+                        <tr><td>Numbers on the portal differ from the sheet</td><td>The page shows the last server answer; auto refresh runs every 45 s.</td><td><code>refreshQuietly</code></td><td>Wait for the refresh or reload. The portal never caches balances.</td></tr>
+                        <tr><td>The portal feels slow</td><td>Each server call costs 1 to 2 seconds of Apps Script overhead plus the sheet reads.</td><td>Duration column in Executions</td><td>Check that the roster cache is on, and that no new code reads whole sheets in a loop (see Performance Notes).</td></tr>
+                    </table>
+
+                    <h3 id="d-debug-method">A method that works</h3>
+                    <ol>
+                        <li>Reproduce it, then note the exact text on screen. Search the code for that text: every message appears once.</li>
+                        <li>Find the server function (the page tells you which one in <code>Portal.html</code>: search for the button text, then the <code>portalCall</code> name).</li>
+                        <li>Open that function's Core_ version and walk its numbered steps with the sheet open. The failing step is the first one whose input does not match what the sheet holds.</li>
+                        <li>Check Executions for the matching row. A red row has the error; a green row with a failure message returned a refusal (see <code>failure_</code>).</li>
+                        <li>Change the setting or cell first. Change code only when the data is right and the result is still wrong.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- D2d. CODE MAP AND GLOSSARY -->
+            <div id="d-codemap" class="doc-section" data-audience="dev" data-title="Code Map &amp; Glossary" data-icon="🗺️">
+                <div class="section-card">
+                    <h2>Code Map &amp; Glossary</h2>
+
+                    <h3 id="d-codemap-files">File by file</h3>
+                    <table class="doc-table">
+                        <tr><th>File</th><th>What it is for</th></tr>
+                        <tr><td><code>Code.ts</code></td><td>The menu (<code>onOpen</code>) and the functions that open each dialog.</td></tr>
+                        <tr><td><code>utils/PortalUtils.ts</code></td><td>Everything on the server side of the student portal (start with its "MAP OF THIS FILE" comment).</td></tr>
+                        <tr><td><code>utils/AccessGuard.ts</code></td><td><code>requireEditor_</code> and <code>runTrusted_</code>: who may run admin functions.</td></tr>
+                        <tr><td><code>utils/Config.ts</code>, <code>SettingsUtils.ts</code></td><td>Reading and writing the Settings sheet; the <code>getXColumn()</code> style accessors.</td></tr>
+                        <tr><td><code>utils/GlobalConsts.ts</code></td><td>Constants and the portal switches (<code>PORTAL_EXPERIMENTAL</code>, rate limits, <code>ENFORCE_EDITOR_GUARD</code>).</td></tr>
+                        <tr><td><code>utils/BankingUtils.ts</code></td><td>Changing a balance cell and logging it (<code>applyMathToSelection</code>, <code>executeBalanceAction</code>).</td></tr>
+                        <tr><td><code>utils/InvestmentUtils.ts</code></td><td>CoDs: <code>handleDeposit</code>, <code>handleWithdraw</code>, interest maths, refreshing investments.</td></tr>
+                        <tr><td><code>utils/ServicesUtils.ts</code>, <code>ServiceLimitsUtils.ts</code></td><td>The price table, and the Max/Person and Max/Class counting from the log.</td></tr>
+                        <tr><td><code>utils/TransactionsUtils.ts</code>, <code>TransactionCache.ts</code></td><td>Appending, undoing and paging the transaction log; the rolling cache.</td></tr>
+                        <tr><td><code>utils/ExpenditureNotesUtils.ts</code></td><td>The note on each Expenditures cell, rebuilt from the log.</td></tr>
+                        <tr><td><code>utils/QuarterUtils.ts</code></td><td>Which quarter (Q1 to Q4) a moment falls in.</td></tr>
+                        <tr><td><code>utils/OnLoadData.ts</code>, <code>WarmCache.ts</code>, <code>SheetMemo.ts</code>, <code>LockUtils.ts</code></td><td>Server cache, daily records, per-execution sheet handles, the money lock.</td></tr>
+                        <tr><td><code>utils/HistoricalAnalytics.ts</code></td><td>Data for the Historical Analytics chart.</td></tr>
+                        <tr><td><code>utils/Utils.ts</code></td><td>Fill Sheet, <code>log()</code>, and the last-modified stamp.</td></tr>
+                        <tr><td><code>Portal.html</code> + <code>styles/Portal.html</code></td><td>The student portal page (start with its "MAP OF THIS PAGE'S SCRIPT" comment).</td></tr>
+                        <tr><td><code>BalanceManager</code>, <code>ServicesManager</code>, <code>InvestmentsManager</code>, <code>TransactionsRecords</code>, <code>HistoricalAnalytics</code>, <code>BankingSettings</code>, <code>FillSheet</code>, <code>DocsAttribution</code> (<code>.html</code>)</td><td>The admin dialogs, each with its own file in <code>styles/</code>.</td></tr>
+                        <tr><td><code>utils/ClientToServer.html</code>, <code>CachingLayer.html</code>, <code>TransactionWindow.html</code></td><td>Browser-side helpers shared by the dialogs (<code>callServer</code>, client cache, transaction paging).</td></tr>
+                        <tr><td><code>appsscript.json</code></td><td>The manifest: time zone, advanced services, and the web app access (<code>ANYONE</code> = any Google account).</td></tr>
+                    </table>
+
+                    <h3 id="d-codemap-glossary">Glossary: words and variables</h3>
+                    <table class="doc-table">
+                        <tr><th>Term</th><th>Meaning</th></tr>
+                        <tr><td>Profile</td><td>One student account: a student name on one period sheet. A student on two periods has two profiles.</td></tr>
+                        <tr><td>Identity</td><td>Who is signed in: status, email, isAdmin. Built by <code>resolvePortalIdentity_</code>.</td></tr>
+                        <tr><td>Admin</td><td>Anyone who can edit the spreadsheet (plus the owner).</td></tr>
+                        <tr><td>On behalf</td><td>An admin acting inside a student's account. Same rules; logged with the admin's email.</td></tr>
+                        <tr><td>CoD</td><td>Certificate of deposit: money locked in to earn weekly simple interest.</td></tr>
+                        <tr><td>Initial deposit / principal</td><td>The amount first put into the CoD. The maths always starts from it.</td></tr>
+                        <tr><td>Gross / net</td><td>CoD value before / after the withdrawal tax.</td></tr>
+                        <tr><td>Lockout</td><td>Days after a deposit before the CoD may be withdrawn (Settings, default 14).</td></tr>
+                        <tr><td>Roster index</td><td>The cached list of every student with period and ID, used to match emails (<code>portalRosterMemo</code> in memory, <code>portalRosterIndex</code> in the cache).</td></tr>
+                        <tr><td><code>portalRequestsMemo</code></td><td>The Expenditure Requests rows, read once per dashboard build and cleared right after.</td></tr>
+                        <tr><td><code>portalCapturedMessages</code></td><td>Collects messages that <code>log(message, true)</code> would have shown as alerts, so a portal action can return them to the student.</td></tr>
+                        <tr><td><code>trustedCallDepth</code></td><td>How many <code>runTrusted_</code> calls are active. Above 0 means the editors-only check is skipped.</td></tr>
+                        <tr><td><code>editorCheckResult</code></td><td>The editors-only check's answer, remembered for the rest of one execution.</td></tr>
+                        <tr><td>Entry_ / Core_</td><td>Function suffixes: Entry_ adds the fresh dashboard; Core_ does the work and returns <code>{ ok, message }</code>.</td></tr>
+                        <tr><td>Trailing underscore</td><td>A private function: Apps Script does not let a web page call it.</td></tr>
+                        <tr><td><code>portalState</code> / <code>historyState</code></td><td>Everything the portal page remembers, and the fetched history with its search and paging controls.</td></tr>
+                        <tr><td><code>makeElement</code></td><td>The page's helper that builds an HTML element safely (text is never parsed as HTML).</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- D2e. HOW TO CHANGE THINGS -->
+            <div id="d-recipes" class="doc-section" data-audience="dev" data-title="How to Change Things" data-icon="🛠️">
+                <div class="section-card">
+                    <h2>How to Change Things</h2>
+                    <p class="lead">Recipes for the changes you are most likely to want. Each lists every place that has to change, in order.</p>
+
+                    <h3 id="d-recipes-field">Show a new number on the dashboard</h3>
+                    <ol>
+                        <li>Compute it in <code>buildPortalDashboard_</code> (<code>PortalUtils.ts</code>) and add it to the object it returns.</li>
+                        <li>If it comes from a sheet column, add it to <code>PortalStudentRow</code> and read it in <code>readPortalPeriod_</code> using a <code>getXColumn()</code> accessor.</li>
+                        <li>Draw it in the right <code>renderHome</code> / <code>renderInvest</code> / <code>renderSpend</code> function in <code>Portal.html</code> (a <code>tile(label, value)</code> is the simplest).</li>
+                        <li>Never send anything private (IDs, other students' balances). Only the shortened leaderboard names leave the server.</li>
+                    </ol>
+
+                    <h3 id="d-recipes-action">Add a new student action (a new button that changes data)</h3>
+                    <ol>
+                        <li>Write <code>portalXxxCore_</code>: first line <code>authorizeProfileAction_</code>, then validate every input, then call an existing handler (never write money cells directly), then return <code>{ ok, message }</code>.</li>
+                        <li>Add <code>portalXxxEntry_</code> that returns <code>withFreshDashboard_(portalXxxCore_(data), data)</code>, and a public <code>portalXxx</code> at the bottom that calls it inside <code>runTrusted_</code>. Give it a doc line.</li>
+                        <li>In <code>Portal.html</code> add the button with <code>actionButton(...)</code>, call <code>runAction('portalXxx', payload, button)</code>, and add its busy label to <code>ACTION_BUSY_LABELS</code>.</li>
+                        <li>Add the function name to the endpoint table in the Student Portal section of these docs.</li>
+                    </ol>
+
+                    <h3 id="d-recipes-guard">Add an admin or data function</h3>
+                    <ol>
+                        <li>Make it a normal public function and put <code>requireEditor_();</code> on its first line.</li>
+                        <li>If a student's portal action has to call it, that is fine: the portal endpoints already run trusted.</li>
+                        <li>If a trigger calls it, make the trigger's entry function run inside <code>runTrusted_</code> like <code>warmCaches</code> does.</li>
+                        <li>A helper that only does maths or opens a dialog does not need the guard. Give it a trailing underscore if nothing in a web page should call it.</li>
+                    </ol>
+
+                    <h3 id="d-recipes-formula">Change the interest or tax formula</h3>
+                    <ol>
+                        <li>Rates are Settings (<code>weeklyInterestRate</code>, <code>investmentWithdrawalTaxRate</code>); change those first. They are read live.</li>
+                        <li>The real payout maths is in <code>InvestmentUtils.ts</code>. The predictors must match it: <code>buildProjection</code> in <code>Portal.html</code> and in <code>InvestmentsManager.html</code>. Change all three together and compare one worked example (see the predictor table above).</li>
+                    </ol>
+
+                    <h3 id="d-recipes-column">A sheet column moved or was added</h3>
+                    <ol>
+                        <li>Period sheet columns: change the matching Settings value (for example <code>balanceCol</code>). No code change is needed.</li>
+                        <li>Expenditure Requests columns: only <em>append</em> to <code>PORTAL_REQUEST_HEADERS</code>, extend <code>readPortalRequests_</code>, and <code>ensurePortalSheet_</code> adds the header to older tabs by itself.</li>
+                        <li>Transaction log columns are read by position (<code>mapTransactionRow</code>, and the D to N block in <code>portalGetTransactions</code>); update both together.</li>
+                    </ol>
+
+                    <h3 id="d-recipes-timing">Tune the timing</h3>
+                    <ul>
+                        <li>Client: <code>MIN_GAP_BETWEEN_CALLS_MS</code>, <code>ACTION_COOLDOWN_MS</code>, <code>AUTO_REFRESH_MS</code>, <code>REFRESH_AFTER_RETURN_MS</code>, <code>EDITING_GRACE_MS</code> at the top of the script in <code>Portal.html</code>.</li>
+                        <li>Server: the rate limits in <code>GlobalConsts.ts</code>, and the cache lifetimes <code>PORTAL_ROSTER_CACHE_SECONDS</code>, the admin list (600 s) and the history cache (600 s).</li>
+                    </ul>
+
+                    <h3 id="d-recipes-test">Checking your change</h3>
+                    <ol>
+                        <li>Build with <code>npx tsc</code>; it must report no errors. It catches most renamed or misspelled functions.</li>
+                        <li>Try it in a <em>copy</em> of the sheet. For the portal: open it as a student, as an admin, and as a signed-out visitor.</li>
+                        <li>Walk through: invest, withdraw, request, cancel, approve, complete, undo in Transaction Records. Compare the sheet with what the portal shows after each.</li>
+                        <li>Open Executions and check that no new red rows appeared.</li>
+                    </ol>
+                </div>
+            </div>
+
             <!-- D3. WORKBOOK CONTRACT -->
             <div id="d-workbook" class="doc-section" data-audience="dev" data-title="Workbook Contract" data-icon="📋">
                 <div class="section-card">
