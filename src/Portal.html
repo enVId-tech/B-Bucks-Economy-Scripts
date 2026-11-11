@@ -688,9 +688,9 @@
      * What a deposit could be worth each week. The withdrawal tax from Settings (investmentWithdrawalTaxRate) is taken from the grown
      * amount when money is withdrawn, so the value that counts is the amount AFTER tax: gross x (1 - tax).
      */
-    function buildProjection(principal, weeks, weeklyRate, taxRate) {
+    function buildProjection(principal, weeks, weeklyRate, taxRate, firstWeek) {
       const breakdown = [];
-      for (let week = 1; week <= weeks; week++) {
+      for (let week = firstWeek === undefined ? 1 : firstWeek; week <= weeks; week++) {
         const gross = principal + (principal * weeklyRate * week);
         breakdown.push({ week, gross, tax: gross * taxRate, net: gross * (1 - taxRate) });
       }
@@ -700,7 +700,7 @@
 
     function getProjectionPrincipal() {
       const mode = portalState.projectionMode;
-      if (mode === 'currentCod') return portalState.dashboard.predictor.currentCodAmount;
+      if (mode === 'currentCod') return portalState.dashboard.predictor.codPrincipal;
       const sourceId = mode === 'depositInput' ? 'depositAmount' : 'customAmount';
       const input = document.getElementById(sourceId);
       const value = input ? input.valueAsNumber : NaN;
@@ -714,7 +714,9 @@
 
       const predictor = portalState.dashboard.predictor;
       const principal = getProjectionPrincipal();
-      const weeks = predictor.weeksRemaining;
+      // Current CoD follows the CoD's own timeline (initial deposit amount and date); the other two start fresh today.
+      const isCurrentCod = portalState.projectionMode === 'currentCod';
+      const weeks = isCurrentCod ? predictor.codWeeksTotal : predictor.weeksRemaining;
       const rate = predictor.weeklyInterestRate;
       const taxRate = typeof predictor.withdrawalTaxRate === 'number' ? predictor.withdrawalTaxRate : 0;
       const labelElement = summary.children[0];
@@ -726,17 +728,25 @@
         valueElement.textContent = '';
         return;
       }
+      if (isCurrentCod && !(principal > 0)) {
+        labelElement.textContent = 'You do not have a CoD yet. Invest some money to see what it will grow to.';
+        valueElement.textContent = '';
+        return;
+      }
       if (!(principal > 0)) {
         labelElement.textContent = portalState.projectionMode === 'depositInput' ? 'Type an amount in the invest box to preview it.' : 'Enter an amount to see what it could grow to.';
         valueElement.textContent = '';
         return;
       }
 
-      const projection = buildProjection(principal, weeks, rate, taxRate);
+      const projection = buildProjection(principal, weeks, rate, taxRate, isCurrentCod ? 0 : 1);
+      const currentWeek = isCurrentCod ? predictor.codWeekNow : null;
+      const nowEntry = isCurrentCod ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
       labelElement.textContent = 'Value after tax at week ' + weeks + ' (principal ' + money(principal) + ')';
       valueElement.textContent = money(projection.finalNet);
       const shortForm = shortMoney(projection.finalNet);
       if (shortForm) valueElement.appendChild(h('div', 'result-short', 'About ' + shortForm));
+      if (nowEntry) valueElement.appendChild(h('div', 'result-short', 'You are in week ' + currentWeek + ': expect ' + money(nowEntry.net) + ' after tax right now.'));
       if (weeks > 0) valueElement.appendChild(h('div', 'result-short', 'Before tax ' + money(projection.finalGross) + ' \u00b7 tax ' + (taxRate * 100).toFixed(2) + '% = -' + money(projection.finalTax)));
       valueElement.classList.toggle('result-value-long', money(projection.finalNet).length > 14);
 
@@ -746,8 +756,9 @@
       }
       breakdownContainer.appendChild(h('div', 'week-row week-head', null, [h('span', '', 'Week'), h('span', '', 'Before tax'), h('span', '', 'After tax')]));
       projection.breakdown.forEach(entry => {
-        breakdownContainer.appendChild(h('div', 'week-row', null, [
-          h('span', 'week-name', 'Week ' + entry.week),
+        const isNow = currentWeek !== null && entry.week === currentWeek;
+        breakdownContainer.appendChild(h('div', 'week-row' + (isNow ? ' week-now' : ''), null, [
+          h('span', 'week-name', 'Week ' + entry.week + (isNow ? ' (now)' : '')),
           h('span', 'week-earned', money(entry.gross)),
           h('span', 'week-value', money(entry.net))
         ]));
