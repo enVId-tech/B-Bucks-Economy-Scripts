@@ -570,6 +570,13 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                 <div class="section-card">
                     <h2>Student Portal</h2>
                     <p>A web app served by <code>doGet()</code> in <code>utils/PortalUtils.ts</code>, rendered by <code>Portal.html</code> with <code>styles/Portal.html</code>. <code>appsscript.json</code> declares <code>executeAs: USER_DEPLOYING</code> and <code>access: ANYONE</code> (any Google account). Identity comes from <code>Session.getActiveUser()</code>, which is empty for accounts outside the owner's domain; the portal then answers <code>signin</code> and the page shows the help screen.</p>
+                    <h3 id="d-portal-guard">Editors-only guard</h3>
+                    <p>Any public function of the project can be called from the portal page with <code>google.script.run</code>, so the admin, management and data functions (money, settings, resets, cache writes, anything that reads every student's data, trigger management) start with <code>requireEditor_()</code> from <code>utils/AccessGuard.ts</code>. It lets a call through only when the person running it can edit the spreadsheet. A student, a visitor from another domain (no visible email) or a stranger gets "Only people who can edit this spreadsheet can do that." and the attempt is logged.</p>
+                    <ul>
+                        <li>Code that must use those functions for somebody who is not an editor runs inside <code>runTrusted_()</code>: the ten portal endpoints (each checks the caller itself) and the unattended entry points <code>onOpen</code>, <code>onEdit</code>, <code>warmCaches</code> and <code>recordDailyData</code>. Nothing a browser sends can turn trust on.</li>
+                        <li>New public function that changes data or reads student data? Start it with <code>requireEditor_();</code>. A pure helper or a function that only opens a dialog does not need it.</li>
+                        <li>If an admin dialog ever reports that error for a real editor, set <code>ENFORCE_EDITOR_GUARD</code> to <code>false</code> in <code>GlobalConsts.ts</code> to confirm the guard is the cause, then check which email Google reports for that person. The editor list is remembered for 10 minutes.</li>
+                    </ul>
 
                     <h3 id="d-portal-security">Security model</h3>
                     <ul>
