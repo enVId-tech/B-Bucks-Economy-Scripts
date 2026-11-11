@@ -118,15 +118,18 @@
                     </div>
 
                     <h3 id="u-setup-students">2. Import your students</h3>
-                    <p>This builds one tab per period and fills in the names.</p>
+                    <p>This builds one tab per period and fills in the names. It also stores each student's ID in a hidden column of the tab (column L unless you change <code>studentIdCol</code> in the Advanced Technical Settings), which is what the student portal uses to recognise a student's email. Do not put anything else in that column.</p>
                     <ol class="steps">
                         <li>Export your roster as a <code>.csv</code> or <code>.txt</code> file. Gradebook rosters (each period starts with a line such as <code>1 - Period 1</code>) and Attendance Class Rosters (a <code>Period,...</code> column line, then the period number and its students) both work. Repeated sections, Fall and Spring copies and duplicated students are merged, so each student appears once per period.</li>
                         <li>Banking Settings → Maintenance → <strong>Import All Students</strong>.</li>
                         <li>Choose the file. A preview appears; check the periods and names.</li>
                         <li>Press <strong>Import Data</strong>, then confirm.</li>
                     </ol>
+                    <div class="callout callout-info">
+                        <strong>Your students' data is kept.</strong> If a Period tab already exists and mostly matches the file (at least half of the file's students, or half of the tab's students, are found by ID or by name), the tab is updated in place: everyone keeps their row and balances, students who are missing are added at the bottom, and IDs are filled in for students imported before IDs existed. Nobody is removed or renamed. When the import finishes it tells you, period by period, how many were kept, added and filled in.
+                    </div>
                     <div class="callout callout-danger">
-                        <strong>Importing replaces the existing tab for each period</strong> (it is deleted and rebuilt from the Template tab), so any balances on that tab are lost. Only import at the very beginning, or when you really want a fresh start.
+                        <strong>A tab that does not match the file is still replaced</strong> (deleted and rebuilt from the Template tab), and its balances are lost. Two students with the same name but different IDs are never merged: the newcomer is skipped and listed in the summary. If column L already holds something of yours, the import refuses to touch that tab and tells you to pick another column.
                     </div>
 
                     <h3 id="u-setup-services">3. Fill in your price list</h3>
@@ -372,7 +375,7 @@
                         <tr><td>Clear Client Cache</td><td><span class="pill-ok">safe</span></td><td>Throws away saved copies of settings, services, investments and transactions so they reload. Use it if a window seems out of date.</td></tr>
                         <tr><td>Enable / Disable Background Cache Warming</td><td><span class="pill-ok">safe</span></td><td>Optional. Every 10 minutes the system quietly refills any saved copies that have expired, so the first window you open after a quiet period opens quickly. It never changes any sheet data.</td></tr>
                         <tr><td>Refresh All Investments Data</td><td><span class="pill-ok">safe</span></td><td>Recalculates every CoD's current value.</td></tr>
-                        <tr><td>Import All Students</td><td><span class="pill-bad">destructive</span></td><td>Rebuilds Period tabs from a roster file. See <a href="#" onclick="openDoc('u-setup');return false;">First-Time Setup</a>.</td></tr>
+                        <tr><td>Import All Students</td><td><span class="pill-bad">destructive</span></td><td>Updates Period tabs that match a roster file (keeping data, adding missing students and IDs) and rebuilds the ones that do not. See <a href="#" onclick="openDoc('u-setup');return false;">First-Time Setup</a>.</td></tr>
                         <tr><td>Save to New Sheet Tab</td><td><span class="pill-ok">safe</span></td><td>Copies the Historical Records sheet to a new "Records_…" tab (a backup; it stays in the charts).</td></tr>
                         <tr><td>Reset All Economic Records</td><td><span class="pill-bad">destructive</span></td><td>Clears the Historical Records history. Save a copy first.</td></tr>
                         <tr><td>Reset All Money</td><td><span class="pill-bad">destructive</span></td><td>Sets every student's money columns back to zero.</td></tr>
@@ -402,10 +405,10 @@
                     </div>
 
                     <h3 id="u-portal-link">How a student is found</h3>
-                    <p>The sheet has names, not emails, so the portal links them in two ways:</p>
+                    <p>Every student email contains the student's ID, and the import stores each ID in a hidden column of the Period tab. The portal splits the part of the email before the @ into runs of digits and links the student whose ID is exactly one of those runs (for example <code>123456@...</code> or <code>jdoe123456@...</code>). Nobody is guessed from a name. A student on two Period tabs has the same ID on both and gets a switcher at the top.</p>
                     <ul>
-                        <li><strong>Portal Accounts tab (always wins):</strong> one row per student with Email, Period (<code>3</code> or <code>Period 3</code>) and Name exactly as on the Period tab. A student on two Period tabs gets two rows and a switcher at the top.</li>
-                        <li><strong>Automatic match:</strong> if the email is not listed, the part before the @ must contain the student's first name and whole last name (for example <code>jane.doe</code> or <code>janedoe27</code>). It only links when exactly one person matches. Two students who would both match are never guessed; add them to the tab instead.</li>
+                        <li><strong>Tabs imported before IDs existed</strong> have no IDs yet. Import the roster once more: it fills in the IDs without touching anyone's data.</li>
+                        <li><strong>Portal Accounts tab (optional override):</strong> one row with Email, Period (<code>3</code> or <code>Period 3</code>) and Name exactly as on the Period tab, for an email that does not contain the ID.</li>
                     </ul>
                     <p>A student whose email matches nobody sees a friendly "ask your teacher" message.</p>
 
@@ -571,6 +574,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <ul>
                         <li>The caller is read only from <code>Session.getActiveUser()</code>. Nothing the browser sends decides who someone is.</li>
                         <li>Every endpoint re-checks the caller. Students may only use profiles linked to their email; admins (spreadsheet editors and owner) may read any student but spectating never writes.</li>
+                        <li>Student IDs are read on the server only to match an email and are never sent to the browser.</li>
                         <li>The allowed domain is the Script Property named by <code>PORTAL_DOMAIN_PROPERTY</code>, read through <code>getPortalAllowedDomain()</code> in <code>Config.ts</code>. It is never written in source. With no domain set, only admins can open the portal.</li>
                         <li>The page builds every element with <code>textContent</code>, so item names or student names can never inject markup.</li>
                     </ul>
@@ -615,7 +619,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     </table>
 
                     <h3 id="d-workbook-period">Period sheet columns</h3>
-                    <p>Positions come from the accessors <code>getEarningsColumn()</code>, <code>getExpendituresColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getDepositDateColumn()</code> and friends. Balance and net-income columns hold <strong>formulas</strong>; the code writes earnings, expenditures and investment inputs and lets the sheet compute the rest.</p>
+                    <p>Column L (<code>getStudentIdColumn()</code>, setting <code>studentIdCol</code>) holds the hidden student ID, written as text so leading zeros survive; the import refuses to use it when it already holds anything that is not an ID. Positions come from the accessors <code>getEarningsColumn()</code>, <code>getExpendituresColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getDepositDateColumn()</code> and friends. Balance and net-income columns hold <strong>formulas</strong>; the code writes earnings, expenditures and investment inputs and lets the sheet compute the rest.</p>
                     <div class="callout callout-warning">
                         The Services UI labels say "Column D" / "Column G" for earnings/expenditures but the code writes columns 3 and 5. This label mismatch is a known, unfixed issue (see Gotchas).
                     </div>
@@ -666,7 +670,7 @@ const days = getConfig('withdrawLockoutTimeframeDays');</code></pre>
                         <tr><th>Settings key</th><th>Accessor</th><th>Default</th></tr>
                         <tr><td><code>userStartingRow</code></td><td><code>getUserStartingRow()</code></td><td><code>DEFAULT_USER_STARTING_ROW</code></td></tr>
                         <tr><td><code>namesCol</code>, <code>balanceCol</code>, <code>earningsCol</code>, <code>netIncomeCol</code>, <code>expendituresCol</code></td><td><code>getNamesColumn()</code>, <code>getBalanceColumn()</code>, <code>getEarningsColumn()</code>, <code>getNetIncomeColumn()</code>, <code>getExpendituresColumn()</code></td><td><code>DEFAULT_*_COL</code></td></tr>
-                        <tr><td><code>investmentReturnsCol</code>, <code>initialDepositCol</code>, <code>timeDepositCol</code>, <code>grossInvestmentGainCol</code>, <code>netInvestmentGainCol</code>, <code>netPercentageGainCol</code></td><td><code>getInvestmentReturnsColumn()</code>, <code>getInitialDepositColumn()</code>, <code>getDepositDateColumn()</code>, <code>getGrossInvestmentGainColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getNetPercentageGainColumn()</code></td><td><code>DEFAULT_*_COL</code></td></tr>
+                        <tr><td><code>investmentReturnsCol</code>, <code>initialDepositCol</code>, <code>timeDepositCol</code>, <code>grossInvestmentGainCol</code>, <code>netInvestmentGainCol</code>, <code>netPercentageGainCol</code>, <code>studentIdCol</code></td><td><code>getInvestmentReturnsColumn()</code>, <code>getInitialDepositColumn()</code>, <code>getDepositDateColumn()</code>, <code>getGrossInvestmentGainColumn()</code>, <code>getNetInvestmentGainColumn()</code>, <code>getNetPercentageGainColumn()</code>, <code>getStudentIdColumn()</code></td><td><code>DEFAULT_*_COL</code></td></tr>
                         <tr><td><code>defaultServicesSheet</code>, <code>servicesRowStart</code></td><td><code>getServicesSheetName()</code>, <code>getServicesRowStart()</code></td><td><code>DEFAULT_SERVICES_SHEET</code>, <code>DEFAULT_SERVICES_ROW_START</code></td></tr>
                         <tr><td><code>defaultTransactionsSheet</code>, <code>transactionsRowStart</code></td><td><code>getTransactionsSheetName()</code>, <code>getTransactionsRowStart()</code></td><td><code>DEFAULT_TRANSACTIONS_SHEET</code>, <code>DEFAULT_TRANSACTIONS_ROW_START</code></td></tr>
                         <tr><td><code>defaultHistoricalRecordsSheet</code>, <code>historicalRecordsRowStart</code>, <code>metricDataStartColumn</code></td><td><code>getHistoricalRecordsSheetName()</code>, <code>getHistoricalRecordsRowStart()</code>, <code>getMetricDataStartColumn()</code></td><td><code>DEFAULT_HISTORICAL_RECORDS_*</code>, <code>DEFAULT_METRIC_DATA_START_COL</code></td></tr>
