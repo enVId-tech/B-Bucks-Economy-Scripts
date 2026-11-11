@@ -39,6 +39,8 @@ interface PortalProfile {
 
 interface PortalStudentRow {
     name: string;
+    /** From the hidden ID column. Used only to match a sign-in email, never sent to the browser. */
+    studentId: string;
     row: number;
     balance: number;
     expenditures: number;
@@ -209,6 +211,7 @@ function readPortalPeriod_(sheet: GoogleAppsScript.Spreadsheet.Sheet): PortalStu
 
         students.push({
             name,
+            studentId: String(row[getStudentIdColumn() - 1] ?? "").trim(),
             row: rowIndex + 1,
             balance: Number(toNumber_(row[getBalanceColumn() - 1]).toFixed(2)),
             expenditures: toNumber_(row[getExpendituresColumn() - 1]),
@@ -228,11 +231,7 @@ function normalizePortalPeriodName_(rawPeriod: any): string {
     return /^\d+$/.test(text) ? `Period ${text}` : text;
 }
 
-function lettersAndDigitsOnly_(text: string): string {
-    return text.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-/** Profiles listed for this email in the "Portal Accounts" tab. A row only counts when the student really is on that period tab. */
+/** Profiles listed for this email in the "Portal Accounts" tab (an optional manual override, for example for an email that does not contain the ID). A row only counts when the student really is on that period tab. */
 function findListedProfiles_(email: string): PortalProfile[] {
     const accountsSheet = getSheetNamed(PORTAL_ACCOUNTS_SHEET);
     if (!accountsSheet || accountsSheet.getLastRow() < 2) return [];
@@ -257,36 +256,27 @@ function findListedProfiles_(email: string): PortalProfile[] {
 }
 
 /**
- * Fallback when an email is not listed: a school address usually contains the student's name (for example first.last or flast).
- * A student matches when the part before the @ holds both their first name and their whole last name. The result is only used when
- * it points to exactly ONE person (the same person on several period tabs is fine), otherwise the admin has to list the email.
+ * Matches an email to students by student ID. School addresses contain the student's ID (for example 123456@school.example or jdoe123456@...),
+ * so the email's local part is split into runs of digits and a student matches when one run is exactly their ID.
+ * A student who is on several period tabs has the same ID on each, so they get one profile per tab.
  */
-function findNameMatchedProfiles_(email: string): PortalProfile[] {
-    const localPart = lettersAndDigitsOnly_(email.split("@")[0]);
-    const matches: PortalProfile[] = [];
-    const matchedNames = new Set<string>();
+function findIdMatchedProfiles_(email: string): PortalProfile[] {
+    const digitRuns = new Set(email.split("@")[0].match(/\d+/g) ?? []);
+    if (digitRuns.size === 0) return [];
 
+    const matches: PortalProfile[] = [];
     getPortalPeriodSheets_().forEach(sheet => {
         readPortalPeriod_(sheet).forEach(student => {
-            const commaIndex = student.name.indexOf(",");
-            if (commaIndex < 0) return;
-            const lastName = lettersAndDigitsOnly_(student.name.slice(0, commaIndex));
-            const firstName = lettersAndDigitsOnly_(student.name.slice(commaIndex + 1).trim().split(/\s+/)[0] ?? "");
-            if (firstName.length < 2 || lastName.length < 2) return;
-            if (localPart.includes(firstName) && localPart.includes(lastName)) {
-                matches.push({ name: student.name, period: sheet.getName() });
-                matchedNames.add(student.name.toLowerCase());
-            }
+            if (student.studentId && digitRuns.has(student.studentId)) matches.push({ name: student.name, period: sheet.getName() });
         });
     });
-
-    return matchedNames.size === 1 ? matches : [];
+    return matches;
 }
 
 /** Every student account the signed-in person may act as. */
 function findPortalProfiles_(identity: PortalIdentity): PortalProfile[] {
     const listedProfiles = findListedProfiles_(identity.email);
-    return listedProfiles.length > 0 ? listedProfiles : findNameMatchedProfiles_(identity.email);
+    return listedProfiles.length > 0 ? listedProfiles : findIdMatchedProfiles_(identity.email);
 }
 
 /** True when the caller may use this profile. */
