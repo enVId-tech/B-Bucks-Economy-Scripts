@@ -185,6 +185,7 @@
           <div class="earnings-summary">
             <div class="earnings-summary-label">Value at Week <span id="currentCodWeek">0</span></div>
             <div class="earnings-summary-value" id="currentCodValue">$0.00</div>
+            <div class="earnings-summary-label" id="currentCodNow"></div>
           </div>
           <div class="week-breakdown">
             <div id="currentCodBreakdown"></div>
@@ -405,8 +406,6 @@
      * Keeps the calculator inputs and mode-specific previews aligned with the selected student.
      */
     function syncProjectionModeInputs() {
-      const selectedStudentData = window.appStateCache['selectedStudentData'];
-      const currentCodAmount = (selectedStudentData?.balance ?? 0) + (selectedStudentData?.netCurrentAmount ?? 0);
       const depositAmountInput = document.getElementById('depositAmount');
       const depositAmount = Number.isFinite(depositAmountInput?.valueAsNumber) ? depositAmountInput.valueAsNumber : 0;
 
@@ -415,8 +414,6 @@
 
       if (depositInputValue) depositInputValue.textContent = `$${depositAmount.toFixed(2)}`;
       if (depositInputDisplay) depositInputDisplay.textContent = depositAmount.toFixed(2);
-
-      void currentCodAmount;
 
       if (projectionState.activeMode === 'currentCod' || projectionState.activeMode === 'depositInput') {
         void handlePredictions();
@@ -442,15 +439,28 @@
     }
 
     /**
+     * Where the student's CoD is on its own timeline. The week count comes from the INITIAL deposit date (not from how much the CoD
+     * has grown) and the projection starts from the INITIAL deposit amount, the same as the withdrawal maths in InvestmentUtils.ts.
+     * @returns principal (0 when there is no CoD), weekNow (whole weeks since the deposit) and weeksTotal (deposit week to the end of investing).
+     */
+    function getCurrentCodTimeline() {
+      const studentData = window.appStateCache['selectedStudentData'];
+      const principal = Number(studentData?.initAmount) || 0;
+      const depositDate = studentData?.date ? new Date(studentData.date) : null;
+      if (!(principal > 0) || !depositDate || isNaN(depositDate.getTime())) return { principal: 0, weekNow: 0, weeksTotal: 0 };
+
+      const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+      const weekNow = Math.max(0, Math.floor((Date.now() - depositDate.getTime()) / msPerWeek));
+      return { principal, weekNow, weeksTotal: weekNow + getProjectionWeekValue() };
+    }
+
+    /**
      * Returns the active principal for the current calculator mode.
      * @returns The amount to project.
      */
     function getProjectionPrincipal() {
-      const selectedStudentData = window.appStateCache['selectedStudentData'];
-      const currentCodAmount = (selectedStudentData?.balance ?? 0) + (selectedStudentData?.netCurrentAmount ?? 0);
-
       if (projectionState.activeMode === 'currentCod') {
-        return currentCodAmount;
+        return getCurrentCodTimeline().principal;
       }
 
       if (projectionState.activeMode === 'depositInput') {
@@ -493,11 +503,11 @@
      * @param weeklyInterestRate The weekly interest rate.
      * @returns The calculated projection payload.
      */
-    function buildProjection(principal, weeks, weeklyInterestRate) {
+    function buildProjection(principal, weeks, weeklyInterestRate, firstWeek = 1) {
       const breakdown = [];
       let finalValue = principal;
 
-      for (let week = 1; week <= weeks; week++) {
+      for (let week = firstWeek; week <= weeks; week++) {
         finalValue = principal + (principal * weeklyInterestRate * week);
         breakdown.push({ week, value: finalValue });
       }
@@ -512,7 +522,7 @@
     /**
      * Renders the active calculator output.
      */
-    function renderProjection(mode, principal, weeks, projection) {
+    function renderProjection(mode, principal, weeks, projection, currentWeek = null) {
       const rateDisplay = typeof projection.weeklyInterestRate === 'number'
         ? `${(projection.weeklyInterestRate * 100).toFixed(2)}%`
         : '';
@@ -557,6 +567,13 @@
       }
       if (finalElement) finalElement.textContent = `$${projection.finalValue.toFixed(2)}`;
 
+      // Only the Current CoD list says what week the CoD is in and what it should be worth right now.
+      const currentCodNow = document.getElementById('currentCodNow');
+      if (currentCodNow) {
+        const nowEntry = mode === 'currentCod' && currentWeek !== null ? projection.breakdown.find(entry => entry.week === currentWeek) : null;
+        currentCodNow.textContent = nowEntry ? `Now: week ${currentWeek}, expected value $${nowEntry.value.toFixed(2)}` : '';
+      }
+
       if (breakdownContainer) {
         breakdownContainer.innerHTML = '';
         if (weeks === 0) {
@@ -569,10 +586,11 @@
 
         projection.breakdown.forEach(entry => {
           const breakdownItem = document.createElement('div');
-          breakdownItem.className = 'week-item';
+          const isCurrentWeek = currentWeek !== null && entry.week === currentWeek;
+          breakdownItem.className = isCurrentWeek ? 'week-item week-current' : 'week-item';
           breakdownItem.innerHTML = `
             <div class="week-left">
-              <div class="week-label">Week ${entry.week}</div>
+              <div class="week-label">Week ${entry.week}${isCurrentWeek ? ' (now, expect this amount)' : ''}</div>
               <div class="week-rate">${rateDisplay || 'Rate unavailable'}</div>
             </div>
             <div class="week-right">
@@ -1019,12 +1037,20 @@
 
     async function handlePredictions() {
       try {
-        const weeks = getProjectionWeekValue();
+        const isCurrentCod = projectionState.activeMode === 'currentCod';
+        const timeline = isCurrentCod ? getCurrentCodTimeline() : null;
+        const weeks = isCurrentCod ? timeline.weeksTotal : getProjectionWeekValue();
         const principal = getProjectionPrincipal();
 
         if (!Number.isFinite(principal) || principal <= 0 || weeks < 0) {
           const customRate = document.getElementById('customRate');
           if (customRate) customRate.value = '';
+          if (isCurrentCod) {
+            const codBreakdown = document.getElementById('currentCodBreakdown');
+            if (codBreakdown) codBreakdown.textContent = 'This student has no CoD to project.';
+            const codNow = document.getElementById('currentCodNow');
+            if (codNow) codNow.textContent = '';
+          }
           return;
         }
 
@@ -1034,8 +1060,9 @@
           return;
         }
 
-        const projection = buildProjection(principal, weeks, weeklyInterestRate);
-        renderProjection(projectionState.activeMode, principal, weeks, projection);
+        // Current CoD starts at week 0 (the day of the deposit) so the list shows where the CoD is today.
+        const projection = buildProjection(principal, weeks, weeklyInterestRate, isCurrentCod ? 0 : 1);
+        renderProjection(projectionState.activeMode, principal, weeks, projection, isCurrentCod ? timeline.weekNow : null);
       } catch (error) {
         console.error("Error during investment projection calculations:", error);
       }
