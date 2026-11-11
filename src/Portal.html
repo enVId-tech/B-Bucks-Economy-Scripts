@@ -1,0 +1,619 @@
+<!-- Coded by Erick Tran for Mr. Banderas, 2026 -->
+<!-- Copyright (c) 2026 Erick Tran. All rights reserved. -->
+<!-- This file is licensed under the MIT License, check the LICENSE file for details. -->
+
+<!-- GitHub Repository: https://github.com/enVId-tech/B-Bucks-Economy-Scripts -->
+<!-- This file contains the student portal web page: dashboard, investing with the earnings predictor, expenditure requests, class leaderboard and the admin spectator and approval tools. The server side is utils/PortalUtils.ts. -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bank of Banderas</title>
+
+  <!-- For contributors: Ignore these warning, this is a syntax issue with VSC not recognizing the server-side templating -->
+  <?!= include('styles/Portal'); ?>
+  <?!= include('styles/DisplayState'); ?>
+  <?!= include('utils/ClientToServer'); ?>
+</head>
+
+<body>
+  <div id="spectateBanner" class="spectate-banner display-none"></div>
+
+  <header class="portal-header">
+    <div class="brand"><span class="brand-mark">B</span><span>Bank of Banderas</span></div>
+    <div class="header-user">
+      <select id="profileSelect" class="display-none" aria-label="Choose account" onchange="handleProfileChange()"></select>
+      <span id="userEmail"></span>
+    </div>
+  </header>
+
+  <main class="portal-main" id="portalMain">
+    <div class="card center-card" id="loadingCard">
+      <div class="spinner"></div>
+      <p>Opening your account...</p>
+    </div>
+  </main>
+
+  <script>
+    const portalState = {
+      session: null,
+      profile: null,
+      dashboard: null,
+      activeTab: 'home',
+      projectionMode: 'custom',
+      busy: false
+    };
+
+    const STUDENT_TABS = [
+      { id: 'home', label: 'Home' },
+      { id: 'invest', label: 'Invest' },
+      { id: 'spend', label: 'Spend' },
+      { id: 'leaderboard', label: 'Leaderboard' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', startPortal);
+
+    // ------------------------------------------------------------------ helpers
+
+    /**
+     * Builds an element. Text is always set with textContent so nothing from the server is ever parsed as HTML.
+     * @param tag The tag name.
+     * @param className Space separated classes (or '').
+     * @param text Optional text content.
+     * @param children Optional child nodes.
+     */
+    function h(tag, className, text, children) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      if (text !== undefined && text !== null) element.textContent = text;
+      (children || []).forEach(child => { if (child) element.appendChild(child); });
+      return element;
+    }
+
+    function money(amount) {
+      const value = Number(amount) || 0;
+      const formatted = Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (value < 0 ? '-$' : '$') + formatted;
+    }
+
+    function formatDate(isoText) {
+      if (!isoText) return '';
+      const date = new Date(isoText);
+      return isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function mainElement() { return document.getElementById('portalMain'); }
+
+    function showMessageCard(title, message, actionLabel, actionHref) {
+      const card = h('div', 'card center-card', null, [
+        h('h1', '', title),
+        h('p', '', message)
+      ]);
+      if (actionLabel) {
+        const link = h('a', 'button', actionLabel);
+        link.href = actionHref;
+        link.target = '_top';
+        card.appendChild(link);
+      }
+      const main = mainElement();
+      main.replaceChildren(card);
+    }
+
+    /** Shows a short message at the top of the page content, replacing the previous one. */
+    function showNotice(kind, message) {
+      const existing = document.getElementById('portalNotice');
+      if (existing) existing.remove();
+      const notice = h('div', 'notice notice-' + kind, message);
+      notice.id = 'portalNotice';
+      mainElement().prepend(notice);
+      notice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    /** Runs a server action once at a time, then reloads the dashboard. */
+    async function runAction(serverFunction, payload, buttonToLock) {
+      if (portalState.busy) return;
+      portalState.busy = true;
+      if (buttonToLock) buttonToLock.disabled = true;
+      try {
+        const result = await callServerAsync(serverFunction, JSON.stringify(payload));
+        await loadDashboard(false);
+        showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong. Please try again.');
+      } catch (error) {
+        showNotice('bad', 'The bank could not be reached. Please try again.');
+        console.error(error);
+      } finally {
+        portalState.busy = false;
+      }
+    }
+
+    // ------------------------------------------------------------------ start up
+
+    async function startPortal() {
+      try {
+        const session = await callServerAsync('portalBootstrap');
+        portalState.session = session;
+        document.getElementById('userEmail').textContent = session.email || '';
+
+        if (session.status === 'signin') {
+          showMessageCard('Sign in to continue', 'Use your school Google account to open your bank account.', 'Sign in with Google', session.signInUrl);
+          return;
+        }
+        if (session.status === 'wrongDomain') {
+          showMessageCard('Wrong account', 'You are signed in as ' + session.email + '. Please sign in with your school account instead.', 'Choose another account', session.signInUrl);
+          return;
+        }
+        if (session.status === 'notConfigured') {
+          showMessageCard('Portal not ready', 'The portal has not been opened for students yet. Please check back soon.');
+          return;
+        }
+        if (session.status !== 'ok') {
+          showMessageCard('Something went wrong', session.message || 'The portal could not load. Please refresh the page.');
+          return;
+        }
+
+        fillProfileSelect();
+        if (session.profiles.length > 0) {
+          portalState.profile = session.profiles[0];
+        } else if (!session.isAdmin) {
+          showMessageCard('We cannot find your account', 'Your email (' + session.email + ') is not linked to a student yet. Please ask your teacher to add it.');
+          return;
+        }
+
+        await loadDashboard(true);
+      } catch (error) {
+        console.error(error);
+        showMessageCard('Something went wrong', 'The portal could not load. Please refresh the page.');
+      }
+    }
+
+    function fillProfileSelect() {
+      const select = document.getElementById('profileSelect');
+      select.replaceChildren();
+      const profiles = portalState.session.profiles;
+      profiles.forEach((profile, index) => {
+        const option = h('option', '', profile.period);
+        option.value = String(index);
+        select.appendChild(option);
+      });
+      setElementDisplay(select, profiles.length > 1 ? 'block' : 'none');
+    }
+
+    function handleProfileChange() {
+      const index = Number(document.getElementById('profileSelect').value);
+      portalState.profile = portalState.session.profiles[index];
+      loadDashboard(true);
+    }
+
+    async function loadDashboard(resetTab) {
+      if (!portalState.profile) {
+        // An admin who is not a student starts on the admin tab
+        portalState.activeTab = 'admin';
+        renderPortal();
+        return;
+      }
+      try {
+        const dashboard = await callServerAsync('portalGetDashboard', JSON.stringify(portalState.profile));
+        if (!dashboard || dashboard.error) {
+          showMessageCard('We hit a snag', (dashboard && dashboard.error) || 'Your account could not load.');
+          return;
+        }
+        portalState.dashboard = dashboard;
+        if (resetTab) portalState.activeTab = 'home';
+        renderPortal();
+      } catch (error) {
+        console.error(error);
+        showMessageCard('Something went wrong', 'Your account could not load. Please refresh the page.');
+      }
+    }
+
+    // ------------------------------------------------------------------ layout
+
+    function renderPortal() {
+      const dashboard = portalState.dashboard;
+      const banner = document.getElementById('spectateBanner');
+      if (dashboard && dashboard.readOnly) {
+        banner.textContent = 'Spectating ' + dashboard.student.name + ' (' + dashboard.student.period + '). Read only.';
+        setElementDisplay(banner, 'block');
+      } else {
+        setElementDisplay(banner, 'none');
+      }
+
+      const tabs = dashboard ? STUDENT_TABS.slice() : [];
+      if (portalState.session.isAdmin) tabs.push({ id: 'admin', label: 'Admin' });
+
+      const tabBar = h('nav', 'tab-bar');
+      tabs.forEach(tab => {
+        const button = h('button', 'tab-button' + (tab.id === portalState.activeTab ? ' active' : ''), tab.label);
+        button.onclick = () => { portalState.activeTab = tab.id; renderPortal(); };
+        tabBar.appendChild(button);
+      });
+
+      const panel = h('section', 'tab-panel');
+      if (portalState.activeTab === 'home') renderHome(panel);
+      else if (portalState.activeTab === 'invest') renderInvest(panel);
+      else if (portalState.activeTab === 'spend') renderSpend(panel);
+      else if (portalState.activeTab === 'leaderboard') renderLeaderboard(panel);
+      else if (portalState.activeTab === 'admin') renderAdmin(panel);
+
+      mainElement().replaceChildren(tabBar, panel);
+      // The predictor reads its inputs by id, so it can only be filled in once the panel is part of the page
+      if (portalState.activeTab === 'invest') refreshProjection();
+    }
+
+    function tile(label, value) {
+      return h('div', 'tile', null, [h('div', 'tile-label', label), h('div', 'tile-value', value)]);
+    }
+
+    function emptyState(message) { return h('div', 'empty', message); }
+
+    // ------------------------------------------------------------------ home
+
+    function renderHome(panel) {
+      const student = portalState.dashboard.student;
+      panel.appendChild(h('div', 'card hero', null, [
+        h('div', 'hero-label', 'Hi ' + student.displayName + ' - cash balance'),
+        h('div', 'hero-amount', money(student.balance)),
+        h('div', 'hero-sub', student.period)
+      ]));
+
+      panel.appendChild(h('div', 'grid grid-4', null, [
+        tile('In your CoD', money(student.codPrincipal)),
+        tile('CoD value now', money(student.codNet)),
+        tile('Total spent', money(student.expenditures)),
+        tile('Quarter', portalState.dashboard.quarter)
+      ]));
+
+      const recentCard = h('div', 'card', null, [h('h2', '', 'Recent activity')]);
+      const recent = portalState.dashboard.recent;
+      if (recent.length === 0) recentCard.appendChild(emptyState('No transactions yet.'));
+      recent.forEach(entry => {
+        // Income and withdrawals add cash. Purchases and new deposits take cash out of the balance.
+        const isGain = entry.type === 'Income' || (entry.type === 'Investment' && /^Withdrawal/i.test(entry.description || ''));
+        recentCard.appendChild(h('div', 'list-row', null, [
+          h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' - ' + entry.type)]),
+          h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(entry.amount).replace('-', ''))
+        ]));
+      });
+      panel.appendChild(recentCard);
+    }
+
+    // ------------------------------------------------------------------ invest + predictor
+
+    function renderInvest(panel) {
+      const dashboard = portalState.dashboard;
+      const student = dashboard.student;
+      const readOnly = dashboard.readOnly;
+
+      const codCard = h('div', 'card', null, [h('h2', '', 'Your CoD')]);
+      codCard.appendChild(h('div', 'grid grid-4', null, [
+        tile('Invested', money(student.codPrincipal)),
+        tile('Since', student.codDate ? formatDate(student.codDate) : '-'),
+        tile('Value now', money(student.codNet)),
+        tile('Gain', ((student.codPercentageGain || 0) * 100).toFixed(2) + '%')
+      ]));
+      if (student.hasActiveCod && student.lockoutDaysLeft > 0) {
+        codCard.appendChild(h('div', 'notice notice-warn', 'Locked for ' + student.lockoutDaysLeft + ' more day(s). You can withdraw or invest again after that.'));
+      }
+      panel.appendChild(codCard);
+
+      if (!readOnly) {
+        const depositCard = h('div', 'card', null, [h('h2', '', 'Invest or withdraw')]);
+        if (student.depositBlockedReason) depositCard.appendChild(h('div', 'notice notice-warn', student.depositBlockedReason));
+
+        depositCard.appendChild(h('label', '', 'Amount to invest ($)'));
+        const amountInput = h('input');
+        amountInput.type = 'number';
+        amountInput.id = 'depositAmount';
+        amountInput.min = '0';
+        amountInput.step = '0.01';
+        amountInput.placeholder = 'Up to ' + money(student.availableToInvest);
+        amountInput.oninput = refreshProjection;
+        depositCard.appendChild(amountInput);
+
+        const investButton = h('button', 'button', 'Invest');
+        investButton.disabled = !student.canDeposit;
+        investButton.onclick = () => runAction('portalDeposit', { name: student.name, period: student.period, amount: Number(amountInput.value) }, investButton);
+
+        const maxButton = h('button', 'button button-secondary', 'Use everything available');
+        maxButton.disabled = !student.canDeposit;
+        maxButton.onclick = () => { amountInput.value = student.availableToInvest.toFixed(2); refreshProjection(); };
+
+        const withdrawButton = h('button', 'button button-secondary', 'Withdraw CoD (' + money(student.codNet) + ')');
+        withdrawButton.disabled = !student.canWithdraw;
+        withdrawButton.onclick = () => runAction('portalWithdraw', { name: student.name, period: student.period }, withdrawButton);
+
+        depositCard.appendChild(h('div', 'button-row', null, [investButton, maxButton, withdrawButton]));
+        panel.appendChild(depositCard);
+      }
+
+      panel.appendChild(buildPredictorCard());
+    }
+
+    function buildPredictorCard() {
+      const predictor = portalState.dashboard.predictor;
+      const card = h('div', 'card', null, [h('h2', '', 'Earnings predictor')]);
+
+      const modes = [
+        { id: 'currentCod', label: 'Current CoD' },
+        { id: 'custom', label: 'Custom amount' },
+        { id: 'depositInput', label: 'From deposit' }
+      ];
+      const tabBar = h('div', 'tab-bar');
+      modes.forEach(mode => {
+        const button = h('button', 'tab-button' + (mode.id === portalState.projectionMode ? ' active' : ''), mode.label);
+        button.onclick = () => { portalState.projectionMode = mode.id; renderPortal(); };
+        tabBar.appendChild(button);
+      });
+      card.appendChild(tabBar);
+
+      if (portalState.projectionMode === 'custom') {
+        card.appendChild(h('label', '', 'Principal amount ($)'));
+        const customInput = h('input');
+        customInput.type = 'number';
+        customInput.id = 'customAmount';
+        customInput.min = '0';
+        customInput.step = '0.01';
+        customInput.placeholder = 'Enter an amount';
+        customInput.oninput = refreshProjection;
+        card.appendChild(customInput);
+      }
+
+      card.appendChild(h('label', '', 'Weekly interest rate'));
+      const rateInput = h('input');
+      rateInput.readOnly = true;
+      rateInput.value = typeof predictor.weeklyInterestRate === 'number' ? (predictor.weeklyInterestRate * 100).toFixed(2) + '%' : 'Unavailable';
+      card.appendChild(rateInput);
+
+      const summary = h('div', 'tile');
+      summary.id = 'projectionSummary';
+      summary.appendChild(h('div', 'tile-label', ''));
+      summary.appendChild(h('div', 'tile-value', ''));
+      const summaryWrapper = h('div', '', null, [h('h3', '', ''), summary]);
+      card.appendChild(summaryWrapper);
+
+      const breakdown = h('div', '');
+      breakdown.id = 'projectionBreakdown';
+      card.appendChild(breakdown);
+      return card;
+    }
+
+    /** Same linear projection as the admin Investment Banking page: value(week) = principal + principal * weeklyRate * week. */
+    function buildProjection(principal, weeks, weeklyRate) {
+      const breakdown = [];
+      let finalValue = principal;
+      for (let week = 1; week <= weeks; week++) {
+        finalValue = principal + (principal * weeklyRate * week);
+        breakdown.push({ week, value: finalValue });
+      }
+      return { finalValue: weeks === 0 ? principal : finalValue, breakdown };
+    }
+
+    function getProjectionPrincipal() {
+      const mode = portalState.projectionMode;
+      if (mode === 'currentCod') return portalState.dashboard.predictor.currentCodAmount;
+      const sourceId = mode === 'depositInput' ? 'depositAmount' : 'customAmount';
+      const input = document.getElementById(sourceId);
+      const value = input ? input.valueAsNumber : NaN;
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function refreshProjection() {
+      const summary = document.getElementById('projectionSummary');
+      const breakdownContainer = document.getElementById('projectionBreakdown');
+      if (!summary || !breakdownContainer) return;
+
+      const predictor = portalState.dashboard.predictor;
+      const principal = getProjectionPrincipal();
+      const weeks = predictor.weeksRemaining;
+      const rate = predictor.weeklyInterestRate;
+      const labelElement = summary.children[0];
+      const valueElement = summary.children[1];
+      breakdownContainer.replaceChildren();
+
+      if (typeof rate !== 'number') {
+        labelElement.textContent = 'The interest rate is not available right now.';
+        valueElement.textContent = '';
+        return;
+      }
+      if (!(principal > 0)) {
+        labelElement.textContent = portalState.projectionMode === 'depositInput' ? 'Type an amount in the invest box to preview it.' : 'Enter an amount to see what it could grow to.';
+        valueElement.textContent = '';
+        return;
+      }
+
+      const projection = buildProjection(principal, weeks, rate);
+      labelElement.textContent = 'Value at week ' + weeks + ' (principal ' + money(principal) + ')';
+      valueElement.textContent = money(projection.finalValue);
+
+      if (weeks === 0) {
+        breakdownContainer.appendChild(emptyState('Investing has ended for this period, so there is nothing left to project.'));
+        return;
+      }
+      projection.breakdown.forEach(entry => {
+        breakdownContainer.appendChild(h('div', 'list-row', null, [
+          h('div', '', null, [h('div', 'row-title', 'Week ' + entry.week), h('div', 'row-sub', (rate * 100).toFixed(2) + '% per week')]),
+          h('div', 'row-title', money(entry.value))
+        ]));
+      });
+    }
+
+    // ------------------------------------------------------------------ spend
+
+    function limitText(item) {
+      const parts = [];
+      if (item.personRemaining !== null) parts.push(item.personRemaining + ' of ' + item.personLimit + ' left for you');
+      if (item.classRemaining !== null) parts.push(item.classRemaining + ' of ' + item.classLimit + ' left for your class');
+      return parts.join(' - ');
+    }
+
+    function renderSpend(panel) {
+      const dashboard = portalState.dashboard;
+      const student = dashboard.student;
+      const catalogCard = h('div', 'card', null, [h('h2', '', 'Request something (' + dashboard.quarter + ' prices)')]);
+      catalogCard.appendChild(h('div', 'row-sub', 'Your teacher approves each request. You are only charged if it is approved.'));
+
+      if (dashboard.catalog.length === 0) catalogCard.appendChild(emptyState('Nothing is for sale right now.'));
+      dashboard.catalog.forEach(item => {
+        const soldOut = item.personRemaining === 0 || item.classRemaining === 0;
+        const quantityInput = h('input');
+        quantityInput.type = 'number';
+        quantityInput.min = '1';
+        quantityInput.value = '1';
+        quantityInput.setAttribute('aria-label', 'Quantity of ' + item.itemName);
+
+        const requestButton = h('button', 'button', 'Request');
+        requestButton.disabled = soldOut || dashboard.readOnly;
+        requestButton.onclick = () => runAction('portalRequestExpenditure', { name: student.name, period: student.period, itemName: item.itemName, quantity: Number(quantityInput.value) }, requestButton);
+
+        const actions = h('div', 'row-actions');
+        if (!dashboard.readOnly) { actions.appendChild(quantityInput); actions.appendChild(requestButton); }
+
+        catalogCard.appendChild(h('div', 'list-row', null, [
+          h('div', '', null, [h('div', 'row-title', item.itemName), h('div', 'row-sub', money(item.unitPrice) + (limitText(item) ? ' - ' + limitText(item) : '') + (soldOut ? ' - sold out' : ''))]),
+          actions
+        ]));
+      });
+      panel.appendChild(catalogCard);
+
+      const requestsCard = h('div', 'card', null, [h('h2', '', 'Your requests')]);
+      if (dashboard.requests.length === 0) requestsCard.appendChild(emptyState('You have not requested anything yet.'));
+      dashboard.requests.forEach(request => {
+        const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+        if (request.status === 'Pending' && !dashboard.readOnly) {
+          const cancelButton = h('button', 'button button-secondary', 'Cancel');
+          cancelButton.onclick = () => runAction('portalCancelRequest', { name: student.name, period: student.period, id: request.id }, cancelButton);
+          actions.appendChild(cancelButton);
+        }
+        requestsCard.appendChild(h('div', 'list-row', null, [
+          h('div', '', null, [
+            h('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
+            h('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : ''))
+          ]),
+          actions
+        ]));
+      });
+      panel.appendChild(requestsCard);
+    }
+
+    // ------------------------------------------------------------------ leaderboard
+
+    function renderLeaderboard(panel) {
+      const leaderboard = portalState.dashboard.leaderboard;
+      const card = h('div', 'card', null, [h('h2', '', portalState.dashboard.student.period + ' leaderboard')]);
+      card.appendChild(h('div', 'row-sub', 'Cash plus the value of the CoD.'));
+
+      const visibleEntries = leaderboard.filter((entry, index) => index < 10 || entry.isYou);
+      visibleEntries.forEach(entry => {
+        card.appendChild(h('div', 'list-row' + (entry.isYou ? ' rank-you' : ''), null, [
+          h('div', 'row-actions', null, [h('span', 'rank', '#' + entry.rank), h('span', 'row-title', entry.displayName + (entry.isYou ? ' (you)' : ''))]),
+          h('div', 'row-title', money(entry.total))
+        ]));
+      });
+      panel.appendChild(card);
+    }
+
+    // ------------------------------------------------------------------ admin
+
+    function renderAdmin(panel) {
+      const spectateCard = h('div', 'card', null, [h('h2', '', 'Spectate a student')]);
+      const directory = portalState.session.directory || [];
+
+      spectateCard.appendChild(h('label', '', 'Period'));
+      const periodSelect = h('select');
+      directory.forEach(entry => { const option = h('option', '', entry.period); option.value = entry.period; periodSelect.appendChild(option); });
+      spectateCard.appendChild(periodSelect);
+
+      spectateCard.appendChild(h('label', '', 'Student'));
+      const studentSelect = h('select');
+      spectateCard.appendChild(studentSelect);
+
+      const fillStudents = () => {
+        studentSelect.replaceChildren();
+        const entry = directory.find(candidate => candidate.period === periodSelect.value);
+        (entry ? entry.students : []).forEach(name => { const option = h('option', '', name); option.value = name; studentSelect.appendChild(option); });
+      };
+      periodSelect.onchange = fillStudents;
+      fillStudents();
+
+      const viewButton = h('button', 'button', 'View dashboard');
+      viewButton.onclick = () => {
+        if (!periodSelect.value || !studentSelect.value) return;
+        portalState.profile = { name: studentSelect.value, period: periodSelect.value };
+        loadDashboard(true);
+      };
+      spectateCard.appendChild(h('div', 'button-row', null, [viewButton]));
+
+      const ownProfiles = portalState.session.profiles;
+      if (portalState.dashboard && portalState.dashboard.readOnly && ownProfiles.length > 0) {
+        const backButton = h('button', 'button button-secondary', 'Back to my account');
+        backButton.onclick = () => { portalState.profile = ownProfiles[0]; loadDashboard(true); };
+        spectateCard.lastChild.appendChild(backButton);
+      }
+      panel.appendChild(spectateCard);
+
+      const requestsCard = h('div', 'card', null, [h('h2', '', 'Expenditure requests')]);
+      requestsCard.id = 'adminRequests';
+      requestsCard.appendChild(emptyState('Loading requests...'));
+      panel.appendChild(requestsCard);
+      loadAdminRequests(requestsCard);
+    }
+
+    async function loadAdminRequests(card) {
+      try {
+        const response = await callServerAsync('portalAdminListRequests');
+        card.replaceChildren(h('h2', '', 'Expenditure requests'));
+        if (!response || response.error) { card.appendChild(emptyState((response && response.error) || 'The requests could not load.')); return; }
+        if (response.requests.length === 0) { card.appendChild(emptyState('No requests yet.')); return; }
+
+        response.requests.forEach(request => {
+          const noteInput = h('input');
+          noteInput.placeholder = 'Note (optional)';
+          noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
+
+          const actions = h('div', 'row-actions', null, [h('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+          if (request.status === 'Pending') {
+            const approveButton = h('button', 'button', 'Approve');
+            const denyButton = h('button', 'button button-danger', 'Deny');
+            const resolve = (approve, button) => resolveRequest(request.id, approve, noteInput.value, button, card);
+            approveButton.onclick = () => resolve(true, approveButton);
+            denyButton.onclick = () => resolve(false, denyButton);
+            actions.appendChild(approveButton);
+            actions.appendChild(denyButton);
+          }
+
+          const rowText = h('div', '', null, [
+            h('div', 'row-title', request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
+            h('div', 'row-sub', formatDate(request.requestedAt) + ' - ' + request.quarter + (request.resolvedBy ? ' - ' + request.status.toLowerCase() + ' by ' + request.resolvedBy : '') + (request.note && request.status !== 'Pending' ? ' - ' + request.note : ''))
+          ]);
+          if (request.status === 'Pending') rowText.appendChild(noteInput);
+          card.appendChild(h('div', 'list-row', null, [rowText, actions]));
+        });
+      } catch (error) {
+        console.error(error);
+        card.replaceChildren(h('h2', '', 'Expenditure requests'), emptyState('The requests could not load.'));
+      }
+    }
+
+    async function resolveRequest(requestId, approve, note, button, card) {
+      if (portalState.busy) return;
+      portalState.busy = true;
+      button.disabled = true;
+      try {
+        const result = await callServerAsync('portalAdminResolveRequest', JSON.stringify({ id: requestId, approve, note }));
+        showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
+      } catch (error) {
+        console.error(error);
+        showNotice('bad', 'The bank could not be reached. Please try again.');
+      } finally {
+        portalState.busy = false;
+      }
+      await loadAdminRequests(card);
+    }
+  </script>
+</body>
+
+</html>
