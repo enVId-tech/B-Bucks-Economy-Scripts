@@ -55,7 +55,7 @@
     const MAX_STUDENT_NOTE_LENGTH = 1000;   // characters in a note on a request (the server enforces the same limit)
     const MIN_GAP_BETWEEN_CALLS_MS = 300;   // least time between two server calls
     const ACTION_COOLDOWN_MS = 1500;        // buttons stay locked this long after an action finishes
-    const SEARCH_TYPING_DELAY_MS = 450;     // the history search waits until typing stops
+    const SEARCH_TYPING_DELAY_MS = 150;     // the history search waits until typing stops (it only filters what the page already has)
     const AUTO_REFRESH_MS = 45000;          // how often the page quietly checks for new transactions
     const REFRESH_AFTER_RETURN_MS = 15000;  // coming back to the tab refreshes if the data is older than this
     const EDITING_GRACE_MS = 10000;         // no automatic refresh this soon after the person typed or clicked
@@ -124,7 +124,7 @@
     function formatDate(isoText) {
       if (!isoText) return '';
       const date = new Date(isoText);
-      return isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
     }
 
     function mainElement() { return document.getElementById('portalMain'); }
@@ -162,6 +162,7 @@
       try {
         const result = await portalCall(serverFunction, JSON.stringify(payload));
         await loadDashboard(false);
+        loadHistory(true);
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong. Please try again.');
       } catch (error) {
         showNotice('bad', 'The bank could not be reached. Please try again.');
@@ -202,9 +203,8 @@
         if (JSON.stringify(fresh) !== JSON.stringify(portalState.dashboard)) {
           portalState.dashboard = fresh;
           renderPortal();
-        } else if (portalState.activeTab === 'home') {
-          loadActivity(true);
         }
+        loadHistory(true); // the server answers from its cache unless the log has a new row
       } catch (error) {
         console.error(error);
       }
@@ -391,33 +391,150 @@
     // ------------------------------------------------------------------ transaction history (search + categories)
 
     const ACTIVITY_CATEGORIES = [['all', 'All'], ['income', 'Income'], ['spending', 'Spending'], ['investments', 'Investments']];
-    const activityState = { key: '', search: '', category: 'all', page: 1, requestNumber: 0, searchTimer: null };
+    const CATEGORY_TYPES = { income: 'Income', spending: 'Expense', investments: 'Investment' };
+    const HISTORY_PAGE_SIZE = 15;     // rows per page of the history
+    const PURCHASES_STEP = 10;        // rows the purchases list grows by each time "Show more" is pressed
+
+    // The whole history is fetched ONCE per account. Searching, the category buttons and the page buttons only change what is
+    // shown from this list, so they never wait for the server.
+    const historyState = { key: '', all: null, error: '', loading: false, search: '', category: 'all', page: 0, purchasesShown: PURCHASES_STEP, searchTimer: null };
+
+    function currentHistoryKey() {
+      const student = portalState.dashboard.student;
+      return student.name + '|' + student.period;
+    }
+
+    function resetHistoryIfAccountChanged() {
+      const key = currentHistoryKey();
+      if (historyState.key === key) return;
+      Object.assign(historyState, { key, all: null, error: '', loading: false, search: '', category: 'all', page: 0, purchasesShown: PURCHASES_STEP });
+    }
+
+    /** Gets every transaction of the account from the server. quietly = refresh in the background without a loading state. */
+    async function loadHistory(quietly) {
+      if (!portalState.profile || !portalState.dashboard || historyState.loading) return;
+      resetHistoryIfAccountChanged();
+      const key = historyState.key;
+      const student = portalState.dashboard.student;
+      historyState.loading = true;
+      if (!quietly && !historyState.all) renderHistoryViews();
+      try {
+        const result = await portalCall('portalGetTransactions', JSON.stringify({ name: student.name, period: student.period }));
+        if (key !== historyState.key) return; // another account was opened in the meantime
+        if (!result || result.error) {
+          if (!historyState.all) { historyState.error = (result && result.error) || 'The history could not load.'; renderHistoryViews(); }
+          return;
+        }
+        const changed = JSON.stringify(result.records) !== JSON.stringify(historyState.all);
+        historyState.all = result.records;
+        historyState.error = '';
+        if (changed || !quietly) renderHistoryViews();
+      } catch (error) {
+        console.error(error);
+        if (!historyState.all && !quietly) { historyState.error = 'The history could not load. Please try again.'; renderHistoryViews(); }
+      } finally {
+        historyState.loading = false;
+      }
+    }
+
+    /** The history after the search box and the category button. */
+    function filteredHistory() {
+      const typeWanted = CATEGORY_TYPES[historyState.category];
+      const words = historyState.search.toLowerCase().split(/\s+/).filter(Boolean);
+      return (historyState.all || []).filter(entry => {
+        if (typeWanted && entry.type !== typeWanted) return false;
+        if (words.length === 0) return true;
+        const haystack = ((entry.description || '') + ' ' + entry.type + ' ' + formatDate(entry.timestamp)).toLowerCase();
+        return words.every(word => haystack.includes(word));
+      });
+    }
+
+    function historyRow(entry) {
+      const isGain = entry.change > 0;
+      const shownAmount = entry.change !== 0 ? Math.abs(entry.change) : entry.amount;
+      return h('div', 'list-row', null, [
+        h('div', 'row-left', null, [
+          h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
+          h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
+        ]),
+        h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
+      ]);
+    }
+
+    /** Redraws the history list and the purchases list from the data already in the page. No server call. */
+    function renderHistoryViews() {
+      const list = document.getElementById('activityList');
+      const pager = document.getElementById('activityPager');
+      if (list && pager) {
+        list.replaceChildren();
+        pager.replaceChildren();
+        if (historyState.error) list.appendChild(emptyState(historyState.error));
+        else if (!historyState.all) list.appendChild(emptyState('Loading...'));
+        else {
+          const rows = filteredHistory();
+          const pageCount = Math.max(1, Math.ceil(rows.length / HISTORY_PAGE_SIZE));
+          historyState.page = Math.min(historyState.page, pageCount - 1);
+          if (rows.length === 0) list.appendChild(emptyState(historyState.search || historyState.category !== 'all' ? 'No transactions match that search.' : 'No transactions yet.'));
+          rows.slice(historyState.page * HISTORY_PAGE_SIZE, (historyState.page + 1) * HISTORY_PAGE_SIZE).forEach(entry => list.appendChild(historyRow(entry)));
+
+          if (pageCount > 1) {
+            const newer = h('button', 'button button-secondary', 'Newer');
+            newer.disabled = historyState.page === 0;
+            newer.onclick = () => { historyState.page--; renderHistoryViews(); };
+            const older = h('button', 'button button-secondary', 'Older');
+            older.disabled = historyState.page >= pageCount - 1;
+            older.onclick = () => { historyState.page++; renderHistoryViews(); };
+            pager.appendChild(newer);
+            pager.appendChild(h('span', 'row-sub', 'Page ' + (historyState.page + 1) + ' of ' + pageCount + ' \u00b7 ' + rows.length + ' transactions'));
+            pager.appendChild(older);
+          } else if (rows.length > 0) {
+            pager.appendChild(h('span', 'row-sub', rows.length + ' transaction' + (rows.length === 1 ? '' : 's')));
+          }
+        }
+      }
+
+      const purchasesList = document.getElementById('purchasesList');
+      if (purchasesList) {
+        purchasesList.replaceChildren();
+        if (historyState.error) purchasesList.appendChild(emptyState(historyState.error));
+        else if (!historyState.all) purchasesList.appendChild(emptyState('Loading...'));
+        else {
+          // Only spending (type Expense) counts as a purchase, and a purchase that was undone is not one any more.
+          const purchases = historyState.all.filter(entry => entry.type === 'Expense' && !entry.undone);
+          if (purchases.length === 0) purchasesList.appendChild(emptyState('You have not bought anything yet.'));
+          purchases.slice(0, historyState.purchasesShown).forEach(entry => purchasesList.appendChild(historyRow(entry)));
+          if (purchases.length > historyState.purchasesShown) {
+            const more = h('button', 'button button-secondary', 'Show more (' + (purchases.length - historyState.purchasesShown) + ' left)');
+            more.onclick = () => { historyState.purchasesShown += PURCHASES_STEP; renderHistoryViews(); };
+            purchasesList.appendChild(more);
+          }
+        }
+      }
+    }
 
     /** Every transaction of the student from the transactions sheet, with a search box and category buttons. */
     function buildActivityCard() {
-      const student = portalState.dashboard.student;
-      const key = student.name + '|' + student.period;
-      if (activityState.key !== key) Object.assign(activityState, { key, search: '', category: 'all', page: 1 });
+      resetHistoryIfAccountChanged();
 
       const searchInput = h('input');
       searchInput.type = 'search';
-      searchInput.placeholder = 'Search your transactions (for example "pencil")';
-      searchInput.value = activityState.search;
+      searchInput.placeholder = 'Search your transactions (for example "pencil" or "Oct")';
+      searchInput.value = historyState.search;
       searchInput.maxLength = 80;
       searchInput.oninput = () => {
-        clearTimeout(activityState.searchTimer);
-        activityState.searchTimer = setTimeout(() => { activityState.search = searchInput.value.trim(); activityState.page = 1; loadActivity(); }, SEARCH_TYPING_DELAY_MS);
+        clearTimeout(historyState.searchTimer);
+        historyState.searchTimer = setTimeout(() => { historyState.search = searchInput.value.trim(); historyState.page = 0; renderHistoryViews(); }, SEARCH_TYPING_DELAY_MS);
       };
 
       const chips = h('div', 'segmented');
       ACTIVITY_CATEGORIES.forEach(([category, label]) => {
-        const chip = h('button', 'segment' + (activityState.category === category ? ' active' : ''), label);
+        const chip = h('button', 'segment' + (historyState.category === category ? ' active' : ''), label);
         chip.type = 'button';
         chip.onclick = () => {
-          activityState.category = category;
-          activityState.page = 1;
+          historyState.category = category;
+          historyState.page = 0;
           chips.querySelectorAll('.segment').forEach(other => other.classList.toggle('active', other === chip));
-          loadActivity();
+          renderHistoryViews();
         };
         chips.appendChild(chip);
       });
@@ -428,66 +545,9 @@
       pager.id = 'activityPager';
 
       const card = h('div', 'card', null, [h('h2', '', 'Transaction history'), searchInput, chips, list, pager]);
-      // The card is not part of the page yet, so the first load waits until it is attached.
-      setTimeout(loadActivity, 0);
+      // The card is not part of the page yet: draw what is already known (or "Loading...") and fetch once if nothing is loaded.
+      setTimeout(() => { renderHistoryViews(); if (!historyState.all) loadHistory(false); }, 0);
       return card;
-    }
-
-    async function loadActivity(quietly) {
-      const list = document.getElementById('activityList');
-      const pager = document.getElementById('activityPager');
-      if (!list || !pager || !portalState.profile) return;
-      const thisRequest = ++activityState.requestNumber;
-      if (!quietly) {
-        list.replaceChildren(emptyState('Loading...'));
-        pager.replaceChildren();
-      }
-      try {
-        const result = await portalCall('portalGetTransactions', JSON.stringify({
-          name: portalState.dashboard.student.name, period: portalState.dashboard.student.period,
-          search: activityState.search, category: activityState.category, page: activityState.page
-        }));
-        if (thisRequest !== activityState.requestNumber) return; // a newer search is already running
-        if (!result || result.error) {
-          if (quietly) return; // a failed background refresh leaves what is on screen alone
-          list.replaceChildren(emptyState((result && result.error) || 'The history could not load.'));
-          return;
-        }
-        list.replaceChildren();
-        pager.replaceChildren();
-
-        if (result.records.length === 0) {
-          list.appendChild(emptyState(activityState.search || activityState.category !== 'all' ? 'No transactions match that search.' : 'No transactions yet.'));
-        }
-        result.records.forEach(entry => {
-          const isGain = entry.change > 0;
-          const shownAmount = entry.change !== 0 ? Math.abs(entry.change) : entry.amount;
-          list.appendChild(h('div', 'list-row', null, [
-            h('div', 'row-left', null, [
-              h('span', 'txn-icon ' + (isGain ? 'txn-in' : 'txn-out'), isGain ? '\u2193' : '\u2191'),
-              h('div', '', null, [h('div', 'row-title', entry.description || entry.type), h('div', 'row-sub', formatDate(entry.timestamp) + ' \u00b7 ' + entry.type)])
-            ]),
-            h('div', isGain ? 'amount-plus' : 'amount-minus', (isGain ? '+' : '-') + money(shownAmount).replace('-', ''))
-          ]));
-        });
-
-        if (result.totalPages > 1) {
-          const previous = h('button', 'button button-secondary', 'Newer');
-          previous.disabled = result.page <= 1;
-          previous.onclick = () => { activityState.page = result.page - 1; loadActivity(); };
-          const next = h('button', 'button button-secondary', 'Older');
-          next.disabled = result.page >= result.totalPages;
-          next.onclick = () => { activityState.page = result.page + 1; loadActivity(); };
-          pager.appendChild(previous);
-          pager.appendChild(h('span', 'row-sub', 'Page ' + result.page + ' of ' + result.totalPages + ' \u00b7 ' + result.total + ' transactions'));
-          pager.appendChild(next);
-        } else if (result.total > 0) {
-          pager.appendChild(h('span', 'row-sub', result.total + ' transaction' + (result.total === 1 ? '' : 's')));
-        }
-      } catch (error) {
-        console.error(error);
-        if (thisRequest === activityState.requestNumber && !quietly) { list.replaceChildren(emptyState('The history could not load. Please try again.')); }
-      }
     }
 
     // ------------------------------------------------------------------ invest + predictor
@@ -718,30 +778,14 @@
       });
       panel.appendChild(requestsCard);
 
-      // Purchases stay undoable until their row is deleted from the transaction log.
+      // Read-only list of what the student has bought (spending only). Approved purchases cannot be undone from here.
       const purchasesCard = h('div', 'card', null, [h('h2', '', 'Your purchases')]);
-      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'You can undo a purchase to get your money back, for as long as it is on the record.'));
-      const purchases = dashboard.purchases || [];
-      if (purchases.length === 0) purchasesCard.appendChild(emptyState('No purchases that can be undone.'));
-      purchases.forEach(purchase => {
-        const undoButton = h('button', 'button button-secondary', 'Undo');
-        let confirming = false;
-        undoButton.onclick = () => {
-          // Browser pop-ups are blocked inside the web app frame, so the confirmation is a second click on the same button.
-          if (!confirming) {
-            confirming = true;
-            undoButton.textContent = 'Tap again to undo';
-            setTimeout(() => { confirming = false; undoButton.textContent = 'Undo'; }, 4000);
-            return;
-          }
-          runAction('portalUndoPurchase', { name: student.name, period: student.period, transactionId: purchase.id }, undoButton);
-        };
-        purchasesCard.appendChild(h('div', 'list-row', null, [
-          h('div', '', null, [h('div', 'row-title', purchase.description), h('div', 'row-sub', formatDate(purchase.timestamp))]),
-          h('div', 'row-actions', null, [h('div', 'amount-minus', '-' + money(purchase.amount).replace('-', '')), undoButton])
-        ]));
-      });
+      purchasesCard.appendChild(h('div', 'row-sub card-intro', 'Everything you have bought. A request can only be cancelled while it is still pending; once it is approved, ask your teacher.'));
+      const purchasesList = h('div', '');
+      purchasesList.id = 'purchasesList';
+      purchasesCard.appendChild(purchasesList);
       panel.appendChild(purchasesCard);
+      setTimeout(() => { resetHistoryIfAccountChanged(); renderHistoryViews(); if (!historyState.all) loadHistory(false); }, 0);
     }
 
     // ------------------------------------------------------------------ leaderboard
