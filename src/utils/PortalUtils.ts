@@ -54,6 +54,8 @@ interface PortalStudentRow {
 interface PortalActionResult {
     ok: boolean;
     message: string;
+    /** The account as it is after the action, so the page does not need a second round trip to redraw. */
+    dashboard?: any;
 }
 
 interface PortalRequestRecord {
@@ -181,6 +183,7 @@ function ensurePortalSheet_(sheetName: string, headers: string[]): GoogleAppsScr
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
     sheet.setFrozenRows(1);
     resetSheetMemo();
+    invalidatePortalRosterCache_();
     return sheet;
 }
 
@@ -283,26 +286,61 @@ function normalizePortalPeriodName_(rawPeriod: any): string {
     return /^\d+$/.test(text) ? `Period ${text}` : text;
 }
 
+/** One student of a period tab, as the roster index remembers them. */
+interface PortalRosterStudent { period: string; name: string; studentId: string; }
+interface PortalRosterIndex { students: PortalRosterStudent[]; }
+
+let portalRosterMemo: PortalRosterIndex | null = null;
+
+/**
+ * Who is on which period tab. Working out which student an email belongs to used to read every
+ * period tab (and the accounts tab) in full on EVERY call, which dominated the time of every click. Rosters change rarely, so the
+ * index is built once and shared through the script cache (PORTAL_ROSTER_CACHE_SECONDS). Balances and everything else a student sees
+ * are still read live, and so is the small "Portal Accounts" tab (a teacher who adds a line there expects it to work straight away).
+ * Filling the sheets and creating the portal tabs clear the index at once.
+ */
+function getPortalRosterIndex_(): PortalRosterIndex {
+    if (portalRosterMemo) return portalRosterMemo;
+    try {
+        const cachedText = CacheService.getScriptCache().get(PORTAL_ROSTER_CACHE_KEY);
+        if (cachedText) {
+            const parsed = JSON.parse(cachedText) as PortalRosterIndex;
+            if (parsed && Array.isArray(parsed.students)) {
+                portalRosterMemo = parsed;
+                return parsed;
+            }
+        }
+    } catch (cacheError) { /* rebuild below */ }
+
+    const index: PortalRosterIndex = { students: [] };
+    getPortalPeriodSheets_().forEach(sheet => {
+        readPortalPeriod_(sheet).forEach(student => index.students.push({ period: sheet.getName(), name: student.name, studentId: student.studentId }));
+    });
+
+    portalRosterMemo = index;
+    try { CacheService.getScriptCache().put(PORTAL_ROSTER_CACHE_KEY, JSON.stringify(index), PORTAL_ROSTER_CACHE_SECONDS); } catch (cacheError) { /* only a speed-up */ }
+    return index;
+}
+
+/** Forgets the roster index. Called whenever the period tabs or the portal tabs are rebuilt. */
+function invalidatePortalRosterCache_(): void {
+    portalRosterMemo = null;
+    try { CacheService.getScriptCache().remove(PORTAL_ROSTER_CACHE_KEY); } catch (cacheError) { /* nothing to clear */ }
+}
+
 /** Profiles listed for this email in the "Portal Accounts" tab (an optional manual override, for example for an email that does not contain the ID). A row only counts when the student really is on that period tab. */
 function findListedProfiles_(email: string): PortalProfile[] {
     const accountsSheet = getSheetNamed(PORTAL_ACCOUNTS_SHEET);
     if (!accountsSheet || accountsSheet.getLastRow() < 2) return [];
 
+    const students = getPortalRosterIndex_().students;
     const profiles: PortalProfile[] = [];
-    const rosterByPeriod = new Map<string, Set<string>>();
-    const rows = accountsSheet.getRange(2, 1, accountsSheet.getLastRow() - 1, PORTAL_ACCOUNT_HEADERS.length).getValues();
-
-    rows.forEach(row => {
+    accountsSheet.getRange(2, 1, accountsSheet.getLastRow() - 1, PORTAL_ACCOUNT_HEADERS.length).getValues().forEach(row => {
         if (String(row[0] ?? "").trim().toLowerCase() !== email) return;
         const period = normalizePortalPeriodName_(row[1]);
         const name = String(row[2] ?? "").trim();
-        const periodSheet = getSheetNamed(period);
-        if (!periodSheet || !name) return;
-
-        if (!rosterByPeriod.has(period)) {
-            rosterByPeriod.set(period, new Set(readPortalPeriod_(periodSheet).map(student => student.name.toLowerCase())));
-        }
-        if (rosterByPeriod.get(period)!.has(name.toLowerCase())) profiles.push({ name, period });
+        if (!name) return;
+        if (students.some(student => student.period === period && student.name.toLowerCase() === name.toLowerCase())) profiles.push({ name, period });
     });
     return profiles;
 }
@@ -315,14 +353,9 @@ function findListedProfiles_(email: string): PortalProfile[] {
 function findIdMatchedProfiles_(email: string): PortalProfile[] {
     const digitRuns = new Set(email.split("@")[0].match(/\d+/g) ?? []);
     if (digitRuns.size === 0) return [];
-
-    const matches: PortalProfile[] = [];
-    getPortalPeriodSheets_().forEach(sheet => {
-        readPortalPeriod_(sheet).forEach(student => {
-            if (student.studentId && digitRuns.has(student.studentId)) matches.push({ name: student.name, period: sheet.getName() });
-        });
-    });
-    return matches;
+    return getPortalRosterIndex_().students
+        .filter(student => student.studentId && digitRuns.has(student.studentId))
+        .map(student => ({ name: student.name, period: student.period }));
 }
 
 /** Every student account the signed-in person may act as. */
@@ -363,11 +396,18 @@ function failure_(message: string): PortalActionResult {
 function portalBootstrap(): any {
     try {
         const identity = resolvePortalIdentity_();
-        const response: any = { status: identity.status, email: identity.email, isAdmin: identity.isAdmin, signInUrl: buildPortalSignInUrl_(), profiles: [], experimental: PORTAL_EXPERIMENTAL };
+        const response: any = { status: identity.status, email: identity.email, isAdmin: identity.isAdmin, signInUrl: identity.status === "ok" ? "" : buildPortalSignInUrl_(), profiles: [], experimental: PORTAL_EXPERIMENTAL };
         if (identity.status !== "ok") return response;
 
         response.profiles = findPortalProfiles_(identity);
         if (identity.isAdmin) response.directory = buildPortalDirectory_();
+
+        // The first account's dashboard comes with the answer, so opening the page costs one round trip instead of two.
+        if (response.profiles.length > 0 && !checkPortalRate_(identity.email, "read")) {
+            const first = response.profiles[0];
+            const dashboard = buildPortalDashboard_(identity, response.profiles, first.name, first.period);
+            if (!dashboard.error) { response.dashboard = dashboard; response.dashboardFor = first; }
+        }
         return response;
     } catch (error: any) {
         log(`Error in portalBootstrap: ${error.message}`, false);
@@ -377,7 +417,12 @@ function portalBootstrap(): any {
 
 /** Period tabs with their student names, used by the admin student picker. */
 function buildPortalDirectory_(): { period: string; students: string[] }[] {
-    return getPortalPeriodSheets_().map(sheet => ({ period: sheet.getName(), students: readPortalPeriod_(sheet).map(student => student.name) }));
+    const byPeriod = new Map<string, string[]>();
+    getPortalRosterIndex_().students.forEach(student => {
+        if (!byPeriod.has(student.period)) byPeriod.set(student.period, []);
+        byPeriod.get(student.period)!.push(student.name);
+    });
+    return Array.from(byPeriod.entries()).map(([period, students]) => ({ period, students }));
 }
 
 interface PortalPurchasableItem {
@@ -520,7 +565,21 @@ function portalGetDashboard(data: string): any {
         const readLimit = checkPortalRate_(identity.email, "read");
         if (readLimit) return { error: readLimit };
 
-        const profiles = findPortalProfiles_(identity);
+        return buildPortalDashboard_(identity, findPortalProfiles_(identity), name, period);
+    } catch (error: any) {
+        log(`Error in portalGetDashboard: ${error.message}`, false);
+        return { error: "Your dashboard could not load. Please try again in a moment." };
+    }
+}
+
+/** The request tab is read once for the whole dashboard (the item caps would otherwise re-read it for every item). */
+let portalRequestsMemo: PortalRequestRecord[] | null = null;
+
+/** Builds the dashboard for a caller who is already signed in and rate-checked. */
+function buildPortalDashboard_(identity: PortalIdentity, profiles: PortalProfile[], name: string, period: string): any {
+    portalRequestsMemo = null;
+    try {
+        portalRequestsMemo = readPortalRequests_();
         const isOwnProfile = ownsPortalProfile_(profiles, name, period);
         if (!isOwnProfile && !identity.isAdmin) return { error: "That account is not linked to your email." };
 
@@ -579,16 +638,33 @@ function portalGetDashboard(data: string): any {
             leaderboard
         };
     } catch (error: any) {
-        log(`Error in portalGetDashboard: ${error.message}`, false);
+        log(`Error in buildPortalDashboard_: ${error.message}`, false);
         return { error: "Your dashboard could not load. Please try again in a moment." };
+    } finally {
+        portalRequestsMemo = null;
     }
+}
+
+/** Adds the fresh dashboard to an action's answer. A failed action changes nothing, so the page keeps what it has. */
+function withFreshDashboard_(result: PortalActionResult, data: string): PortalActionResult {
+    if (!result || !result.ok) return result;
+    try {
+        const request = JSON.parse(data);
+        const identity = resolvePortalIdentity_();
+        if (identity.status !== "ok") return result;
+        const dashboard = buildPortalDashboard_(identity, findPortalProfiles_(identity), String(request.name ?? ""), String(request.period ?? ""));
+        if (!dashboard.error) result.dashboard = dashboard;
+    } catch (error: any) {
+        log(`Error in withFreshDashboard_: ${error.message}`, false); // the page simply fetches it itself
+    }
+    return result;
 }
 
 /**
  * Every transaction of one student, newest first, read from the transactions sheet named in Settings. Searching, the category buttons
  * and paging all happen in the page, so this is fetched once and not again for every click.
- * Only two reads are needed however long the log is: columns A to C of the whole log (to find the student's rows), then one block
- * covering the student's first to last row. The result is cached until the log gets a new row.
+ * A repeat visit costs two tiny reads (the row count and the last id) while the log has no new row. A rebuild needs two reads however long
+ * the log is: columns A to C of the whole log (to find the student's rows), then one block covering the student's first to last row.
  * @param data JSON string: { name, period }
  */
 function portalGetTransactions(data: string): any {
@@ -613,8 +689,7 @@ function portalGetTransactions(data: string): any {
         if (total === 0) return { records: [], total: 0 };
 
         const firstRow = getTransactionsRowStart();
-        const keyColumns = sheet.getRange(firstRow, 1, total, 3).getValues(); // id, student, period
-        const lastId = Number(keyColumns[total - 1][0]);
+        const lastId = readTransactionIdAt(sheet, total - 1); // one cell: enough to know whether the cached history is still current
         const wantedName = normalizeTransactionText(name);
         const wantedPeriod = period.replace(/\D/g, "");
 
@@ -629,6 +704,7 @@ function portalGetTransactions(data: string): any {
             }
         } catch (cacheError) { /* rebuild below */ }
 
+        const keyColumns = sheet.getRange(firstRow, 1, total, 3).getValues(); // id, student, period (only read when the cache missed)
         const matchedIndexes: number[] = [];
         keyColumns.forEach((row, index) => {
             if (normalizeTransactionText(row[1]) === wantedName && String(row[2]) === wantedPeriod) matchedIndexes.push(index);
@@ -704,6 +780,10 @@ function findPortalStudent_(name: string, period: string): PortalStudentRow | nu
  * @param data JSON string: { name, period, amount }
  */
 function portalDeposit(data: string): PortalActionResult {
+    return withFreshDashboard_(portalDepositCore_(data), data);
+}
+
+function portalDepositCore_(data: string): PortalActionResult {
     try {
         const request = JSON.parse(data);
         const name = String(request.name ?? "");
@@ -734,6 +814,10 @@ function portalDeposit(data: string): PortalActionResult {
  * @param data JSON string: { name, period }
  */
 function portalWithdraw(data: string): PortalActionResult {
+    return withFreshDashboard_(portalWithdrawCore_(data), data);
+}
+
+function portalWithdrawCore_(data: string): PortalActionResult {
     try {
         const request = JSON.parse(data);
         const name = String(request.name ?? "");
@@ -763,6 +847,7 @@ function portalWithdraw(data: string): PortalActionResult {
 
 /** All requests in the "Expenditure Requests" tab. */
 function readPortalRequests_(): PortalRequestRecord[] {
+    if (portalRequestsMemo) return portalRequestsMemo;
     const requestsSheet = getSheetNamed(PORTAL_REQUESTS_SHEET);
     if (!requestsSheet || requestsSheet.getLastRow() < 2) return [];
 
@@ -805,7 +890,7 @@ function findPortalRequestRow_(requestId: number): number {
  * @param data JSON string: { name, period, itemName, quantity }
  */
 function portalRequestExpenditure(data: string): PortalActionResult {
-    return runWithTransactionLock(() => portalRequestExpenditureInsideLock_(data), failure_("The bank is busy right now. Please try again in a moment."));
+    return withFreshDashboard_(runWithTransactionLock(() => portalRequestExpenditureInsideLock_(data), failure_("The bank is busy right now. Please try again in a moment.")), data);
 }
 
 function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
@@ -849,6 +934,10 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
  * @param data JSON string: { name, period, id }
  */
 function portalCancelRequest(data: string): PortalActionResult {
+    return withFreshDashboard_(portalCancelRequestCore_(data), data);
+}
+
+function portalCancelRequestCore_(data: string): PortalActionResult {
     return runWithTransactionLock(() => {
         try {
             const request = JSON.parse(data);

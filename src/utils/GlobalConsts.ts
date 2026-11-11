@@ -185,4 +185,6 @@ const PORTAL_DOMAIN_PROPERTY: string = "PORTAL_ALLOWED_DOMAIN"; // Script Proper
 const PORTAL_EXPERIMENTAL: boolean = true; // true: the student portal is labelled EXPERIMENTAL in Banking Settings and on the page. Set to false once it is stable.
 const PORTAL_ACTION_MIN_GAP_MS: number = 1000; // server side: least time between two actions (invest, withdraw, request, undo...) of one person
 const PORTAL_ACTIONS_PER_MINUTE: number = 20; // server side: most actions one person may run per minute
+const PORTAL_ROSTER_CACHE_KEY: string = "portalRosterIndex"; // script cache entry holding who is on which period tab
+const PORTAL_ROSTER_CACHE_SECONDS: number = 300; // how long a roster stays remembered (filling the sheets clears it at once)
 const PORTAL_READS_PER_MINUTE: number = 90; // server side: most dashboard / history loads one person may run per minute

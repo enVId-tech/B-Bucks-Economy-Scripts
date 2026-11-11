@@ -50,4 +50,5 @@ function getSheetNamed(name: string): GoogleAppsScript.Spreadsheet.Sheet | null 
 function resetSheetMemo(): void {
     sheetMemo.sheets = null;
     sheetMemo.byName = null;
+    invalidatePortalRosterCache_(); // tabs were added, removed or renamed, so the portal's roster may have changed
 }

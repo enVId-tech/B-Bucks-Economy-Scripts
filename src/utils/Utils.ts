@@ -93,6 +93,7 @@ function findStudentIdColumnConflict_(sheet: GoogleAppsScript.Spreadsheet.Sheet,
 /** Makes sure the ID column exists, writes the IDs next to the names and hides the column so only editors can see it. */
 function writeStudentIds_(sheet: GoogleAppsScript.Spreadsheet.Sheet, firstRow: number, ids: string[]): void {
     if (ids.length === 0 || !ids.some(id => id)) return;
+    invalidatePortalRosterCache_(); // the student IDs the portal matches emails against are changing
 
     const idColumn = getStudentIdColumn();
     if (sheet.getMaxColumns() < idColumn) sheet.insertColumnsAfter(sheet.getMaxColumns(), idColumn - sheet.getMaxColumns());
