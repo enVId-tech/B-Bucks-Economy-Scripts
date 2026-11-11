@@ -385,6 +385,43 @@
                 </div>
             </div>
 
+            <!-- U8b. STUDENT PORTAL -->
+            <div id="u-portal" class="doc-section" data-audience="user" data-title="Student Portal" data-icon="🎓">
+                <div class="section-card">
+                    <h2>Student Portal</h2>
+                    <p>One link for everyone. Students sign in with their school Google account and see their own balance, can invest, request purchases and watch the class leaderboard. You open the same link and can spectate any student and approve requests.</p>
+
+                    <h3 id="u-portal-setup">Setting it up</h3>
+                    <ol class="steps">
+                        <li>Menu → <strong>Set Portal Domain</strong>. Enter the email domain your students sign in with. It is stored in the project's Script Properties, never in the code.</li>
+                        <li>Menu → <strong>Create Portal Tabs</strong>. This adds the <code>Portal Accounts</code> and <code>Expenditure Requests</code> tabs.</li>
+                        <li>In the Apps Script editor choose <strong>Deploy → New deployment → Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone in your organization</strong>. Share the link it gives you.</li>
+                    </ol>
+                    <div class="callout callout-danger">
+                        <strong>Execute as "Me" is required.</strong> Students never get access to the spreadsheet itself; the portal works for them on your behalf and only ever shows or changes their own account.
+                    </div>
+
+                    <h3 id="u-portal-link">How a student is found</h3>
+                    <p>The sheet has names, not emails, so the portal links them in two ways:</p>
+                    <ul>
+                        <li><strong>Portal Accounts tab (always wins):</strong> one row per student with Email, Period (<code>3</code> or <code>Period 3</code>) and Name exactly as on the Period tab. A student on two Period tabs gets two rows and a switcher at the top.</li>
+                        <li><strong>Automatic match:</strong> if the email is not listed, the part before the @ must contain the student's first name and whole last name (for example <code>jane.doe</code> or <code>janedoe27</code>). It only links when exactly one person matches. Two students who would both match are never guessed; add them to the tab instead.</li>
+                    </ul>
+                    <p>A student whose email matches nobody sees a friendly "ask your teacher" message.</p>
+
+                    <h3 id="u-portal-student">What students can do</h3>
+                    <ul>
+                        <li><strong>Home:</strong> balance, CoD, spending and recent activity.</li>
+                        <li><strong>Invest:</strong> invest cash, withdraw once the withdrawal window is over, and use the same earnings predictor as Investment Banking. Students can never use the admin override.</li>
+                        <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and requests that are still waiting also count against them.</li>
+                        <li><strong>Leaderboard:</strong> the top ten of their period plus their own rank (cash plus CoD value, names shortened to first name and last initial).</li>
+                    </ul>
+
+                    <h3 id="u-portal-admin">Approving requests and spectating</h3>
+                    <p>If you can edit the spreadsheet, the portal shows an <strong>Admin</strong> tab. Pick any period and student to see their dashboard (read-only, with a banner). The request list shows pending requests first. <strong>Approve</strong> charges the student exactly like the Services dialog (logged, counted against the caps, undoable in Transaction Records) after checking the price, balance and caps again. <strong>Deny</strong> charges nothing. An optional note is saved with the request.</p>
+                </div>
+            </div>
+
             <!-- U9. TROUBLESHOOTING -->
             <div id="u-help" class="doc-section" data-audience="user" data-title="Troubleshooting &amp; FAQ" data-icon="🛟">
                 <div class="section-card">
@@ -522,6 +559,41 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <div class="callout callout-warning">
                         Always smoke-test in a <em>copy</em> of the sheet before deploying to the live one.
                     </div>
+                </div>
+            </div>
+
+            <div id="d-portal" class="doc-section" data-audience="dev" data-title="Student Portal" data-icon="🎓">
+                <div class="section-card">
+                    <h2>Student Portal</h2>
+                    <p>A web app served by <code>doGet()</code> in <code>utils/PortalUtils.ts</code>, rendered by <code>Portal.html</code> with <code>styles/Portal.html</code>. <code>appsscript.json</code> declares <code>executeAs: USER_DEPLOYING</code> and <code>access: DOMAIN</code>.</p>
+
+                    <h3 id="d-portal-security">Security model</h3>
+                    <ul>
+                        <li>The caller is read only from <code>Session.getActiveUser()</code>. Nothing the browser sends decides who someone is.</li>
+                        <li>Every endpoint re-checks the caller. Students may only use profiles linked to their email; admins (spreadsheet editors and owner) may read any student but spectating never writes.</li>
+                        <li>The allowed domain is the Script Property named by <code>PORTAL_DOMAIN_PROPERTY</code>, read through <code>getPortalAllowedDomain()</code> in <code>Config.ts</code>. It is never written in source. With no domain set, only admins can open the portal.</li>
+                        <li>The page builds every element with <code>textContent</code>, so item names or student names can never inject markup.</li>
+                    </ul>
+
+                    <h3 id="d-portal-api">Endpoints</h3>
+                    <table class="doc-table">
+                        <tr><th>Function</th><th>Who</th><th>What</th></tr>
+                        <tr><td><code>portalBootstrap</code></td><td>anyone</td><td>Status (ok, signin, wrongDomain, notConfigured), linked profiles, admin directory.</td></tr>
+                        <tr><td><code>portalGetDashboard</code></td><td>owner of the profile, or admin (read-only)</td><td>Balance, CoD, lockout, catalog with caps left, requests, recent log entries, leaderboard, predictor inputs.</td></tr>
+                        <tr><td><code>portalDeposit</code>, <code>portalWithdraw</code></td><td>owner of the profile</td><td>Call <code>handleDeposit</code> / <code>handleWithdraw</code> with override always false. The withdrawal lockout, which the admin dialog only checks in its page code, is enforced here on the server.</td></tr>
+                        <tr><td><code>portalRequestExpenditure</code>, <code>portalCancelRequest</code></td><td>owner of the profile</td><td>Write or cancel a row in the Expenditure Requests tab. Nothing is charged yet.</td></tr>
+                        <tr><td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code></td><td>admin</td><td>Approve charges through <code>applyMathToSelection</code> on the Expenditures cell, inside the transaction lock.</td></tr>
+                    </table>
+
+                    <h3 id="d-portal-alerts">log() inside a web app</h3>
+                    <p>There is no spreadsheet window to alert in a web request. While a portal action runs, <code>portalCapturedMessages</code> collects what <code>log(message, true)</code> would have alerted and the action returns it to the student. Outside the portal the behaviour is unchanged.</p>
+
+                    <h3 id="d-portal-notes">Things to know</h3>
+                    <ul>
+                        <li>Pending requests count against Max/Person and Max/Class so students cannot queue more than the cap allows. Approval re-checks everything, since price, balance or caps may have changed.</li>
+                        <li>The predictor is the same straight-line projection as Investment Banking: principal + principal x weekly rate x week, for the weeks left before investing ends.</li>
+                        <li>Investing is refused outside the start and end investing dates when they are set.</li>
+                    </ul>
                 </div>
             </div>
 
