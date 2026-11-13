@@ -31,6 +31,7 @@
  *   5. Reading data for the page .. portalBootstrap, buildPortalDashboard_ (the dashboard), portalGetTransactions (the history).
  *   6. Student actions ............ authorizeProfileAction_, then portalDeposit / portalWithdraw / portalRequestExpenditure / portalCancelRequest.
  *   7. Admin actions .............. list, approve or deny, mark completed (charges + logs a transaction), unmark completed (undoes it).
+ *   7b. Class history ............. the student's History tab: their period's recorded metrics plus you versus the class average.
  *   8. Public entry points ........ the bottom of the file: the only functions the browser calls, each wrapped in runTrusted_.
  *
  * Life of ONE click, so you know where to look when something breaks:
@@ -796,7 +797,7 @@ function portalGetTransactionsEntry_(data: string): any {
         const wantedPeriod = period.replace(/\D/g, "");
 
         const cache = CacheService.getScriptCache();
-        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, `${wantedName}|${wantedPeriod}`, Utilities.Charset.UTF_8);
+        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, `${wantedName}|${wantedPeriod}|${getTransactionLogEpoch_()}`, Utilities.Charset.UTF_8);
         const cacheKey = `portalHistory:${Utilities.base64EncodeWebSafe(digest)}`;
         try {
             const cachedText = cache.get(cacheKey);
@@ -1320,6 +1321,115 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
+// Class history (the student's "History" tab)
+// ---------------------------------------------------------------------------------------------------------------------------
+
+/** How long a period's stored history is reused (seconds). It only changes when the daily recorder runs. */
+const PORTAL_CLASS_HISTORY_CACHE_SECONDS: number = 600;
+/** How long a period's live point is reused (seconds). Computing it re-evaluates the period formulas, which is slow. */
+const PORTAL_CLASS_LIVE_CACHE_SECONDS: number = 300;
+
+/** One cache key per period for the class history ("stored" or "live"). */
+function classHistoryCacheKey_(kind: "stored" | "live", period: string): string {
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, period, Utilities.Charset.UTF_8);
+    return `portalClassHistory:${kind}:${Utilities.base64EncodeWebSafe(digest)}`;
+}
+
+/** Keeps only one period's records (the admin analytics holds every period; a student must only ever receive their own). Drops fields the page does not need. */
+function onlyPeriodRecords_(records: HistoricalRecord[], period: string): any[] {
+    return records
+        .filter(record => String(record.sheet).trim() === period)
+        .map(record => ({ day: record.day, ts: record.ts, dateStr: record.dateStr, source: record.source, metrics: record.metrics }));
+}
+
+/**
+ * The same numbers the admin "Historical Analytics" chart uses, but ONLY for one period: { headers, records, liveError? }.
+ * Stored snapshots come first (cached); the live point is optional because it is slow (cached too).
+ * @param includeLive true to add the point computed right now.
+ */
+function readClassHistory_(period: string, includeLive: boolean): { headers: MetricHeader[]; records: any[]; liveError?: string } {
+    const cache = CacheService.getScriptCache();
+    let stored: { headers: MetricHeader[]; records: any[] } | null = null;
+    try {
+        const hit = cache.get(classHistoryCacheKey_("stored", period));
+        if (hit) stored = JSON.parse(hit);
+    } catch (e) { /* a broken cache entry is just a miss */ }
+
+    if (!stored) {
+        const payload: HistoricalRecordPayload = JSON.parse(fetchHistoricalRecordbookData(JSON.stringify({ includeLive: false })));
+        stored = { headers: payload.headers, records: onlyPeriodRecords_(payload.records, period) };
+        try {
+            const text = JSON.stringify(stored);
+            if (text.length < 90000) cache.put(classHistoryCacheKey_("stored", period), text, PORTAL_CLASS_HISTORY_CACHE_SECONDS);
+        } catch (e) { /* too big or cache unavailable: fine */ }
+    }
+    if (!includeLive) return { headers: stored.headers, records: stored.records };
+
+    let liveRecords: any[] | null = null;
+    let liveError: string | undefined;
+    try {
+        const hit = cache.get(classHistoryCacheKey_("live", period));
+        if (hit) liveRecords = JSON.parse(hit);
+    } catch (e) { /* miss */ }
+
+    if (!liveRecords) {
+        const live = JSON.parse(fetchLiveHistoricalPoint());
+        liveError = live.meta && live.meta.liveError;
+        liveRecords = onlyPeriodRecords_(live.records || [], period);
+        if (!liveError && liveRecords.length > 0) {
+            try { cache.put(classHistoryCacheKey_("live", period), JSON.stringify(liveRecords), PORTAL_CLASS_LIVE_CACHE_SECONDS); } catch (e) { /* fine */ }
+        }
+    }
+    return { headers: stored.headers, records: stored.records.concat(liveRecords), ...(liveError ? { liveError } : {}) };
+}
+
+/**
+ * Where one student stands against their class right now: their balance and total (balance plus a positive CoD gain, the same number the
+ * leaderboard ranks by) next to the class averages. Only averages and the class size leave the server, never other students' numbers.
+ */
+function buildClassComparison_(student: PortalStudentRow, classmates: PortalStudentRow[]): any {
+    const totalOf = (row: PortalStudentRow): number => row.balance + (row.netGain > 0 ? row.netGain : 0);
+    const average = (values: number[]): number => values.length === 0 ? 0 : Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2));
+    return {
+        classSize: classmates.length,
+        you: { balance: Number(student.balance.toFixed(2)), total: Number(totalOf(student).toFixed(2)) },
+        classAverage: { balance: average(classmates.map(row => row.balance)), total: average(classmates.map(totalOf)) }
+    };
+}
+
+/**
+ * The "History" tab: the period's recorded metrics (the admin's Historical Analytics, limited to the student's own period) plus the
+ * you-versus-class-average comparison.
+ * @param data JSON string: { name, period, includeLive?: boolean }. The comparison is always fresh; the history is cached per period.
+ */
+function portalGetClassHistoryEntry_(data: string): any {
+    try {
+        const request = JSON.parse(data);
+        const name = String(request.name ?? "");
+        const period = String(request.period ?? "");
+        const includeLive = request.includeLive === true;
+
+        const identity = resolvePortalIdentity_();
+        if (identity.status !== "ok") return { error: "You are not signed in." };
+        const readLimit = checkPortalRate_(identity.email, "read");
+        if (readLimit) return { error: readLimit };
+        if (!ownsPortalProfile_(findPortalProfiles_(identity), name, period) && !identity.isAdmin) return { error: "That account is not linked to your email." };
+
+        const periodSheet = getSheetNamed(period);
+        if (!periodSheet) return { error: "Your class was not found." };
+        const classmates = readPortalPeriod_(periodSheet);
+        const student = classmates.find(row => row.name === name);
+        if (!student) return { error: "Your account was not found." };
+
+        const history = readClassHistory_(period, includeLive);
+        return { period, comparison: buildClassComparison_(student, classmates), headers: history.headers, records: history.records, ...(history.liveError ? { liveError: history.liveError } : {}) };
+    } catch (error: any) {
+        log(`Error in portalGetClassHistory: ${error.message}`, false);
+        return { error: "The class history could not load. Please try again in a moment." };
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
 // Public entry points. Each one checks the caller itself, so the code below runs trusted (see utils/AccessGuard.ts): a student has to be
 // able to invest or request through the admin handlers without being a spreadsheet editor.
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -1330,6 +1440,8 @@ function portalBootstrap(): any { return runTrusted_(() => portalBootstrapEntry_
 function portalGetDashboard(data: string): any { return runTrusted_(() => portalGetDashboardEntry_(data)); }
 /** Browser entry: every transaction of one account (cached). Payload JSON { name, period }. */
 function portalGetTransactions(data: string): any { return runTrusted_(() => portalGetTransactionsEntry_(data)); }
+/** Browser entry: the History tab (the period's recorded metrics plus you versus the class average). Payload JSON { name, period, includeLive }. */
+function portalGetClassHistory(data: string): any { return runTrusted_(() => portalGetClassHistoryEntry_(data)); }
 /** Browser entry: invest cash. Payload JSON { name, period, amount }. */
 function portalDeposit(data: string): PortalActionResult { return runTrusted_(() => portalDepositEntry_(data)); }
 /** Browser entry: withdraw the CoD. Payload JSON { name, period }. */

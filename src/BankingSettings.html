@@ -96,6 +96,15 @@
                         onclick="callServer('resetHistoricalRecords')">Reset All Economic Records</button>
                 </div>
 
+                <label class="label-normal"><strong>Transaction Log Repair</strong></label>
+                <div class="repair-help">Finds log rows whose reported balance change does not match the cell that changed (wrong amount or flipped sign) and rebuilds them. Only the "balance after" of the log is rewritten, never a student's real balance, and every old value is saved on the "Transaction Repair Backup" tab.</div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="scanTransactionLogBtn" onclick="scanTransactionLogRows()">Scan Transaction Log</button>
+                    <button class="btn btn-success" id="repairTransactionLogBtn" disabled onclick="repairTransactionLogRows()">Repair Fixable Rows</button>
+                </div>
+                <button class="btn btn-danger" id="undoTransactionRepairBtn" onclick="undoLastTransactionRepair()">Undo Last Repair</button>
+                <div id="repairReport" class="repair-report display-none"></div>
+
                 <label class="label-normal"><strong>Reset All</strong></label>
                 <button class="btn btn-danger" id="resetAllBtn" onclick="callServer('resetAll')">Reset ALL
                     Sheets</button>
@@ -197,6 +206,90 @@
                 alert(message);
             } catch (e) {
                 alert('Could not change cache warming: ' + (e && e.message ? e.message : e));
+            }
+        }
+
+        // ------------------------------------------------------------------ Transaction Log Repair
+        // Three buttons: scan (read only) -> repair (rewrites "balance after" of the fixable rows, with a backup) -> undo last repair.
+        // The server work is in utils/TransactionRepair.ts; this only shows what it reports.
+
+        /** Turns the three repair buttons on or off while the server works. */
+        function setRepairBusy(isBusy, label) {
+            ['scanTransactionLogBtn', 'repairTransactionLogBtn', 'undoTransactionRepairBtn'].forEach(id => { document.getElementById(id).disabled = isBusy; });
+            const report = document.getElementById('repairReport');
+            if (isBusy) { report.replaceChildren(document.createTextNode(label)); setElementDisplay(report, 'block'); }
+        }
+
+        /** Draws a one-line message (and optional rows) in the report box. */
+        function showRepairReport(lines, rows) {
+            const report = document.getElementById('repairReport');
+            report.replaceChildren();
+            lines.forEach(text => { const line = document.createElement('div'); line.textContent = text; report.appendChild(line); });
+            if (rows && rows.length) {
+                const table = document.createElement('table');
+                table.className = 'repair-table';
+                const head = table.insertRow();
+                ['ID', 'Student', 'What it says now', 'Rebuilt to', 'Problem'].forEach(label => { const cell = document.createElement('th'); cell.textContent = label; head.appendChild(cell); });
+                const money = value => (typeof value === 'number' ? (value < 0 ? '-$' : '+$') + Math.abs(value).toFixed(2) : 'needs review');
+                rows.forEach(row => {
+                    const tr = table.insertRow();
+                    [row.id, row.student + ' (' + row.period + ')', money(row.reportedChange), money(row.expectedChange), row.kind === 'wrongSign' ? 'Wrong sign' : row.kind === 'wrongChange' ? 'Wrong amount' : 'Review'].forEach(text => { tr.insertCell().textContent = text; });
+                    tr.title = row.description + ' - ' + row.reason;
+                });
+                report.appendChild(table);
+            }
+            setElementDisplay(report, 'block');
+        }
+
+        /** Step 1: reads the log and lists the rows that disagree with their changed cell. Changes nothing. */
+        async function scanTransactionLogRows() {
+            setRepairBusy(true, 'Scanning the transaction log...');
+            document.getElementById('repairTransactionLogBtn').disabled = true;
+            try {
+                const result = JSON.parse(await callServerAsync('scanTransactionLog'));
+                if (!result.ok) { showRepairReport(['The scan failed: ' + result.message]); return; }
+                const counts = result.counts;
+                const lines = ['Checked ' + result.rowsChecked + ' rows: ' + counts.wrongChange + ' wrong amount, ' + counts.wrongSign + ' wrong sign, ' + counts.review + ' to review by hand (never changed automatically).'];
+                if (result.repairable > 0) lines.push(result.repairable + ' row(s) can be rebuilt. Hover a row for details' + (result.preview.length < counts.wrongChange + counts.wrongSign + counts.review ? '; the first ' + result.previewLimit + ' are listed.' : '.'));
+                else lines.push('Nothing needs repairing.');
+                showRepairReport(lines, result.preview);
+                window.repairableRows = result.repairable;
+            } catch (error) {
+                showRepairReport(['The scan failed: ' + (error && error.message ? error.message : error)]);
+            } finally {
+                ['scanTransactionLogBtn', 'undoTransactionRepairBtn'].forEach(id => { document.getElementById(id).disabled = false; });
+                document.getElementById('repairTransactionLogBtn').disabled = !(window.repairableRows > 0);
+            }
+        }
+
+        /** Step 2: rebuilds the fixable rows (after the server backs up their old values). */
+        async function repairTransactionLogRows() {
+            if (!confirm('Rebuild ' + window.repairableRows + ' log row(s)? Their old values are saved on the "Transaction Repair Backup" tab and can be restored with "Undo Last Repair".')) return;
+            setRepairBusy(true, 'Repairing the transaction log...');
+            try {
+                const result = JSON.parse(await callServerAsync('repairTransactionLog'));
+                showRepairReport([result.message]);
+                window.repairableRows = 0;
+            } catch (error) {
+                showRepairReport(['The repair failed: ' + (error && error.message ? error.message : error)]);
+            } finally {
+                ['scanTransactionLogBtn', 'undoTransactionRepairBtn'].forEach(id => { document.getElementById(id).disabled = false; });
+                document.getElementById('repairTransactionLogBtn').disabled = true;
+            }
+        }
+
+        /** Step 3: puts back the values of the most recent repair from the backup tab. */
+        async function undoLastTransactionRepair() {
+            if (!confirm('Put back the values of the most recent repair?')) return;
+            setRepairBusy(true, 'Restoring the previous values...');
+            try {
+                const result = JSON.parse(await callServerAsync('undoTransactionRepair'));
+                showRepairReport([result.message]);
+            } catch (error) {
+                showRepairReport(['The undo failed: ' + (error && error.message ? error.message : error)]);
+            } finally {
+                ['scanTransactionLogBtn', 'undoTransactionRepairBtn'].forEach(id => { document.getElementById(id).disabled = false; });
+                document.getElementById('repairTransactionLogBtn').disabled = true;
             }
         }
 

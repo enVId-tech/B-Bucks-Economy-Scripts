@@ -375,6 +375,9 @@
                         <tr><td>Import All Students</td><td><span class="pill-bad">destructive</span></td><td>Rebuilds the Period tabs listed in a roster file from the Template (existing balances on those tabs are lost) and stores student IDs. See <a href="#" onclick="openDoc('u-setup');return false;">First-Time Setup</a>.</td></tr>
                         <tr><td>Save to New Sheet Tab</td><td><span class="pill-ok">safe</span></td><td>Copies the Historical Records sheet to a new "Records_…" tab (a backup; it stays in the charts).</td></tr>
                         <tr><td>Reset All Economic Records</td><td><span class="pill-bad">destructive</span></td><td>Clears the Historical Records history. Save a copy first.</td></tr>
+                        <tr><td>Scan Transaction Log</td><td><span class="pill-ok">safe</span></td><td>Reads the whole log and lists rows whose reported balance change disagrees with the cell that changed (the wrong amount, or the wrong sign such as an income that reads "-$28.70"). Changes nothing.</td></tr>
+                        <tr><td>Repair Fixable Rows</td><td><span class="pill-ok">safe</span></td><td>Rebuilds the "balance after" of the rows the scan found, using the changed cell as the truth. Only the log's report changes, never a student's real balance. The old values are first saved on the "Transaction Repair Backup" tab. Rows marked "review" (where the changed cell itself looks wrong) are never touched.</td></tr>
+                        <tr><td>Undo Last Repair</td><td><span class="pill-ok">safe</span></td><td>Puts back the old values of the most recent repair from the backup tab.</td></tr>
                         <tr><td>Reset All Money</td><td><span class="pill-bad">destructive</span></td><td>Sets every student's money columns back to zero.</td></tr>
                         <tr><td>Clear All Transaction Records</td><td><span class="pill-bad">destructive</span></td><td>Deletes the entire transaction history (and its cached copy).</td></tr>
                         <tr><td>Reset by column</td><td><span class="pill-bad">destructive</span></td><td>Clears one column for everyone: account holders, earnings, expenditures, returns, or investment deposits/dates.</td></tr>
@@ -416,6 +419,7 @@
                         <li><strong>Invest:</strong> invest cash, withdraw once the withdrawal window is over, and use an earnings predictor like the one in Investment Banking. The portal's predictor also applies the Investment Withdraw Tax from Settings, so each week shows the value before tax and the value after tax (what the student would really get on withdrawing). Students can never use the admin override.</li>
                         <li><strong>Spend:</strong> request something from the current quarter's price list. Remaining Max/Person and Max/Class counts are shown, and each item shows <strong>Balance before &rarr; after</strong> for the quantity chosen (red, with the amount of debt, when it would go below zero; a request is still allowed then, your teacher decides), and requests that are still waiting also count against them. <strong>Your spending</strong> is a read-only record of every log row of type Expense for that student (reversed ones are kept but struck through). Nothing in it can be undone from the portal. Students can cancel a request only while it is still pending. A student is charged when you mark the request completed, not when you approve it. A student can ask for at most <strong>10</strong> of something per request and can have at most <strong>5</strong> requests waiting for a decision at once, so the list cannot be flooded. Each item has an optional <strong>Add a note</strong> box where the student can write the details in a paragraph (up to 1000 characters). Requests show a status: Pending, Approved, Completed, Denied or Cancelled.</li>
                         <li><strong>Leaderboard:</strong> the top ten of their period plus their own rank (cash plus CoD value, names shortened to first name and last initial).</li>
+                        <li><strong>History:</strong> the class records you keep in Historical Analytics, but only for the student's own period. A card compares the student with the class: cash balance and total (balance plus investment gain) next to the class average, with bars and "$X above / below the class average". Only the average is shown, never another student's numbers. Below it the student can switch the same settings you have in the admin chart: which columns to show (tap to turn on or off), linear or logarithmic scale, a from and to date, whether to add today's live value (the diamond), and optional lines for "You now" and "Class average now". Reset filters returns to the first column. Nothing is stored about an individual student per day: the history is the class-level data you already keep, and the student's own number is only their live balance. The history is read from the Historical Records sheet and its archived Records_ tabs, so it only has data once the daily recorder (or Save to New Sheet Tab) has run.</li>
                     </ul>
 
                     <h3 id="u-portal-admin">Approving requests and acting in a student's account</h3>
@@ -485,6 +489,7 @@
     ├─ TransactionCache.ts  rolling block cache + paged queries
     ├─ QuarterUtils.ts      date -> current quarter
     ├─ HistoricalAnalytics.ts   archive merge + live snapshot
+    ├─ TransactionRepair.ts scan / repair / undo wrong log amounts
     └─ OnLoadData.ts        menu, dialogs, bootstrap, daily snapshot
     ▲
     │ google.script.run  (JSON in / JSON out)
@@ -593,6 +598,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr><th>Function</th><th>Who</th><th>What</th></tr>
                         <tr><td><code>portalBootstrap</code></td><td>anyone</td><td>Status (ok, signin, wrongDomain, notConfigured), linked profiles, admin directory.</td></tr>
                         <tr><td><code>portalGetDashboard</code></td><td>owner of the profile, or admin</td><td>Balance, CoD, lockout, catalog with caps left, requests, leaderboard, predictor inputs.</td></tr>
+                        <tr><td><code>portalGetClassHistory</code></td><td>owner of the profile, or admin</td><td>The period's recorded metrics (the same data as the admin Historical Analytics, filtered to the one period) plus the you-versus-average comparison. Never returns another period's rows or any other student's balance.</td></tr>
                         <tr><td><code>portalGetTransactions</code></td><td>owner of the profile, or admin</td><td>Every log row of that student, newest first, with a flag for purchases that were undone. Two sheet reads however long the log is (columns A to C, then one block), cached until the log gets a new row.</td></tr>
                         <tr><td><code>portalDeposit</code>, <code>portalWithdraw</code></td><td>owner of the profile</td><td>Call <code>handleDeposit</code> / <code>handleWithdraw</code> with override always false. The withdrawal lockout, which the admin dialog only checks in its page code, is enforced here on the server.</td></tr>
                         <tr><td><code>portalRequestExpenditure</code>, <code>portalCancelRequest</code></td><td>owner of the profile</td><td>Write or cancel a row in the Expenditure Requests tab. Nothing is charged yet.</td></tr>
@@ -686,6 +692,15 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                     <p><strong>Debt and limits.</strong> Requests, approvals and completions never refuse for a low balance: <code>checkPortalPurchase_</code> checks only price and caps, and <code>debtNote_</code> / <code>balanceAfterPurchase_</code> add the "puts you in debt" warning to the message (investing still refuses without cash). The page draws the same before/after line with <code>balanceChangeLine</code>; <code>portalAdminListRequests</code> adds <code>balanceNow</code> and <code>balanceAfter</code> to every request still to be charged. Spam limits are <code>PORTAL_MAX_REQUEST_QUANTITY</code> (10 per request) and <code>PORTAL_MAX_OPEN_REQUESTS</code> (5 Pending per student, counted in <code>portalRequestExpenditureInsideLock_</code>); keep <code>MAX_REQUEST_QUANTITY</code> and <code>MAX_OPEN_REQUESTS</code> at the top of <code>Portal.html</code> equal to them.</p>
                     <p>The link between a request and the money is the <code>Transaction IDs</code> column. <code>Payment</code> says where the request is: <code>Due</code> (approved, not charged), <code>Paid</code> (charged, ids saved) or empty (a request from before the column existed: it was charged when it was approved, so completing it moves no money and unmarking it only changes the status). If an admin undoes the charge by hand in Transaction Records, <code>portalAdminUncompleteRequestEntry_</code> notices (<code>findRecordsNoLongerInEffect</code>) and only changes the status, because a second undo would be refused.</p>
                     <p>Once Approved, a student can no longer cancel. Caps: <code>requestReservesUnits_</code> counts both Pending and Approved-and-Due requests, so approved work that has not been charged yet cannot be oversold.</p>
+
+                    <h3 id="d-portalalgo-classhistory">The class history tab (<code>portalGetClassHistory</code>)</h3>
+                    <ol>
+                        <li>Same caller checks as the transaction history: signed in, read rate limit, and the profile must be the caller's (or the caller is an admin).</li>
+                        <li><code>buildClassComparison_</code> reads the period roster fresh and returns only <code>you</code> (balance, total), <code>classAverage</code> (balance, total) and <code>classSize</code>. Total is balance plus a positive CoD gain, the same number the leaderboard ranks by.</li>
+                        <li><code>readClassHistory_</code> calls the admin functions <code>fetchHistoricalRecordbookData</code> (stored snapshots) and <code>fetchLiveHistoricalPoint</code> (the slow live point) and keeps only rows whose <code>sheet</code> equals the student's period (<code>onlyPeriodRecords_</code>). That filter is the privacy boundary: the admin payload holds every period.</li>
+                        <li>Both parts are cached per period (<code>portalClassHistory:stored:&lt;hash&gt;</code> for 10 minutes, <code>portalClassHistory:live:&lt;hash&gt;</code> for 5 minutes). The page asks twice: first without the live point so the chart appears quickly, then with it.</li>
+                    </ol>
+                    <p>The page (<code>renderClassHistory</code> in <code>Portal.html</code>) holds the controls in <code>classHistoryState</code> and draws a plain SVG chart in <code>drawClassChart</code> (no chart library). Changing a control only redraws; it never calls the server. One point per day: the newest snapshot of that day wins, like the admin chart. The metric names come from the header row of the Historical Records sheet, so a column you add there shows up for students by itself.</p>
 
                     <h3 id="d-portalalgo-invest">Deposit and withdraw rules</h3>
                     <ul>
@@ -792,6 +807,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr><td><code>utils/ExpenditureNotesUtils.ts</code></td><td>The note on each Expenditures cell, rebuilt from the log.</td></tr>
                         <tr><td><code>utils/QuarterUtils.ts</code></td><td>Which quarter (Q1 to Q4) a moment falls in.</td></tr>
                         <tr><td><code>utils/OnLoadData.ts</code>, <code>WarmCache.ts</code>, <code>SheetMemo.ts</code>, <code>LockUtils.ts</code></td><td>Server cache, daily records, per-execution sheet handles, the money lock.</td></tr>
+                        <tr><td><code>utils/TransactionRepair.ts</code></td><td>Banking Settings "Transaction Log Repair": finds log rows whose balance report disagrees with the changed cell, rebuilds them with a backup, and can undo the repair.</td></tr>
                         <tr><td><code>utils/HistoricalAnalytics.ts</code></td><td>Data for the Historical Analytics chart.</td></tr>
                         <tr><td><code>utils/Utils.ts</code></td><td>Fill Sheet, <code>log()</code>, and the last-modified stamp.</td></tr>
                         <tr><td><code>Portal.html</code> + <code>styles/Portal.html</code></td><td>The student portal page (start with its "MAP OF THIS PAGE'S SCRIPT" comment).</td></tr>
@@ -811,6 +827,7 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr><td>Initial deposit / principal</td><td>The amount first put into the CoD. The maths always starts from it.</td></tr>
                         <tr><td>Gross / net</td><td>CoD value before / after the withdrawal tax.</td></tr>
                         <tr><td>Lockout</td><td>Days after a deposit before the CoD may be withdrawn (Settings, default 14).</td></tr>
+                        <tr><td>Class history</td><td>The period's stored history and live point, cached per period (<code>portalClassHistory:stored:*</code> 10 min, <code>portalClassHistory:live:*</code> 5 min).</td></tr>
                         <tr><td>Roster index</td><td>The cached list of every student with period and ID, used to match emails (<code>portalRosterMemo</code> in memory, <code>portalRosterIndex</code> in the cache).</td></tr>
                         <tr><td><code>portalRequestsMemo</code></td><td>The Expenditure Requests rows, read once per dashboard build and cleared right after.</td></tr>
                         <tr><td><code>portalCapturedMessages</code></td><td>Collects messages that <code>log(message, true)</code> would have shown as alerts, so a portal action can return them to the student.</td></tr>
@@ -874,6 +891,14 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <li>What a row shows and which buttons it has: <code>buildRequestRow</code>. Every button goes through <code>runRequestAction</code>, which locks the page, calls the server and reloads the board.</li>
                         <li>New field on a request: add the column (see "A sheet column moved or was added"), then show it in <code>buildRequestRow</code>. The list endpoint sends whole records, so nothing else changes.</li>
                         <li>How many requests the page receives: <code>PORTAL_ADMIN_LIST_LIMIT</code> in <code>PortalUtils.ts</code> (the newest ones; the board says when older ones are left out).</li>
+                    </ol>
+
+                    <h3 id="d-recipes-classhistory">Change what the History tab shows</h3>
+                    <ol>
+                        <li>A new metric column: add it to the Historical Records sheet (header row plus the formula). Students see it with no code change.</li>
+                        <li>A new comparison number (for example CoD only): add it to <code>buildClassComparison_</code> and to the list in <code>buildClassCompareCard</code>.</li>
+                        <li>New control: add the field to <code>classHistoryState</code>, a control in <code>buildClassControls</code> and use it in <code>classChartPoints</code> or <code>drawClassChart</code>.</li>
+                        <li>Never send rows of other periods or other students' balances: keep every record going through <code>onlyPeriodRecords_</code>.</li>
                     </ol>
 
                     <h3 id="d-recipes-timing">Tune the timing</h3>
@@ -1107,6 +1132,16 @@ const res = await log.getPage({ page: 3, pageSize: 20, filters: {}, includeStats
                     <p>Every write path (balance edits, services, investments) appends a row via <code>TransactionsUtils.ts</code>, then calls <code>onTransactionsAppended()</code> so the newest block, the index and the stats stay correct without a full invalidation.</p>
                     <h3 id="d-tx-undo">Undo</h3>
                     <p>Undo takes transaction ids, loads exactly those rows with <code>fetchTransactionsByIds(ids)</code> (it does not load the full log), applies the inverse using <code>transactionBalanceChange</code>, and appends a new "Undo transaction ID …" row. Originals are never edited or deleted.</p>
+                    <h3 id="d-tx-repair">Repair (<code>TransactionRepair.ts</code>)</h3>
+                    <p>Each row stores the changed cell before and after (J, K) and the balance before and after (L, M); the portal shows M &minus; L. <code>judgeTransactionRow_</code> computes the expected balance change from J and K (plus for Earnings and Balance, minus for Expenditures; investment, CoD and multiply/divide rows are skipped) and compares it with M &minus; L. The changed cell is only trusted when its step equals price &times; quantity, or that minus the income tax; otherwise the row is only listed as <code>review</code>.</p>
+                    <ol>
+                        <li><code>scanTransactionLog</code>: read only, chunks of <code>TRANSACTION_REPAIR_CHUNK_ROWS</code> rows, returns counts plus a preview of the first 100 problems.</li>
+                        <li><code>repairTransactionLog</code>: under the transaction lock it rescans, writes the old column M values to the <code>Transaction Repair Backup</code> tab (batch id = timestamp), then rewrites column M in one range write (<code>M = L + expected</code>).</li>
+                        <li><code>undoTransactionRepair</code>: restores the newest batch from the backup tab, only where the transaction id on that sheet row still matches.</li>
+                        <li>Both writers call <code>bumpTransactionLogEpoch_</code>: it raises the <code>transactionLogEpoch</code> Script Property (part of the portal's history cache key, because a repair changes neither the row count nor the last id) and clears the transaction caches.</li>
+                    </ol>
+                    <p>To change what counts as a problem, edit <code>judgeTransactionRow_</code> only; the scan, repair and undo all go through it.</p>
+
                     <h3 id="d-tx-reset">Reset</h3>
                     <p>"Clear All Transaction Records" clears the sheet and calls <code>invalidateTransactionCache()</code>.</p>
                     <div class="callout callout-warning">

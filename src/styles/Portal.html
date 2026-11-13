@@ -237,6 +237,29 @@
     .balance-change { font-size: 13px; color: var(--portal-muted); margin: 4px 0; }
     .balance-change.in-debt { color: var(--portal-bad); background: var(--portal-bad-soft); border-radius: 8px; padding: 4px 8px; font-weight: 600; }
     .balance-slot { margin-top: 6px; }
+    /* History tab: you-versus-class bars, metric chips and the SVG line chart. */
+    .cmp-row { padding: 10px 0; border-bottom: 1px solid var(--portal-border); }
+    .cmp-row:last-child { border-bottom: 0; }
+    .cmp-line { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 14px; }
+    .cmp-name { width: 108px; flex: none; color: var(--portal-muted); }
+    .cmp-track { flex: 1 1 auto; height: 12px; border-radius: 999px; background: var(--portal-surface-alt); overflow: hidden; }
+    .cmp-fill { display: block; height: 100%; border-radius: 999px; }
+    .cmp-you { background: var(--portal-accent); }
+    .cmp-average { background: var(--portal-silver); }
+    .cmp-value { width: 96px; flex: none; text-align: right; font-weight: 600; }
+    .cmp-good { color: var(--portal-good); }
+    .cmp-low { color: var(--portal-warn); }
+    .chip-row { margin: 6px 0 12px; gap: 8px; }
+    .chip { border: 2px solid var(--chip-color, var(--portal-border)); background: transparent; color: var(--portal-text); padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; opacity: 0.6; }
+    .chip.active { background: var(--chip-color, var(--portal-accent)); color: #fff; opacity: 1; }
+    .inline-label { align-self: center; margin: 0; }
+    .check-row { display: block; margin: 8px 0; font-weight: 500; }
+    .chart-svg { width: 100%; height: auto; display: block; }
+    .chart-grid { stroke: var(--portal-border); stroke-width: 1; }
+    .chart-label { fill: var(--portal-muted); font-size: 11px; }
+    .chart-legend { margin-top: 8px; gap: 12px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
     /* Admin request board: status tabs, a toolbar (search / period / sort / refresh) and one row per request. */
     .admin-tabs { flex-wrap: wrap; }
     .admin-tabs .segment { flex: 1 1 auto; white-space: nowrap; }

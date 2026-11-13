@@ -51,6 +51,7 @@
      *                                    renderLeaderboard, renderAdmin. Each fills a panel from portalState.dashboard.
      *   6. History ..................... loadHistory fetches every transaction ONCE; search / category / paging only filter that list.
      *   7. Predictor ................... buildPredictorCard, getProjectionPrincipal, buildProjection (the maths), refreshProjection (draws it).
+     *   7b. Class history .............. renderClassHistory (the History tab): loadClassHistory, buildClassCompareCard, buildClassControls, drawClassChart (SVG).
      *   8. Admin ....................... buildRequestBoard (tabs, search, sort), buildRequestRow, loadAdminRequests, runRequestAction (complete / unmark / approve / deny).
      *
      * The data flow is one-directional: the SERVER's answer replaces portalState.dashboard, then renderPortal() redraws everything from it.
@@ -110,13 +111,14 @@
       return result;
     }
 
-    const TAB_ICONS = { home: '\u2302', invest: '\u2197', spend: '\u2610', leaderboard: '\u2605', admin: '\u2699' };
+    const TAB_ICONS = { home: '\u2302', invest: '\u2197', spend: '\u2610', leaderboard: '\u2605', classhistory: '\u2248', admin: '\u2699' };
 
     const STUDENT_TABS = [
       { id: 'home', label: 'Home' },
       { id: 'invest', label: 'Invest' },
       { id: 'spend', label: 'Spend' },
-      { id: 'leaderboard', label: 'Leaderboard' }
+      { id: 'leaderboard', label: 'Leaderboard' },
+      { id: 'classhistory', label: 'History' }
     ];
 
     document.addEventListener('DOMContentLoaded', startPortal);
@@ -480,6 +482,7 @@
       else if (portalState.activeTab === 'invest') renderInvest(panel);
       else if (portalState.activeTab === 'spend') renderSpend(panel);
       else if (portalState.activeTab === 'leaderboard') renderLeaderboard(panel);
+      else if (portalState.activeTab === 'classhistory') renderClassHistory(panel);
       else if (portalState.activeTab === 'admin') renderAdmin(panel);
 
       mainElement().replaceChildren(tabBar, panel);
@@ -1025,6 +1028,274 @@
         ]));
       });
       panel.appendChild(card);
+    }
+
+
+    // ------------------------------------------------------------------ class history (the "History" tab)
+
+    /**
+     * What the History tab remembers. `key` = "name|period" the data belongs to (thrown away when another account opens), `data` = the
+     * server's answer { period, comparison, headers[], records[] } or null until loaded, `loading` = 'stored' | 'live' | '' (what is being fetched).
+     * The rest are the controls, the same ones as the admin's Historical Analytics: `metrics` (selected metric keys), `scale` ('linear' or
+     * 'logarithmic'), `from` / `to` (yyyy-mm-dd or ''), `includeLive` (add the point computed right now), `showReference` (draw "You now" and
+     * "Class average now" lines).
+     */
+    const classHistoryState = { key: '', data: null, error: '', loading: '', metrics: null, scale: 'linear', from: '', to: '', includeLive: true, showReference: true };
+
+    /** Colours for the metric lines (the same order as the admin chart). */
+    const CHART_COLORS = ['#0366d6', '#16a34a', '#dc2626', '#ea580c', '#9333ea', '#0891b2', '#d97706', '#db2777', '#475569'];
+
+    /** Clears the remembered class history when the open account is not the one it was loaded for. */
+    function resetClassHistoryIfAccountChanged() {
+      const key = currentHistoryKey();
+      if (classHistoryState.key === key) return;
+      Object.assign(classHistoryState, { key, data: null, error: '', loading: '', metrics: null, scale: 'linear', from: '', to: '', includeLive: true, showReference: true });
+    }
+
+    /**
+     * Gets the class history from the server in two steps so the page is useful quickly: first the stored snapshots (fast), then the same
+     * again with the live point added (slow, because the server re-evaluates the period formulas; it caches the result for a few minutes).
+     */
+    async function loadClassHistory() {
+      if (!portalState.dashboard || classHistoryState.loading) return;
+      resetClassHistoryIfAccountChanged();
+      const key = classHistoryState.key;
+      const student = portalState.dashboard.student;
+      try {
+        for (const step of ['stored', 'live']) {
+          if (step === 'live' && !classHistoryState.includeLive) break;
+          classHistoryState.loading = step;
+          if (portalState.activeTab === 'classhistory') drawClassHistoryParts();
+          const result = await portalCall('portalGetClassHistory', JSON.stringify({ name: student.name, period: student.period, includeLive: step === 'live' }));
+          if (key !== classHistoryState.key) return; // another account was opened in the meantime
+          if (!result || result.error) { classHistoryState.error = (result && result.error) || 'The class history could not load.'; break; }
+          classHistoryState.data = result;
+          classHistoryState.error = '';
+          if (!classHistoryState.metrics && result.headers.length > 0) classHistoryState.metrics = [result.headers[0].key];
+          if (portalState.activeTab === 'classhistory') drawClassHistoryParts();
+        }
+      } catch (error) {
+        console.error(error);
+        classHistoryState.error = 'The class history could not load. Please try again.';
+      } finally {
+        if (key === classHistoryState.key) { classHistoryState.loading = ''; if (portalState.activeTab === 'classhistory') drawClassHistoryParts(); }
+      }
+    }
+
+    /** Builds the History tab. The three parts (comparison, controls, chart) are drawn into slots by drawClassHistoryParts so controls can redraw just the chart. */
+    function renderClassHistory(panel) {
+      resetClassHistoryIfAccountChanged();
+      const slot = id => { const element = makeElement('div', ''); element.id = id; return element; };
+      panel.appendChild(slot('classCompareSlot'));
+      panel.appendChild(slot('classControlsSlot'));
+      panel.appendChild(slot('classChartSlot'));
+      drawClassHistoryParts();
+      if (!classHistoryState.data && !classHistoryState.loading) loadClassHistory();
+    }
+
+    /** Draws (or redraws) every part of the History tab from classHistoryState. */
+    function drawClassHistoryParts() {
+      const compareSlot = document.getElementById('classCompareSlot');
+      if (!compareSlot) return;
+      compareSlot.replaceChildren(buildClassCompareCard());
+      document.getElementById('classControlsSlot').replaceChildren(buildClassControls());
+      drawClassChart();
+    }
+
+    /** Card: "you" next to the class average for the balance and for the total (balance + investment gain), each with a pair of bars. */
+    function buildClassCompareCard() {
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', 'You compared with your class')]);
+      const data = classHistoryState.data;
+      if (!data) {
+        card.appendChild(classHistoryState.error ? emptyState(classHistoryState.error) : emptyState('Loading your class...'));
+        return card;
+      }
+      const comparison = data.comparison;
+      card.appendChild(makeElement('div', 'row-sub card-intro', data.period + ' - ' + comparison.classSize + ' student' + (comparison.classSize === 1 ? '' : 's') + '. Only the class average is shown, never anyone else\'s numbers.'));
+      [['Cash balance', 'balance'], ['Total (balance + investment gain)', 'total']].forEach(([label, field]) => {
+        const you = comparison.you[field];
+        const average = comparison.classAverage[field];
+        const difference = Math.round((you - average) * 100) / 100;
+        const biggest = Math.max(Math.abs(you), Math.abs(average), 1);
+        const bar = (name, value, className) => makeElement('div', 'cmp-line', null, [
+          makeElement('span', 'cmp-name', name),
+          makeElement('span', 'cmp-track', null, [(() => { const fill = makeElement('span', 'cmp-fill ' + className); fill.style.width = Math.max(2, Math.round(Math.abs(value) / biggest * 100)) + '%'; return fill; })()]),
+          makeElement('span', 'cmp-value', money(value))
+        ]);
+        const verdict = difference === 0 ? 'Exactly the class average.' : money(Math.abs(difference)) + (difference > 0 ? ' above' : ' below') + ' the class average.';
+        card.appendChild(makeElement('div', 'cmp-row', null, [
+          makeElement('div', 'row-title', label),
+          bar('You', you, 'cmp-you'),
+          bar('Class average', average, 'cmp-average'),
+          makeElement('div', 'row-sub ' + (difference >= 0 ? 'cmp-good' : 'cmp-low'), verdict)
+        ]));
+      });
+      return card;
+    }
+
+    /** Card with the same settings the admin chart has (metrics, scale, dates, live point) for the student's own period. */
+    function buildClassControls() {
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', 'History of ' + (portalState.dashboard ? portalState.dashboard.student.period : 'your class'))]);
+      const data = classHistoryState.data;
+      if (!data) return card;
+      card.appendChild(makeElement('div', 'row-sub card-intro', 'These are the class records your teacher keeps for the whole period. Your own line is just your balance right now: nothing is stored about you personally each day. Pick what to show; the chart updates straight away.'));
+
+      card.appendChild(makeElement('label', '', 'What to show (tap to switch on or off)'));
+      const chips = makeElement('div', 'pill-row chip-row');
+      data.headers.forEach((header, index) => {
+        const selected = (classHistoryState.metrics || []).indexOf(header.key) >= 0;
+        const chip = makeElement('button', 'chip' + (selected ? ' active' : ''), header.label);
+        chip.type = 'button';
+        chip.style.setProperty('--chip-color', CHART_COLORS[index % CHART_COLORS.length]);
+        chip.onclick = () => {
+          const current = classHistoryState.metrics || [];
+          classHistoryState.metrics = current.indexOf(header.key) >= 0 ? current.filter(key => key !== header.key) : current.concat(header.key);
+          drawClassHistoryParts();
+        };
+        chips.appendChild(chip);
+      });
+      card.appendChild(chips);
+
+      const toolbar = makeElement('div', 'admin-toolbar');
+      const scaleSelect = makeElement('select');
+      [['linear', 'Linear scale'], ['logarithmic', 'Logarithmic scale']].forEach(([value, label]) => { const option = makeElement('option', '', label); option.value = value; scaleSelect.appendChild(option); });
+      scaleSelect.value = classHistoryState.scale;
+      scaleSelect.setAttribute('aria-label', 'Scale');
+      scaleSelect.onchange = () => { classHistoryState.scale = scaleSelect.value; drawClassChart(); };
+      const fromInput = makeElement('input'); fromInput.type = 'date'; fromInput.value = classHistoryState.from; fromInput.setAttribute('aria-label', 'From date');
+      fromInput.onchange = () => { classHistoryState.from = fromInput.value; drawClassChart(); };
+      const toInput = makeElement('input'); toInput.type = 'date'; toInput.value = classHistoryState.to; toInput.setAttribute('aria-label', 'To date');
+      toInput.onchange = () => { classHistoryState.to = toInput.value; drawClassChart(); };
+      toolbar.appendChild(makeElement('label', 'inline-label', 'From'));
+      toolbar.appendChild(fromInput);
+      toolbar.appendChild(makeElement('label', 'inline-label', 'To'));
+      toolbar.appendChild(toInput);
+      toolbar.appendChild(scaleSelect);
+      card.appendChild(toolbar);
+
+      const checkRow = (label, checked, onChange) => {
+        const box = makeElement('input'); box.type = 'checkbox'; box.checked = checked; box.onchange = () => onChange(box.checked);
+        return makeElement('label', 'check-row', null, [box, makeElement('span', '', ' ' + label)]);
+      };
+      card.appendChild(checkRow('Include today\'s live value (adds a diamond for right now)', classHistoryState.includeLive, checked => {
+        classHistoryState.includeLive = checked;
+        if (checked && !(classHistoryState.data.records || []).some(record => record.source === 'current')) loadClassHistory(); else drawClassChart();
+      }));
+      card.appendChild(checkRow('Draw my balance and the class average as lines', classHistoryState.showReference, checked => { classHistoryState.showReference = checked; drawClassChart(); }));
+
+      const resetButton = makeElement('button', 'button button-secondary', 'Reset filters');
+      resetButton.onclick = () => {
+        Object.assign(classHistoryState, { metrics: data.headers.length > 0 ? [data.headers[0].key] : [], scale: 'linear', from: '', to: '', includeLive: true, showReference: true });
+        drawClassHistoryParts();
+      };
+      card.appendChild(makeElement('div', 'button-row', null, [resetButton]));
+      return card;
+    }
+
+    /**
+     * The points to draw: one per day (the newest snapshot of each day wins, like the admin chart), inside the chosen dates, oldest first.
+     * @returns array of { day, dateStr, source, metrics }.
+     */
+    function classChartPoints() {
+      const data = classHistoryState.data;
+      if (!data) return [];
+      const byDay = new Map();
+      data.records.forEach(record => {
+        if (record.source === 'current' && !classHistoryState.includeLive) return;
+        if (classHistoryState.from && record.day < classHistoryState.from) return;
+        if (classHistoryState.to && record.day > classHistoryState.to) return;
+        const existing = byDay.get(record.day);
+        if (!existing || record.ts >= existing.ts) byDay.set(record.day, record);
+      });
+      return Array.from(byDay.values()).sort((a, b) => a.ts - b.ts);
+    }
+
+    /** Builds an SVG element with attributes (and optional text). */
+    function svgElement(tag, attributes, text) {
+      const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      Object.keys(attributes || {}).forEach(name => element.setAttribute(name, attributes[name]));
+      if (text !== undefined && text !== null) element.textContent = text;
+      return element;
+    }
+
+    /** Draws the line chart for the selected metrics into #classChartSlot (a simple SVG: no outside library needed). */
+    function drawClassChart() {
+      const slot = document.getElementById('classChartSlot');
+      if (!slot) return;
+      const card = makeElement('div', 'card');
+      slot.replaceChildren(card);
+      const data = classHistoryState.data;
+      if (!data) return;
+
+      const status = classHistoryState.loading === 'live' ? 'Adding today\'s live value...' : (data.liveError && classHistoryState.includeLive ? 'Today\'s live value could not be computed: ' + data.liveError : '');
+      if (status) card.appendChild(makeElement('div', 'row-sub', status));
+
+      const selected = (classHistoryState.metrics || []).map(key => data.headers.findIndex(header => header.key === key)).filter(index => index >= 0);
+      const points = classChartPoints();
+      if (data.headers.length === 0) { card.appendChild(emptyState('Your teacher has not set up class records yet.')); return; }
+      if (selected.length === 0) { card.appendChild(emptyState('Pick at least one thing to show above.')); return; }
+      if (points.length === 0) { card.appendChild(emptyState('No records in that date range.')); return; }
+
+      const logarithmic = classHistoryState.scale === 'logarithmic';
+      const series = selected.map(index => ({ header: data.headers[index], color: CHART_COLORS[index % CHART_COLORS.length], values: points.map(point => point.metrics[data.headers[index].key]) }));
+      const reference = classHistoryState.showReference ? [
+        { label: 'You now', value: data.comparison.you.balance, color: '#0e7c6b' },
+        { label: 'Class average now', value: data.comparison.classAverage.balance, color: '#64788a' }
+      ] : [];
+
+      // Value range (the log scale can only show values above 0).
+      const allValues = [].concat(...series.map(line => line.values)).concat(reference.map(line => line.value)).filter(value => typeof value === 'number' && (!logarithmic || value > 0));
+      if (allValues.length === 0) { card.appendChild(emptyState(logarithmic ? 'The log scale needs values above zero.' : 'No numbers to show for that selection.')); return; }
+      let low = Math.min(...allValues), high = Math.max(...allValues);
+      if (!logarithmic) { const pad = (high - low) * 0.08 || Math.abs(high) * 0.1 || 1; low -= pad; high += pad; if (low > 0 && low < pad * 3) low = 0; }
+      else { low = low / 1.3; high = high * 1.3; }
+      const transform = value => logarithmic ? Math.log10(value) : value;
+      const spanOf = () => (transform(high) - transform(low)) || 1;
+
+      const width = 720, height = 320, left = 64, right = 16, top = 14, bottom = 38;
+      const xOf = index => points.length === 1 ? left + (width - left - right) / 2 : left + index * (width - left - right) / (points.length - 1);
+      const yOf = value => top + (height - top - bottom) * (1 - (transform(value) - transform(low)) / spanOf());
+
+      const svg = svgElement('svg', { viewBox: '0 0 ' + width + ' ' + height, class: 'chart-svg', role: 'img', 'aria-label': 'Class history chart' });
+      // Horizontal grid lines with value labels
+      for (let tick = 0; tick <= 4; tick++) {
+        const value = logarithmic ? Math.pow(10, transform(low) + spanOf() * tick / 4) : low + (high - low) * tick / 4;
+        const y = yOf(value);
+        svg.appendChild(svgElement('line', { x1: left, x2: width - right, y1: y, y2: y, class: 'chart-grid' }));
+        svg.appendChild(svgElement('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', class: 'chart-label' }, shortMoney(value)));
+      }
+      // Date labels (at most 6 so they never overlap)
+      const labelEvery = Math.max(1, Math.ceil(points.length / 6));
+      points.forEach((point, index) => { if (index % labelEvery === 0 || index === points.length - 1) svg.appendChild(svgElement('text', { x: xOf(index), y: height - 14, 'text-anchor': 'middle', class: 'chart-label' }, point.dateStr)); });
+      // "You" and "Class average" reference lines
+      reference.forEach(line => {
+        if (logarithmic && line.value <= 0) return;
+        const y = yOf(line.value);
+        svg.appendChild(svgElement('line', { x1: left, x2: width - right, y1: y, y2: y, stroke: line.color, 'stroke-width': 2, 'stroke-dasharray': '6 5' }));
+        svg.appendChild(svgElement('text', { x: width - right - 2, y: y - 5, 'text-anchor': 'end', class: 'chart-label', style: 'fill:' + line.color }, line.label + ' ' + money(line.value)));
+      });
+      // The metric lines; gaps (missing values) break the line
+      series.forEach(line => {
+        let path = '';
+        line.values.forEach((value, index) => {
+          if (typeof value !== 'number' || (logarithmic && value <= 0)) { path += ''; return; }
+          path += (path === '' || typeof line.values[index - 1] !== 'number' ? 'M' : 'L') + xOf(index).toFixed(1) + ' ' + yOf(value).toFixed(1) + ' ';
+        });
+        if (path) svg.appendChild(svgElement('path', { d: path, fill: 'none', stroke: line.color, 'stroke-width': 2.5, 'stroke-linejoin': 'round' }));
+        line.values.forEach((value, index) => {
+          if (typeof value !== 'number' || (logarithmic && value <= 0)) return;
+          const live = points[index].source === 'current';
+          const x = xOf(index), y = yOf(value);
+          const marker = live ? svgElement('rect', { x: x - 5, y: y - 5, width: 10, height: 10, transform: 'rotate(45 ' + x + ' ' + y + ')', fill: line.color }) : svgElement('circle', { cx: x, cy: y, r: 3.5, fill: line.color });
+          marker.appendChild(svgElement('title', {}, line.header.label + ' - ' + points[index].dateStr + (live ? ' (now)' : '') + ': ' + value));
+          svg.appendChild(marker);
+        });
+      });
+      card.appendChild(svg);
+
+      const legend = makeElement('div', 'pill-row chart-legend');
+      series.forEach(line => { const swatch = makeElement('span', 'legend-swatch'); swatch.style.background = line.color; legend.appendChild(makeElement('span', 'legend-item', null, [swatch, makeElement('span', '', line.header.label)])); });
+      card.appendChild(legend);
     }
 
     // ------------------------------------------------------------------ admin
