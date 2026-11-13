@@ -137,8 +137,10 @@ const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Studen
 const PORTAL_ACCOUNT_HEADERS: string[] = ["Email", "Period", "Name"];
 /** Script-cache key holding the list of admin emails (10 minutes). */
 const PORTAL_ADMIN_CACHE_KEY: string = "portalAdminEmails";
-/** Most units one request may ask for (the page enforces it too, but the server decides). */
-const PORTAL_MAX_REQUEST_QUANTITY: number = 50;
+/** Most units one request may ask for (the page enforces it too, but the server decides). Keeps one click from creating a bogus giant request. */
+const PORTAL_MAX_REQUEST_QUANTITY: number = 10;
+/** Most requests one student can have open (Pending) at the same time. Once an admin decides on some, the student can ask again. Stops the request list being spammed. */
+const PORTAL_MAX_OPEN_REQUESTS: number = 5;
 /** Longest note (characters) a student can attach to a request; longer text is cut. Keep equal to MAX_STUDENT_NOTE_LENGTH in Portal.html. */
 const PORTAL_MAX_STUDENT_NOTE_LENGTH: number = 1000;
 
@@ -559,16 +561,30 @@ function buildPortalCatalog_(quarter: QuarterId, studentName: string, period: st
     return items;
 }
 
-/** Checks a purchase against price, balance and caps. Returns the reason it is not allowed, or null. */
+/**
+ * Checks a purchase against price and caps. Returns the reason it is not allowed, or null.
+ * The balance is NOT checked here: a request (and its approval and completion) may take a student into debt, because an admin decides.
+ * Use balanceAfterPurchase_ to tell people when that would happen.
+ */
 function checkPortalPurchase_(student: PortalStudentRow, period: string, itemName: string, quarter: QuarterId, quantity: number, ignoreRequestId?: number): string | null {
     const item = buildPortalCatalogForCheck_(quarter, student.name, period, ignoreRequestId).find(candidate => candidate.itemName === itemName);
     if (!item) return `"${itemName}" is not for sale in ${quarter}.`;
 
     const total = Number((item.unitPrice * quantity).toFixed(2));
-    if (student.balance - total < 0) return `That costs $${total.toFixed(2)} but your balance is $${student.balance.toFixed(2)}.`;
     if (item.personRemaining !== null && quantity > item.personRemaining) return `Only ${item.personRemaining} left for you this quarter (max per person reached).`;
     if (item.classRemaining !== null && quantity > item.classRemaining) return `Only ${item.classRemaining} left for your class this quarter (max per class reached).`;
     return null;
+}
+
+/** The balance a student would be left with after paying `total` (negative means debt), rounded to cents. */
+function balanceAfterPurchase_(balance: number, total: number): number {
+    return Number((balance - total).toFixed(2));
+}
+
+/** " This would leave the balance at -$4.00 (in debt), so the teacher decides." when paying `total` would take the balance below zero, otherwise "". */
+function debtNote_(balance: number, total: number, whose: string): string {
+    const after = balanceAfterPurchase_(balance, total);
+    return after < 0 ? ` Heads up: this puts ${whose} $${Math.abs(after).toFixed(2)} in debt (balance $${balance.toFixed(2)} before, -$${Math.abs(after).toFixed(2)} after).` : "";
 }
 
 /** buildPortalCatalog_ with one request left out of the pending count, so approving a request does not count it against itself. */
@@ -1003,6 +1019,9 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const student = findPortalStudent_(name, period);
         if (!student) return failure_("Your account was not found.");
 
+        const openRequests = readPortalRequests_().filter(existing => existing.student === name && existing.period === period && existing.status === "Pending").length;
+        if (openRequests >= PORTAL_MAX_OPEN_REQUESTS) return failure_(`There are already ${openRequests} requests waiting for a decision. Wait for your teacher to answer some (or cancel one) before asking for more.`);
+
         const quarter = getPortalQuarter_();
         const refusal = checkPortalPurchase_(student, period, itemName, quarter, quantity);
         if (refusal) return failure_(refusal);
@@ -1015,7 +1034,7 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
 
         requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : "", studentNote, "", "", "", ""]);
         if (onBehalf) log(`Portal: ${identity.email} requested ${quantity} x ${itemName} for ${name} (${period}).`, false);
-        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). You are charged when the teacher completes it.` };
+        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). You are charged when the teacher completes it.${debtNote_(student.balance, total, "you")}` };
     } catch (error: any) {
         log(`Error in portalRequestExpenditure: ${error.message}`, false);
         return failure_("The request could not be sent. Please try again.");
@@ -1071,7 +1090,20 @@ function portalAdminListRequestsEntry_(): any {
         if (identity.status !== "ok" || !identity.isAdmin) return { error: "Admins only." };
 
         const requests = readPortalRequests_().slice().reverse();
-        return { requests: requests.slice(0, PORTAL_ADMIN_LIST_LIMIT), total: requests.length };
+        const shown = requests.slice(0, PORTAL_ADMIN_LIST_LIMIT);
+
+        // Each request still to be charged gets the student's balance right now, so the board can show "before -> after" and flag debt.
+        const periodRosters: { [period: string]: PortalStudentRow[] } = {};
+        const withBalances = shown.map(request => {
+            if (!requestReservesUnits_(request)) return request;
+            if (!(request.period in periodRosters)) {
+                const periodSheet = getSheetNamed(request.period);
+                periodRosters[request.period] = periodSheet ? readPortalPeriod_(periodSheet) : [];
+            }
+            const student = periodRosters[request.period].find(candidate => candidate.name === request.student);
+            return student ? { ...request, balanceNow: student.balance, balanceAfter: balanceAfterPurchase_(student.balance, request.total) } : request;
+        });
+        return { requests: withBalances, total: requests.length };
     } catch (error: any) {
         log(`Error in portalAdminListRequests: ${error.message}`, false);
         return { error: "The requests could not load." };
@@ -1160,7 +1192,7 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
                 if (!charge.ok) return failure_(charge.message);
                 transactionIds = charge.transactionIds;
                 payment = "Paid";
-                chargeMessage = ` ${record.student} was charged $${record.total.toFixed(2)} (transaction ${transactionIds.join(", ")}).`;
+                chargeMessage = ` ${record.student} was charged $${record.total.toFixed(2)} (transaction ${transactionIds.join(", ")}).${debtNote_(student.balance, record.total, record.student).replace("Heads up: this puts", "That put")}`;
             }
 
             requestsSheet.getRange(rowNumber, 11).setValue("Completed");
@@ -1279,7 +1311,7 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
 
             requestsSheet.getRange(rowNumber, 8, 1, 7).setValues([[currentItem.unitPrice, record.quantity, total, "Approved", identity.email, new Date(), note]]);
             requestsSheet.getRange(rowNumber, 19).setValue("Due");
-            return { ok: true, message: `Approved. ${record.student} is charged $${total.toFixed(2)} when you mark it completed.` };
+            return { ok: true, message: `Approved. ${record.student} is charged $${total.toFixed(2)} when you mark it completed.${debtNote_(student.balance, total, record.student)}` };
         } catch (error: any) {
             log(`Error in portalAdminResolveRequest: ${error.message}`, false);
             return failure_("The request could not be resolved. Please try again.");

@@ -80,6 +80,9 @@
     // Nobody can flood the server by clicking fast: calls wait for the previous one to finish and for a short gap. The server
     // enforces its own limits as well (see checkPortalRate_ in PortalUtils.ts), because a page can always be bypassed.
     const MAX_STUDENT_NOTE_LENGTH = 1000;   // characters in a note on a request (the server enforces the same limit)
+    /** Most units per request and most open requests per student. Keep equal to PORTAL_MAX_REQUEST_QUANTITY / PORTAL_MAX_OPEN_REQUESTS in PortalUtils.ts (the server decides). */
+    const MAX_REQUEST_QUANTITY = 10;
+    const MAX_OPEN_REQUESTS = 5;
     const MIN_GAP_BETWEEN_CALLS_MS = 120;   // least time between two server calls
     const ACTION_COOLDOWN_MS = 1500;        // buttons stay locked this long after an action finishes
     const SEARCH_TYPING_DELAY_MS = 150;     // the history search waits until typing stops (it only filters what the page already has)
@@ -158,6 +161,19 @@
       if (!isoText) return '';
       const date = new Date(isoText);
       return isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    /**
+     * "Balance $40.00 -> $35.00 after" for paying `total` from `balance`. When it would leave the balance below zero the line turns red and
+     * says so plainly (requests are still allowed, the teacher decides).
+     * @param whose 'you' on the student page, the student's name on the admin board.
+     */
+    function balanceChangeLine(balance, total, whose) {
+      const after = Math.round((Number(balance) - Number(total)) * 100) / 100;
+      const inDebt = after < 0;
+      const line = makeElement('div', 'balance-change' + (inDebt ? ' in-debt' : ''), 'Balance ' + money(balance) + ' \u2192 ' + money(after) + ' after');
+      if (inDebt) line.appendChild(makeElement('strong', '', ' \u2014 puts ' + whose + ' ' + money(-after) + ' in debt'));
+      return line;
     }
 
     function formatDate(isoText) {
@@ -889,7 +905,14 @@
       const dashboard = portalState.dashboard;
       const student = dashboard.student;
       const catalogCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Request something (' + dashboard.quarter + ' prices)')]);
-      catalogCard.appendChild(makeElement('div', 'row-sub', 'Your teacher approves each request. You are only charged when your teacher completes it.'));
+      catalogCard.appendChild(makeElement('div', 'row-sub', 'Your teacher approves each request. You are only charged when your teacher completes it. You can request something that is more than your balance, but your teacher decides whether to approve it.'));
+      const isOpen = request => request.status === 'Pending' || (request.status === 'Approved' && request.payment === 'Due');
+      const openRequests = dashboard.requests.filter(isOpen);
+      const pendingCount = dashboard.requests.filter(request => request.status === 'Pending').length;
+      const openTotal = openRequests.reduce((running, request) => running + (Number(request.total) || 0), 0);
+      catalogCard.appendChild(makeElement('div', 'row-sub', 'Requests waiting for a decision: ' + pendingCount + ' of ' + MAX_OPEN_REQUESTS + ' allowed.'));
+      if (openRequests.length > 0) catalogCard.appendChild(balanceChangeLine(student.balance, openTotal, 'you'));
+      if (openRequests.length > 0) catalogCard.lastChild.firstChild.textContent = 'If all ' + openRequests.length + ' open request' + (openRequests.length === 1 ? '' : 's') + ' (' + money(openTotal) + ') are charged: balance ' + money(student.balance) + ' \u2192 ' + money(Math.round((student.balance - openTotal) * 100) / 100);
 
       if (dashboard.catalog.length === 0) catalogCard.appendChild(emptyState('Nothing is for sale right now.'));
       const itemGrid = makeElement('div', 'item-grid');
@@ -898,16 +921,26 @@
         const quantityInput = makeElement('input');
         quantityInput.type = 'number';
         quantityInput.min = '1';
+        quantityInput.max = String(MAX_REQUEST_QUANTITY);
         quantityInput.value = '1';
         quantityInput.setAttribute('aria-label', 'Quantity of ' + item.itemName);
 
         const stepDown = makeElement('button', 'stepper-button', '\u2212');
-        stepDown.onclick = () => { quantityInput.value = String(Math.max(1, (Number(quantityInput.value) || 1) - 1)); };
+        stepDown.onclick = () => { quantityInput.value = String(Math.max(1, (Number(quantityInput.value) || 1) - 1)); showBalance(); };
         const stepUp = makeElement('button', 'stepper-button', '+');
-        stepUp.onclick = () => { quantityInput.value = String((Number(quantityInput.value) || 0) + 1); };
+        stepUp.onclick = () => { quantityInput.value = String(Math.min(MAX_REQUEST_QUANTITY, (Number(quantityInput.value) || 0) + 1)); showBalance(); };
+        // Shows the balance before and after buying this many; red with a debt warning when it would go below zero.
+        const balanceSlot = makeElement('div', 'balance-slot');
+        const showBalance = () => {
+          const quantity = Math.min(MAX_REQUEST_QUANTITY, Math.max(1, Math.floor(Number(quantityInput.value) || 1)));
+          balanceSlot.replaceChildren(balanceChangeLine(student.balance, item.unitPrice * quantity, 'you'));
+        };
+        quantityInput.oninput = showBalance;
+        showBalance();
 
         const requestButton = actionButton('button', 'Request');
-        requestButton.disabled = soldOut;
+        requestButton.disabled = soldOut || pendingCount >= MAX_OPEN_REQUESTS;
+        if (pendingCount >= MAX_OPEN_REQUESTS && !soldOut) requestButton.title = 'You already have ' + MAX_OPEN_REQUESTS + ' requests waiting for a decision.';
         const noteBox = makeElement('textarea', 'note-box');
         noteBox.rows = 3;
         noteBox.maxLength = MAX_STUDENT_NOTE_LENGTH;
@@ -925,6 +958,7 @@
           pills
         ]);
         if (soldOut) card.appendChild(makeElement('div', 'row-sub', 'Sold out'));
+        card.appendChild(balanceSlot);
         card.appendChild(noteToggle);
         card.appendChild(makeElement('div', 'item-actions', null, [makeElement('div', 'stepper', null, [stepDown, quantityInput, stepUp]), requestButton]));
         itemGrid.appendChild(card);
@@ -945,6 +979,7 @@
           makeElement('div', '', null, [
             makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
             makeElement('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : '')),
+            isOpen(request) ? balanceChangeLine(student.balance, request.total, 'you') : null,
             request.studentNote ? makeElement('details', 'request-details', null, [makeElement('summary', '', 'Your note'), makeElement('p', 'note-text', request.studentNote)]) : null
           ]),
           actions
@@ -1214,7 +1249,10 @@
         request.transactionIds ? makeElement('div', 'row-sub', 'Transactions sheet row id(s): ' + request.transactionIds + ' (undo from Transaction Records, or use Unmark completed).') : null
       ]);
 
-      const rowText = makeElement('div', 'admin-row-text', null, [makeElement('div', 'row-title', headline), makeElement('div', 'row-sub', facts), details]);
+      const rowText = makeElement('div', 'admin-row-text', null, [makeElement('div', 'row-title', headline), makeElement('div', 'row-sub', facts)]);
+      // Balance before and after for requests that are still to be charged; red when it would put the student in debt.
+      if (typeof request.balanceNow === 'number') rowText.appendChild(balanceChangeLine(request.balanceNow, request.total, request.student));
+      rowText.appendChild(details);
       if (request.status === 'Pending' || request.status === 'Approved' || request.status === 'Completed') rowText.appendChild(noteInput);
       return makeElement('div', 'list-row admin-row', null, [rowText, actions]);
     }

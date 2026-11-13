@@ -233,6 +233,10 @@
     .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
     .row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .row-actions input { width: 150px; }
+    /* "Balance $x -> $y after": red and bold when the purchase would put the account in debt. */
+    .balance-change { font-size: 13px; color: var(--portal-muted); margin: 4px 0; }
+    .balance-change.in-debt { color: var(--portal-bad); background: var(--portal-bad-soft); border-radius: 8px; padding: 4px 8px; font-weight: 600; }
+    .balance-slot { margin-top: 6px; }
     /* Admin request board: status tabs, a toolbar (search / period / sort / refresh) and one row per request. */
     .admin-tabs { flex-wrap: wrap; }
     .admin-tabs .segment { flex: 1 1 auto; white-space: nowrap; }
