@@ -51,7 +51,7 @@
      *                                    renderLeaderboard, renderAdmin. Each fills a panel from portalState.dashboard.
      *   6. History ..................... loadHistory fetches every transaction ONCE; search / category / paging only filter that list.
      *   7. Predictor ................... buildPredictorCard, getProjectionPrincipal, buildProjection (the maths), refreshProjection (draws it).
-     *   8. Admin ....................... loadAdminRequests, resolveRequest, completeRequest.
+     *   8. Admin ....................... buildRequestBoard (tabs, search, sort), buildRequestRow, loadAdminRequests, runRequestAction (complete / unmark / approve / deny).
      *
      * The data flow is one-directional: the SERVER's answer replaces portalState.dashboard, then renderPortal() redraws everything from it.
      * Never edit the page's DOM to "fix" a number: change the server's answer (PortalUtils.ts buildPortalDashboard_) and redraw.
@@ -889,7 +889,7 @@
       const dashboard = portalState.dashboard;
       const student = dashboard.student;
       const catalogCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Request something (' + dashboard.quarter + ' prices)')]);
-      catalogCard.appendChild(makeElement('div', 'row-sub', 'Your teacher approves each request. You are only charged if it is approved.'));
+      catalogCard.appendChild(makeElement('div', 'row-sub', 'Your teacher approves each request. You are only charged when your teacher completes it.'));
 
       if (dashboard.catalog.length === 0) catalogCard.appendChild(emptyState('Nothing is for sale right now.'));
       const itemGrid = makeElement('div', 'item-grid');
@@ -995,6 +995,12 @@
     // ------------------------------------------------------------------ admin
 
     function renderAdmin(panel) {
+      // The request queue is the main job of this tab, so it comes first; going into an account is below it.
+      const requestsCard = buildRequestBoard();
+      panel.appendChild(requestsCard);
+      requestsCard.querySelector('.admin-summary').textContent = 'Loading requests...';
+      loadAdminRequests(requestsCard);
+
       const spectateCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Go into a student\'s account')]);
       spectateCard.appendChild(makeElement('div', 'row-sub card-intro', 'You will see exactly what they see and can invest, withdraw and request for them.'));
       const directory = portalState.session.directory || [];
@@ -1017,84 +1023,235 @@
       fillStudents();
 
       const viewButton = actionButton('button', 'Open account');
-      viewButton.onclick = () => {
-        if (!periodSelect.value || !studentSelect.value || viewButton.dataset.busy) return;
-        markButtonBusy(viewButton, 'Opening account...');
-        setWorking(true);
-        portalState.profile = { name: studentSelect.value, period: periodSelect.value };
-        loadDashboard(true).finally(() => setWorking(false));
-      };
+      viewButton.onclick = () => openStudentAccount(studentSelect.value, periodSelect.value, viewButton);
       spectateCard.appendChild(makeElement('div', 'button-row', null, [viewButton]));
-
       panel.appendChild(spectateCard);
-
-      const requestsCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Expenditure requests')]);
-      requestsCard.id = 'adminRequests';
-      requestsCard.appendChild(emptyState('Loading requests...'));
-      panel.appendChild(requestsCard);
-      loadAdminRequests(requestsCard);
     }
 
-    /** (Admins) Fetches every expenditure request and draws one row each, with Approve / Deny for pending ones and Mark completed for approved ones. */
+    /** Opens a student's account as an admin (the same view the student has). Used by the "Go into a student's account" card and by the Open account button on each request. */
+    function openStudentAccount(name, period, button) {
+      if (!name || !period || (button && button.dataset.busy)) return;
+      markButtonBusy(button, 'Opening account...');
+      setWorking(true);
+      portalState.profile = { name, period };
+      loadDashboard(true).finally(() => setWorking(false));
+    }
+
+    // ------------------------------------------------------------------ admin: requests
+
+    /**
+     * What the request board is showing. `requests` is everything the server sent (fetched once per action, filtered locally so switching
+     * tabs, searching and sorting cost nothing). `tab` is one of ADMIN_TABS[].id.
+     */
+    const adminState = { requests: [], total: 0, tab: null, search: '', period: '', sort: 'newest', visibleCount: 40, loaded: false };
+
+    /** The status groups of the board. `statuses` are the request statuses each tab shows; "To do" is approved work that is not done (and not charged) yet. */
+    const ADMIN_TABS = [
+      { id: 'pending', label: 'Pending', statuses: ['Pending'], empty: 'No requests are waiting for a decision.' },
+      { id: 'todo', label: 'To do', statuses: ['Approved'], empty: 'Nothing approved is waiting to be completed.' },
+      { id: 'completed', label: 'Completed', statuses: ['Completed'], empty: 'No completed requests yet.' },
+      { id: 'closed', label: 'Denied / cancelled', statuses: ['Denied', 'Cancelled'], empty: 'No denied or cancelled requests.' },
+      { id: 'all', label: 'All', statuses: null, empty: 'No requests yet.' }
+    ];
+
+    function adminTabById(id) { return ADMIN_TABS.find(tab => tab.id === id) || ADMIN_TABS[0]; }
+    function requestsOfTab(tab) { return adminState.requests.filter(request => !tab.statuses || tab.statuses.indexOf(request.status) >= 0); }
+
+    /** The rows of the active tab after the search box and period filter, in the chosen order. */
+    function visibleAdminRequests() {
+      const tab = adminTabById(adminState.tab);
+      const words = adminState.search.toLowerCase().split(/\s+/).filter(Boolean);
+      const matching = requestsOfTab(tab).filter(request => {
+        if (adminState.period && request.period !== adminState.period) return false;
+        const haystack = [request.id, request.student, request.period, request.itemName, request.email, request.note, request.studentNote, request.resolvedBy, request.completedBy, request.transactionIds].join(' ').toLowerCase();
+        return words.every(word => haystack.indexOf(word) >= 0);
+      });
+      const compare = {
+        newest: (a, b) => b.id - a.id,
+        oldest: (a, b) => a.id - b.id,
+        student: (a, b) => a.student.localeCompare(b.student) || b.id - a.id,
+        item: (a, b) => a.itemName.localeCompare(b.itemName) || a.student.localeCompare(b.student),
+        total: (a, b) => b.total - a.total || b.id - a.id
+      }[adminState.sort] || ((a, b) => b.id - a.id);
+      return matching.sort(compare);
+    }
+
+    /** The request board: status tabs with counts, search, period and sort, then the list. Fetches the requests once, everything after that is local. */
+    function buildRequestBoard() {
+      const card = makeElement('div', 'card', null, [makeElement('h2', '', 'Expenditure requests')]);
+      card.id = 'adminRequests';
+      card.appendChild(makeElement('div', 'row-sub card-intro', 'Approve or deny, then mark completed when you have done it: that is when the student is charged and the purchase is written to the Transactions sheet. Unmarking a completed request undoes that transaction.'));
+
+      const tabBar = makeElement('div', 'segmented admin-tabs');
+      const toolbar = makeElement('div', 'admin-toolbar');
+      const summary = makeElement('div', 'row-sub admin-summary');
+      const list = makeElement('div', 'admin-list');
+
+      const searchInput = makeElement('input');
+      searchInput.type = 'search';
+      searchInput.placeholder = 'Search student, item, id, note...';
+      searchInput.setAttribute('aria-label', 'Search requests');
+      searchInput.value = adminState.search;
+      searchInput.oninput = () => { adminState.search = searchInput.value; adminState.visibleCount = 40; drawList(); };
+
+      const periodSelect = makeElement('select');
+      periodSelect.setAttribute('aria-label', 'Filter by period');
+      periodSelect.onchange = () => { adminState.period = periodSelect.value; adminState.visibleCount = 40; drawList(); };
+
+      const sortSelect = makeElement('select');
+      sortSelect.setAttribute('aria-label', 'Sort requests');
+      [['newest', 'Newest first'], ['oldest', 'Oldest first'], ['student', 'Student A-Z'], ['item', 'Item A-Z'], ['total', 'Highest total']].forEach(([value, label]) => {
+        const option = makeElement('option', '', label); option.value = value; sortSelect.appendChild(option);
+      });
+      sortSelect.value = adminState.sort;
+      sortSelect.onchange = () => { adminState.sort = sortSelect.value; drawList(); };
+
+      const refreshButton = actionButton('button button-secondary', 'Refresh');
+      refreshButton.onclick = () => { markButtonBusy(refreshButton, 'Refreshing...'); loadAdminRequests(card); };
+
+      toolbar.appendChild(searchInput);
+      toolbar.appendChild(periodSelect);
+      toolbar.appendChild(sortSelect);
+      toolbar.appendChild(refreshButton);
+      card.appendChild(tabBar);
+      card.appendChild(toolbar);
+      card.appendChild(summary);
+      card.appendChild(list);
+
+      /** The period dropdown lists the periods that appear in the requests. */
+      function drawPeriods() {
+        const periods = Array.from(new Set(adminState.requests.map(request => request.period))).sort();
+        periodSelect.replaceChildren();
+        const allOption = makeElement('option', '', 'All periods'); allOption.value = ''; periodSelect.appendChild(allOption);
+        periods.forEach(period => { const option = makeElement('option', '', period); option.value = period; periodSelect.appendChild(option); });
+        periodSelect.value = periods.indexOf(adminState.period) >= 0 ? adminState.period : '';
+        adminState.period = periodSelect.value;
+      }
+
+      function drawTabs() {
+        tabBar.replaceChildren();
+        ADMIN_TABS.forEach(tab => {
+          const count = requestsOfTab(tab).length;
+          const button = makeElement('button', 'segment' + (tab.id === adminState.tab ? ' active' : ''), tab.label + ' (' + count + ')');
+          button.type = 'button';
+          button.onclick = () => { adminState.tab = tab.id; adminState.visibleCount = 40; drawTabs(); drawList(); };
+          tabBar.appendChild(button);
+        });
+      }
+
+      function drawList() {
+        const tab = adminTabById(adminState.tab);
+        const rows = visibleAdminRequests();
+        const shown = rows.slice(0, adminState.visibleCount);
+        const sum = rows.reduce((running, request) => running + (Number(request.total) || 0), 0);
+        summary.textContent = rows.length + ' request' + (rows.length === 1 ? '' : 's') + ' - ' + money(sum) + ' total' + (adminState.total > adminState.requests.length ? ' (showing the newest ' + adminState.requests.length + ' of ' + adminState.total + ')' : '');
+        list.replaceChildren();
+        if (rows.length === 0) { list.appendChild(emptyState(adminState.search || adminState.period ? 'Nothing matches that search.' : tab.empty)); return; }
+        shown.forEach(request => list.appendChild(buildRequestRow(request, card)));
+        if (rows.length > shown.length) {
+          const moreButton = makeElement('button', 'button button-secondary', 'Show ' + Math.min(40, rows.length - shown.length) + ' more');
+          moreButton.onclick = () => { adminState.visibleCount += 40; drawList(); };
+          list.appendChild(makeElement('div', 'button-row', null, [moreButton]));
+        }
+      }
+
+      card.redraw = () => {
+        if (!adminState.tab || !adminState.loaded) adminState.tab = (requestsOfTab(ADMIN_TABS[0]).length > 0 || requestsOfTab(ADMIN_TABS[1]).length === 0) ? 'pending' : 'todo';
+        adminState.loaded = true;
+        drawPeriods();
+        drawTabs();
+        drawList();
+      };
+      return card;
+    }
+
+    /** One request: the headline (who, what, how much), the badge, the facts (dates, who decided, transaction) and the buttons that fit its status. */
+    function buildRequestRow(request, card) {
+      const noteInput = makeElement('input');
+      noteInput.placeholder = request.status === 'Approved' ? 'Completion note (optional)' : request.status === 'Completed' ? 'Why unmark? (optional)' : 'Note (optional)';
+      noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
+
+      const actions = makeElement('div', 'row-actions', null, [makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
+      const openButton = actionButton('button button-secondary', 'Open account');
+      openButton.onclick = () => openStudentAccount(request.student, request.period, openButton);
+
+      if (request.status === 'Pending') {
+        const approveButton = actionButton('button', 'Approve');
+        const denyButton = actionButton('button button-danger', 'Deny');
+        approveButton.onclick = () => resolveRequest(request.id, true, noteInput.value, approveButton, card);
+        denyButton.onclick = () => resolveRequest(request.id, false, noteInput.value, denyButton, card);
+        actions.appendChild(approveButton);
+        actions.appendChild(denyButton);
+      } else if (request.status === 'Approved') {
+        const completeButton = actionButton('button', 'Mark completed');
+        completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
+        actions.appendChild(completeButton);
+      } else if (request.status === 'Completed') {
+        const unmarkButton = actionButton('button button-danger', 'Unmark completed');
+        unmarkButton.onclick = () => uncompleteRequest(request.id, noteInput.value, unmarkButton, card);
+        actions.appendChild(unmarkButton);
+      }
+      actions.appendChild(openButton);
+
+      const charge = request.status === 'Completed'
+        ? (request.payment === 'Paid' && request.transactionIds ? 'Charged in transaction ' + request.transactionIds : 'Charged when it was approved')
+        : request.status === 'Approved' ? (request.payment === 'Due' ? 'Charged ' + money(request.total) + ' when completed' : 'Already charged when it was approved') : '';
+
+      const headline = request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total);
+      const facts = [
+        '#' + request.id + ' - ' + formatDate(request.requestedAt) + ' - ' + request.quarter,
+        request.status === 'Completed' && request.completedBy ? 'completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt) : (request.resolvedBy ? request.status.toLowerCase() + ' by ' + request.resolvedBy : ''),
+        charge
+      ].filter(Boolean).join(' - ');
+
+      const details = makeElement('details', 'request-details', null, [
+        makeElement('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
+        makeElement('p', 'note-text', request.studentNote || 'The student did not write a note.'),
+        makeElement('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
+        request.note ? makeElement('div', 'row-sub', 'Teacher notes: ' + request.note) : null,
+        request.resolvedBy ? makeElement('div', 'row-sub', (request.status === 'Denied' || request.status === 'Cancelled' ? request.status : 'Decided') + ' by ' + request.resolvedBy + (request.resolvedAt ? ' on ' + formatDate(request.resolvedAt) : '')) : null,
+        request.completedBy ? makeElement('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null,
+        request.transactionIds ? makeElement('div', 'row-sub', 'Transactions sheet row id(s): ' + request.transactionIds + ' (undo from Transaction Records, or use Unmark completed).') : null
+      ]);
+
+      const rowText = makeElement('div', 'admin-row-text', null, [makeElement('div', 'row-title', headline), makeElement('div', 'row-sub', facts), details]);
+      if (request.status === 'Pending' || request.status === 'Approved' || request.status === 'Completed') rowText.appendChild(noteInput);
+      return makeElement('div', 'list-row admin-row', null, [rowText, actions]);
+    }
+
+    /** (Admins) Fetches every expenditure request into adminState and redraws the board. */
     async function loadAdminRequests(card) {
       try {
         const response = await portalCall('portalAdminListRequests');
-        card.replaceChildren(makeElement('h2', '', 'Expenditure requests'));
-        if (!response || response.error) { card.appendChild(emptyState((response && response.error) || 'The requests could not load.')); return; }
-        if (response.requests.length === 0) { card.appendChild(emptyState('No requests yet.')); return; }
-
-        response.requests.forEach(request => {
-          const noteInput = makeElement('input');
-          noteInput.placeholder = request.status === 'Approved' ? 'Completion note (optional)' : 'Note (optional)';
-          noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
-
-          const actions = makeElement('div', 'row-actions', null, [makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
-          if (request.status === 'Approved') {
-            const completeButton = actionButton('button', 'Mark completed');
-            completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
-            actions.appendChild(completeButton);
-          }
-          if (request.status === 'Pending') {
-            const approveButton = actionButton('button', 'Approve');
-            const denyButton = actionButton('button button-danger', 'Deny');
-            const resolve = (approve, button) => resolveRequest(request.id, approve, noteInput.value, button, card);
-            approveButton.onclick = () => resolve(true, approveButton);
-            denyButton.onclick = () => resolve(false, denyButton);
-            actions.appendChild(approveButton);
-            actions.appendChild(denyButton);
-          }
-
-          const rowText = makeElement('div', '', null, [
-            makeElement('div', 'row-title', request.student + ' (' + request.period + '): ' + request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
-            makeElement('div', 'row-sub', formatDate(request.requestedAt) + ' - ' + request.quarter + (request.resolvedBy ? ' - ' + request.status.toLowerCase() + ' by ' + request.resolvedBy : '') + (request.note && request.status !== 'Pending' ? ' - ' + request.note : ''))
-          ]);
-          // Everything about the request, including the student's own words, opens under the row.
-          const details = makeElement('details', 'request-details', null, [
-            makeElement('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
-            makeElement('p', 'note-text', request.studentNote || 'The student did not write a note.'),
-            makeElement('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
-            request.note ? makeElement('div', 'row-sub', 'Teacher note: ' + request.note) : null,
-            request.resolvedBy ? makeElement('div', 'row-sub', request.status === 'Denied' || request.status === 'Cancelled' ? request.status + ' by ' + request.resolvedBy : 'Approved by ' + request.resolvedBy) : null,
-            request.completedBy ? makeElement('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null
-          ]);
-          rowText.appendChild(details);
-          if (request.status === 'Pending' || request.status === 'Approved') rowText.appendChild(noteInput);
-          card.appendChild(makeElement('div', 'list-row', null, [rowText, actions]));
-        });
+        if (!response || response.error) { showBoardError(card, (response && response.error) || 'The requests could not load.'); return; }
+        adminState.requests = response.requests || [];
+        adminState.total = response.total || adminState.requests.length;
+        card.redraw();
+        // The refresh button was busy: the board redraw replaced nothing, so give it back.
+        card.querySelectorAll('button.is-busy').forEach(button => { delete button.dataset.busy; button.disabled = false; button.classList.remove('is-busy'); if (button.textContent === 'Refreshing...') button.textContent = 'Refresh'; });
       } catch (error) {
         console.error(error);
-        card.replaceChildren(makeElement('h2', '', 'Expenditure requests'), emptyState('The requests could not load.'));
+        showBoardError(card, 'The requests could not load.');
       }
     }
 
-    /** (Admins) Marks an APPROVED request as completed (the teacher did the work). Locks the page like any action, then redraws the request list. */
-    async function completeRequest(requestId, note, button, card) {
+    /** Shows a load problem in the board's summary line and gives the Refresh button back. */
+    function showBoardError(card, message) {
+      card.querySelector('.admin-summary').textContent = message;
+      card.querySelectorAll('button.is-busy').forEach(button => { delete button.dataset.busy; button.disabled = false; button.classList.remove('is-busy'); if (button.textContent === 'Refreshing...') button.textContent = 'Refresh'; });
+    }
+
+    /**
+     * Runs one admin request action: locks the page like any action, shows the server's message, then reloads the board.
+     * @param endpoint server function to call, @param payload what to send, @param busyLabel what the clicked button says meanwhile.
+     */
+    async function runRequestAction(endpoint, payload, button, busyLabel, card) {
       if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
       portalState.busy = true;
       setWorking(true);
-      markButtonBusy(button, 'Completing...');
+      markButtonBusy(button, busyLabel);
       try {
-        const result = await portalCall('portalAdminCompleteRequest', JSON.stringify({ id: requestId, note }));
+        const result = await portalCall(endpoint, JSON.stringify(payload));
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
       } catch (error) {
         console.error(error);
@@ -1105,23 +1262,12 @@
       await loadAdminRequests(card);
     }
 
-    /** (Admins) Approves (the student is charged on the server) or denies a PENDING request, with an optional note. Locks the page, then redraws the request list. */
-    async function resolveRequest(requestId, approve, note, button, card) {
-      if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
-      portalState.busy = true;
-      setWorking(true);
-      markButtonBusy(button, approve ? 'Approving...' : 'Denying...');
-      try {
-        const result = await portalCall('portalAdminResolveRequest', JSON.stringify({ id: requestId, approve, note }));
-        showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
-      } catch (error) {
-        console.error(error);
-        showNotice('bad', 'The bank could not be reached. Please try again.');
-      } finally {
-        setTimeout(() => { portalState.busy = false; setWorking(false); markDataFresh(); }, ACTION_COOLDOWN_MS);
-      }
-      await loadAdminRequests(card);
-    }
+    /** (Admins) Marks an APPROVED request as completed: the student is charged and a Transactions row is written. */
+    function completeRequest(requestId, note, button, card) { return runRequestAction('portalAdminCompleteRequest', { id: requestId, note }, button, 'Completing...', card); }
+    /** (Admins) Takes a COMPLETED request back to approved by undoing its transaction. */
+    function uncompleteRequest(requestId, note, button, card) { return runRequestAction('portalAdminUncompleteRequest', { id: requestId, note }, button, 'Undoing...', card); }
+    /** (Admins) Approves (the charge happens at completion) or denies a PENDING request. */
+    function resolveRequest(requestId, approve, note, button, card) { return runRequestAction('portalAdminResolveRequest', { id: requestId, approve, note }, button, approve ? 'Approving...' : 'Denying...', card); }
   </script>
 </body>
 

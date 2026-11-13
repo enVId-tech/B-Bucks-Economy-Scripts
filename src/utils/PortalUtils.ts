@@ -30,7 +30,7 @@
  *   4. Rosters and profile linking  getPortalRosterIndex_ (cached roster), findPortalProfiles_: WHICH student account an email may open.
  *   5. Reading data for the page .. portalBootstrap, buildPortalDashboard_ (the dashboard), portalGetTransactions (the history).
  *   6. Student actions ............ authorizeProfileAction_, then portalDeposit / portalWithdraw / portalRequestExpenditure / portalCancelRequest.
- *   7. Admin actions .............. list, approve or deny, mark completed.
+ *   7. Admin actions .............. list, approve or deny, mark completed (charges + logs a transaction), unmark completed (undoes it).
  *   8. Public entry points ........ the bottom of the file: the only functions the browser calls, each wrapped in runTrusted_.
  *
  * Life of ONE click, so you know where to look when something breaks:
@@ -115,7 +115,7 @@ interface PortalRequestRecord {
     unitPrice: number;
     quantity: number;
     total: number;
-    /** Pending -> Approved (charged) -> Completed (the teacher did the work). Denied and Cancelled end a request without a charge. */
+    /** Pending -> Approved (accepted, nothing charged yet) -> Completed (the student is charged and a Transactions row is written; unmarking it undoes that row and goes back to Approved). Denied and Cancelled end a request without a charge. */
     status: "Pending" | "Approved" | "Completed" | "Denied" | "Cancelled";
     resolvedBy: string;
     resolvedAt: string;
@@ -125,10 +125,14 @@ interface PortalRequestRecord {
     studentNote: string;
     completedBy: string;
     completedAt: string;
+    /** Ids of the Transactions-sheet rows that charged this request (comma separated). Empty until the request is completed, and for requests completed before this column existed. */
+    transactionIds: string;
+    /** Whether the student still has to be charged: "Due" (approved, charged when it is marked completed), "Paid" (charged, transaction ids recorded) or "" (a request from before this column: it was charged when it was approved). */
+    payment: "" | "Due" | "Paid";
 }
 
 /** Header row of the "Expenditure Requests" tab. The ORDER is the column order: readPortalRequests_ and every write read columns by position, so never reorder, only append. */
-const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Student", "Period", "Item", "Quarter", "Unit Price", "Quantity", "Total", "Status", "Resolved By", "Resolved At", "Note", "Student Note", "Completed By", "Completed At"];
+const PORTAL_REQUEST_HEADERS: string[] = ["ID", "Requested At", "Email", "Student", "Period", "Item", "Quarter", "Unit Price", "Quantity", "Total", "Status", "Resolved By", "Resolved At", "Note", "Student Note", "Completed By", "Completed At", "Transaction IDs", "Payment"];
 /** Header row of the optional "Portal Accounts" tab (an email -> student override). */
 const PORTAL_ACCOUNT_HEADERS: string[] = ["Email", "Period", "Name"];
 /** Script-cache key holding the list of admin emails (10 minutes). */
@@ -498,12 +502,17 @@ interface PortalPurchasableItem {
     classLimit: number | null;
 }
 
-/** Units of an item that are already waiting in pending requests, by student and by whole class. */
+/** True when a request still holds units back from the caps: pending, or approved and not charged yet (the charge happens on completion). */
+function requestReservesUnits_(request: PortalRequestRecord): boolean {
+    return request.status === "Pending" || (request.status === "Approved" && request.payment === "Due");
+}
+
+/** Units of an item that are already waiting in requests that will still be charged (see requestReservesUnits_), by student and by whole class. */
 function countPendingUnits_(itemName: string, quarter: string, period: string, student: string, ignoreRequestId?: number): { person: number; classWide: number } {
     let person = 0;
     let classWide = 0;
     readPortalRequests_().forEach(request => {
-        if (request.status !== "Pending" || request.itemName !== itemName || request.quarter !== quarter || request.period !== period) return;
+        if (!requestReservesUnits_(request) || request.itemName !== itemName || request.quarter !== quarter || request.period !== period) return;
         if (request.id === ignoreRequestId) return;
         classWide += request.quantity;
         if (request.student === student) person += request.quantity;
@@ -567,7 +576,7 @@ function buildPortalCatalogForCheck_(quarter: QuarterId, studentName: string, pe
     const catalog = buildPortalCatalog_(quarter, studentName, period);
     if (ignoreRequestId === undefined) return catalog;
 
-    const ownRequest = readPortalRequests_().find(request => request.id === ignoreRequestId && request.status === "Pending");
+    const ownRequest = readPortalRequests_().find(request => request.id === ignoreRequestId && requestReservesUnits_(request));
     if (!ownRequest) return catalog;
     return catalog.map(item => {
         if (item.itemName !== ownRequest.itemName) return item;
@@ -953,7 +962,9 @@ function readPortalRequests_(): PortalRequestRecord[] {
             note: String(row[13] ?? ""),
             studentNote: String(row[14] ?? ""),
             completedBy: String(row[15] ?? ""),
-            completedAt: row[16] instanceof Date ? row[16].toISOString() : String(row[16] ?? "")
+            completedAt: row[16] instanceof Date ? row[16].toISOString() : String(row[16] ?? ""),
+            transactionIds: String(row[17] ?? ""),
+            payment: String(row[18] ?? "") as PortalRequestRecord["payment"]
         }));
 }
 
@@ -1002,9 +1013,9 @@ function portalRequestExpenditureInsideLock_(data: string): PortalActionResult {
         const nextId = existingRequests.reduce((highest, existing) => Math.max(highest, existing.id), 0) + 1;
         const total = Number((item.unitPrice * quantity).toFixed(2));
 
-        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : "", studentNote, "", ""]);
+        requestsSheet.appendRow([nextId, new Date(), identity.email, name, period, itemName, quarter, item.unitPrice, quantity, total, "Pending", "", "", onBehalf ? `Requested by ${identity.email} for the student` : "", studentNote, "", "", "", ""]);
         if (onBehalf) log(`Portal: ${identity.email} requested ${quantity} x ${itemName} for ${name} (${period}).`, false);
-        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). It is charged only if it is approved.` };
+        return { ok: true, message: `Requested ${quantity} x ${itemName} ($${total.toFixed(2)}). You are charged when the teacher completes it.` };
     } catch (error: any) {
         log(`Error in portalRequestExpenditure: ${error.message}`, false);
         return failure_("The request could not be sent. Please try again.");
@@ -1019,7 +1030,7 @@ function portalCancelRequestEntry_(data: string): PortalActionResult {
     return withFreshDashboard_(portalCancelRequestCore_(data), data);
 }
 
-/** Cancels a PENDING request for the student (or on their behalf for an admin). An approved request can no longer be cancelled: it was already charged. */
+/** Cancels a PENDING request for the student (or on their behalf for an admin). An approved request can no longer be cancelled by the student. */
 function portalCancelRequestCore_(data: string): PortalActionResult {
     return runWithTransactionLock(() => {
         try {
@@ -1050,26 +1061,67 @@ function portalCancelRequestCore_(data: string): PortalActionResult {
 // Admin actions
 // ---------------------------------------------------------------------------------------------------------------------------
 
-/** All requests, pending first. Admins only. */
+/** Largest number of requests the admin list returns (the newest ones), so the page stays quick on a very busy sheet. */
+const PORTAL_ADMIN_LIST_LIMIT: number = 600;
+
+/** All requests, newest first (the page groups and filters them into Pending / To do / Completed / Closed). Admins only. */
 function portalAdminListRequestsEntry_(): any {
     try {
         const identity = resolvePortalIdentity_();
         if (identity.status !== "ok" || !identity.isAdmin) return { error: "Admins only." };
 
-        const requests = readPortalRequests_();
-        const pending = requests.filter(request => request.status === "Pending");
-        const toComplete = requests.filter(request => request.status === "Approved").reverse(); // charged, work not marked done yet
-        const finished = requests.filter(request => request.status !== "Pending" && request.status !== "Approved").slice(-30).reverse();
-        return { requests: [...pending, ...toComplete, ...finished] };
+        const requests = readPortalRequests_().slice().reverse();
+        return { requests: requests.slice(0, PORTAL_ADMIN_LIST_LIMIT), total: requests.length };
     } catch (error: any) {
         log(`Error in portalAdminListRequests: ${error.message}`, false);
         return { error: "The requests could not load." };
     }
 }
 
+/** Ids of the Transactions rows added after the log had `rowsBefore` rows (what one charge just wrote). */
+function readTransactionIdsSince_(rowsBefore: number): number[] {
+    const logSheet = getTransactionsSheet();
+    if (!logSheet) return [];
+    const rowsNow = countTransactionRows(logSheet);
+    if (rowsNow <= rowsBefore) return [];
+    return logSheet.getRange(getTransactionsRowStart() + rowsBefore, 1, rowsNow - rowsBefore, 1).getValues()
+        .map(row => Number(row[0]))
+        .filter(id => Number.isFinite(id) && id > 0);
+}
+
 /**
- * Marks an approved request as completed (the teacher did what the student asked for). The status, who did it and when are written
- * to the Expenditure Requests tab, so the sheet itself shows what is done.
+ * Charges the student for an approved request through the same code path as the Services dialog, and returns the ids of the Transactions
+ * rows that charge wrote. These ids are what lets "Unmark completed" undo exactly this charge later.
+ * Must run inside the transaction lock.
+ */
+function chargeForRequest_(record: PortalRequestRecord, student: PortalStudentRow): { ok: boolean; message: string; transactionIds: number[] } {
+    const logSheet = getTransactionsSheet();
+    if (!logSheet) return { ok: false, message: `The "${getTransactionsSheetName()}" tab was not found, so the charge could not be recorded. Nothing was changed.`, transactionIds: [] };
+
+    const rowsBefore = countTransactionRows(logSheet);
+    const periodSheet = getSheetNamed(record.period)!;
+    const expendituresColumn = getExpendituresColumn();
+    const { result, messages } = runCapturingMessages_(() => applyMathToSelection(
+        "ADD",
+        record.unitPrice,
+        record.quantity,
+        false,
+        `$${record.unitPrice} - ${record.itemName} (x${record.quantity})`,
+        periodSheet.getRange(student.row, expendituresColumn),
+        student.row,
+        expendituresColumn
+    ));
+    if (result !== true) return { ok: false, message: messages.join(" ") || (typeof result === "string" ? result : "The charge could not be applied."), transactionIds: [] };
+
+    const transactionIds = readTransactionIdsSince_(rowsBefore);
+    if (transactionIds.length === 0) return { ok: false, message: "The charge was applied but its Transactions row could not be found. Check the Transactions tab before trying again.", transactionIds: [] };
+    return { ok: true, message: "", transactionIds };
+}
+
+/**
+ * Marks an approved request as completed. THIS is the moment the student is charged: a normal purchase row is written to the Transactions
+ * sheet (so it shows in Transaction Records and can be undone there), and its id is stored on the request.
+ * A request approved by an older version was already charged when it was approved, so for those only the status changes.
  * @param data JSON string: { id: number, note?: string }
  */
 function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
@@ -1093,11 +1145,29 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
             const rowNumber = findPortalRequestRow_(requestId);
             if (rowNumber < 0) return failure_("That request was not found.");
 
+            let chargeMessage = "";
+            let transactionIds: number[] = [];
+            let payment: PortalRequestRecord["payment"] = record.payment;
+            if (record.payment === "Due") {
+                const student = findPortalStudent_(record.student, record.period);
+                if (!student) return failure_(`${record.student} was not found on ${record.period}.`);
+
+                // The balance and the caps can have changed since the approval.
+                const refusal = checkPortalPurchase_(student, record.period, record.itemName, record.quarter as QuarterId, record.quantity, record.id);
+                if (refusal) return failure_(`Can't complete: ${refusal}`);
+
+                const charge = chargeForRequest_(record, student);
+                if (!charge.ok) return failure_(charge.message);
+                transactionIds = charge.transactionIds;
+                payment = "Paid";
+                chargeMessage = ` ${record.student} was charged $${record.total.toFixed(2)} (transaction ${transactionIds.join(", ")}).`;
+            }
+
             requestsSheet.getRange(rowNumber, 11).setValue("Completed");
-            requestsSheet.getRange(rowNumber, 16, 1, 2).setValues([[identity.email, new Date()]]);
+            requestsSheet.getRange(rowNumber, 16, 1, 4).setValues([[identity.email, new Date(), transactionIds.join(", ") || record.transactionIds, payment]]);
             if (completionNote) requestsSheet.getRange(rowNumber, 14).setValue(record.note ? `${record.note} - Completed: ${completionNote}` : `Completed: ${completionNote}`);
             log(`Portal: ${identity.email} marked request ${requestId} (${record.itemName}) for ${record.student} (${record.period}) as completed.`, false);
-            return { ok: true, message: `Marked as completed: ${record.quantity} x ${record.itemName} for ${record.student}.` };
+            return { ok: true, message: `Marked as completed: ${record.quantity} x ${record.itemName} for ${record.student}.${chargeMessage}` };
         } catch (error: any) {
             log(`Error in portalAdminCompleteRequest: ${error.message}`, false);
             return failure_("The request could not be marked completed. Please try again.");
@@ -1106,8 +1176,70 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
 }
 
 /**
- * Approves or denies a request. Approving charges the student through the same code path as the Services dialog,
- * so the purchase is logged, counted against the caps and can be undone like any other.
+ * Takes a request back from Completed to Approved by UNDOING the transaction that completing it wrote (the normal undo, so the log gets
+ * an "Undo transaction ID ..." row and the student's balance comes back). If the charge was already undone in Transaction Records, only
+ * the status changes. A request completed before charges moved to completion has no transaction to undo: only its status changes.
+ * @param data JSON string: { id: number, note?: string }
+ */
+function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try {
+            const identity = resolvePortalIdentity_();
+            if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
+            const tooFast = checkPortalRate_(identity.email, "action");
+            if (tooFast) return failure_(tooFast);
+
+            const request = JSON.parse(data);
+            const requestId = Number(request.id);
+            const reason = String(request.note ?? "").trim().slice(0, 200);
+
+            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            if (!record) return failure_("That request was not found.");
+            if (record.status !== "Completed") return failure_("Only a completed request can be unmarked.");
+
+            const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
+            const rowNumber = findPortalRequestRow_(requestId);
+            if (rowNumber < 0) return failure_("That request was not found.");
+
+            const transactionIds = record.transactionIds.split(",").map(id => Number(id.trim())).filter(id => Number.isFinite(id) && id > 0);
+            let undoMessage = "";
+            let nextPayment: PortalRequestRecord["payment"] = record.payment;
+
+            if (record.payment === "Paid" && transactionIds.length > 0) {
+                // Skip the undo when someone already reversed the charge from Transaction Records (the undo would refuse a second time).
+                const logSheet = getTransactionsSheet();
+                const logRowCount = logSheet ? countTransactionRows(logSheet) : 0;
+                const idColumn = logSheet && logRowCount > 0 ? logSheet.getRange(getTransactionsRowStart(), 1, logRowCount, 1).getValues() : [];
+                const alreadyUndone = findRecordsNoLongerInEffect(transactionIds, idColumn);
+
+                if (alreadyUndone.length < transactionIds.length) {
+                    const { result, messages } = runCapturingMessages_(() => undoTransactions(JSON.stringify({ transactionIds })));
+                    if (result !== true) return failure_(messages.join(" ") || "The charge could not be undone, so the request stays completed.");
+                    undoMessage = ` ${record.student}'s charge of $${record.total.toFixed(2)} was undone.`;
+                } else {
+                    undoMessage = " The charge had already been undone in Transaction Records.";
+                }
+                nextPayment = "Due";
+            } else if (record.payment === "") {
+                undoMessage = " This request was charged before completions were tracked, so no money moved; undo its purchase in Transaction Records if needed.";
+            }
+
+            const history = `Unmarked by ${identity.email}${reason ? ": " + reason : ""}${transactionIds.length > 0 && record.payment === "Paid" ? ` (undid transaction ${transactionIds.join(", ")})` : ""}`;
+            requestsSheet.getRange(rowNumber, 11).setValue("Approved");
+            requestsSheet.getRange(rowNumber, 14).setValue(record.note ? `${record.note} - ${history}` : history);
+            requestsSheet.getRange(rowNumber, 16, 1, 4).setValues([["", "", "", nextPayment]]);
+            log(`Portal: ${identity.email} unmarked request ${requestId} (${record.itemName}) for ${record.student} (${record.period}).`, false);
+            return { ok: true, message: `Unmarked: ${record.quantity} x ${record.itemName} for ${record.student} is approved again.${undoMessage}` };
+        } catch (error: any) {
+            log(`Error in portalAdminUncompleteRequest: ${error.message}`, false);
+            return failure_("The request could not be unmarked. Please try again.");
+        }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
+}
+
+/**
+ * Approves or denies a request. Approving does NOT charge: it checks the price, balance and caps, locks the price in and marks the
+ * request as "Due". The student is charged (and a Transactions row written) when the request is marked completed.
  * @param data JSON string: { id: number, approve: boolean, note?: string }
  */
 function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
@@ -1127,8 +1259,8 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
             if (!record) return failure_("That request was not found.");
             if (record.status !== "Pending") return failure_(`That request is already ${record.status.toLowerCase()}.`);
 
+            const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
             const rowNumber = findPortalRequestRow_(requestId);
-            const requestsSheet = getSheetNamed(PORTAL_REQUESTS_SHEET)!;
 
             if (!approve) {
                 requestsSheet.getRange(rowNumber, 11, 1, 4).setValues([["Denied", identity.email, new Date(), note]]);
@@ -1143,24 +1275,11 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
             if (refusal) return failure_(`Can't approve: ${refusal}`);
 
             const currentItem = buildPortalCatalog_(record.quarter as QuarterId, record.student, record.period).find(candidate => candidate.itemName === record.itemName)!;
-            const expendituresColumn = getExpendituresColumn();
-            const periodSheet = getSheetNamed(record.period)!;
+            const total = Number((currentItem.unitPrice * record.quantity).toFixed(2));
 
-            const { result, messages } = runCapturingMessages_(() => applyMathToSelection(
-                "ADD",
-                currentItem.unitPrice,
-                record.quantity,
-                false,
-                `$${currentItem.unitPrice} - ${record.itemName} (x${record.quantity})`,
-                periodSheet.getRange(student.row, expendituresColumn),
-                student.row,
-                expendituresColumn
-            ));
-
-            if (result !== true) return failure_(messages.join(" ") || (typeof result === "string" ? result : "The charge could not be applied."));
-
-            requestsSheet.getRange(rowNumber, 8, 1, 7).setValues([[currentItem.unitPrice, record.quantity, Number((currentItem.unitPrice * record.quantity).toFixed(2)), "Approved", identity.email, new Date(), note]]);
-            return { ok: true, message: `Approved. ${record.student} was charged $${(currentItem.unitPrice * record.quantity).toFixed(2)}.` };
+            requestsSheet.getRange(rowNumber, 8, 1, 7).setValues([[currentItem.unitPrice, record.quantity, total, "Approved", identity.email, new Date(), note]]);
+            requestsSheet.getRange(rowNumber, 19).setValue("Due");
+            return { ok: true, message: `Approved. ${record.student} is charged $${total.toFixed(2)} when you mark it completed.` };
         } catch (error: any) {
             log(`Error in portalAdminResolveRequest: ${error.message}`, false);
             return failure_("The request could not be resolved. Please try again.");
@@ -1187,9 +1306,11 @@ function portalWithdraw(data: string): PortalActionResult { return runTrusted_((
 function portalRequestExpenditure(data: string): PortalActionResult { return runTrusted_(() => portalRequestExpenditureEntry_(data)); }
 /** Browser entry: cancel a pending request. Payload JSON { name, period, id }. */
 function portalCancelRequest(data: string): PortalActionResult { return runTrusted_(() => portalCancelRequestEntry_(data)); }
-/** Browser entry (admins): every request, pending first. */
+/** Browser entry (admins): every request, newest first. */
 function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
 /** Browser entry (admins): mark an approved request as completed. Payload JSON { id, note }. */
 function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+/** Browser entry (admins): take a completed request back to approved by undoing its transaction. Payload JSON { id, note }. */
+function portalAdminUncompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminUncompleteRequestEntry_(data)); }
 /** Browser entry (admins): approve or deny a pending request. Payload JSON { id, approve, note }. */
 function portalAdminResolveRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminResolveRequestEntry_(data)); }

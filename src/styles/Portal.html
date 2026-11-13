@@ -233,6 +233,16 @@
     .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
     .row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .row-actions input { width: 150px; }
+    /* Admin request board: status tabs, a toolbar (search / period / sort / refresh) and one row per request. */
+    .admin-tabs { flex-wrap: wrap; }
+    .admin-tabs .segment { flex: 1 1 auto; white-space: nowrap; }
+    .admin-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .admin-toolbar input { flex: 2 1 200px; min-width: 0; }
+    .admin-toolbar select { flex: 1 1 130px; min-width: 0; }
+    .admin-summary { margin: 4px 0 8px; }
+    .admin-row { align-items: flex-start; }
+    .admin-row-text { flex: 1 1 auto; min-width: 0; }
+    .admin-row-text input { margin-top: 6px; width: 100%; max-width: 320px; }
     .money { white-space: nowrap; }
 
     .txn-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 16px; }
