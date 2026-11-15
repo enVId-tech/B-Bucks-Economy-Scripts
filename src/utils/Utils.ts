@@ -565,7 +565,7 @@ function stampLastModified(targetSheet?: GoogleAppsScript.Spreadsheet.Sheet): vo
 
             const email = Session.getActiveUser().getEmail();
             const userIdentifier = email ? email : "Authorized User";
-            
+
             sheet.getRange(getTimestampCell()).setValue(`Last Modified by: ${userIdentifier} on ${new Date().toLocaleString()}`);
         }
     } catch (err: any) {

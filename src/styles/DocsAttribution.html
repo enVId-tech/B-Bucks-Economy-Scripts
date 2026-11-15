@@ -368,7 +368,9 @@
         cursor: pointer;
     }
 
-    .audience-tab:hover { color: var(--text-primary); }
+    .audience-tab:hover {
+        color: var(--text-primary);
+    }
 
     .audience-tab.active {
         background: var(--bg-card);
@@ -391,7 +393,10 @@
         outline: none;
     }
 
-    .docs-search input:focus { border-color: var(--accent-blue); background: #fff; }
+    .docs-search input:focus {
+        border-color: var(--accent-blue);
+        background: #fff;
+    }
 
     .search-empty {
         padding: 10px 12px;
@@ -409,7 +414,10 @@
     }
 
     /* Text in the reading panel must be selectable/copyable (the base stylesheet disables selection app-wide). */
-    .docs-panel, .docs-panel * { user-select: text; }
+    .docs-panel,
+    .docs-panel * {
+        user-select: text;
+    }
 
     .section-card h4 {
         font-size: 11px;
@@ -455,9 +463,15 @@
         font-weight: 700;
     }
 
-    .doc-table td:first-child { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+    .doc-table td:first-child {
+        color: var(--text-primary);
+        font-weight: 600;
+        white-space: nowrap;
+    }
 
-    .doc-table code { white-space: nowrap; }
+    .doc-table code {
+        white-space: nowrap;
+    }
 
     .steps {
         counter-reset: step;
@@ -465,13 +479,13 @@
         padding-left: 0 !important;
     }
 
-    .steps > li {
+    .steps>li {
         counter-increment: step;
         position: relative;
         padding: 4px 0 4px 30px;
     }
 
-    .steps > li::before {
+    .steps>li::before {
         content: counter(step);
         position: absolute;
         left: 0;
@@ -512,7 +526,9 @@
         overflow-x: auto;
     }
 
-    .pill-ok, .pill-warn, .pill-bad {
+    .pill-ok,
+    .pill-warn,
+    .pill-bad {
         display: inline-block;
         padding: 1px 6px;
         border-radius: 999px;
@@ -522,9 +538,20 @@
         letter-spacing: 0.3px;
     }
 
-    .pill-ok { background: #dcfce7; color: #166534; }
-    .pill-warn { background: #fef3c7; color: #92400e; }
-    .pill-bad { background: #fee2e2; color: #991b1b; }
+    .pill-ok {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .pill-warn {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .pill-bad {
+        background: #fee2e2;
+        color: #991b1b;
+    }
 
     .doc-meta {
         font-size: 10px;

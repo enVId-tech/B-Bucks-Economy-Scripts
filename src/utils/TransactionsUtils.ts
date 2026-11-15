@@ -45,7 +45,7 @@ interface TransactionRecord {
  * @returns {boolean} Returns true if the operation was successful, false otherwise.
  */
 function addTransactionRecords(records: TransactionRecord[]): boolean {
-    requireEditor_();
+  requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => addTransactionRecordsInsideLock_(records), false);
 }
@@ -149,7 +149,7 @@ function addTransactionRecordsInsideLock_(records: TransactionRecord[]): boolean
 
 /** Reverses transactions by id. `data` is JSON: an array of transaction ids, or { transactionIds: [...] }. Each undo is a NEW log row ("Undo transaction ID <id> - ..."); the original row is never deleted. Holds the transaction lock. Editors only. */
 function undoTransactions(data?: string): boolean {
-    requireEditor_();
+  requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => undoTransactionsInsideLock_(data), false);
 }
@@ -209,113 +209,113 @@ function undoTransactionsInsideLock_(data?: string): boolean {
     const undoRecords: TransactionRecord[] = [];
     beginNoteSyncBatch();
     try {
-    for (const record of recordsToUndo) {
-      if (!record.individual || !record.type || !record.unitPrice || !record.quantity || !record.modifiedColumn || !record.period) {
-        log(`Incomplete transaction record found for ID ${record.id}. Cannot undo.`, true);
-        return false;
-      }
-
-      const spreadsheet = getSS();
-      const targetSheet = getAllSheets().find(sheet =>
-        parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
-      );
-      if (!targetSheet) {
-        log(`No sheet found for period ${record.period} and transaction ID ${record.id}.`, true);
-        return false;
-      }
-
-      // The stored row is only a hint: rows move when names are sorted, so fall back to finding the student by name.
-      let targetRow = Number(record.row);
-      const storedRowIsValid = Number.isInteger(targetRow) && targetRow >= getUserStartingRow()
-        && String(targetSheet.getRange(targetRow, getNamesColumn()).getValue()).trim() === String(record.individual).trim();
-      if (!storedRowIsValid) {
-        const lastRow = targetSheet.getLastRow();
-        if (lastRow < getUserStartingRow()) {
-          log(`No student rows found in Period ${record.period} for transaction ID ${record.id}.`, true);
+      for (const record of recordsToUndo) {
+        if (!record.individual || !record.type || !record.unitPrice || !record.quantity || !record.modifiedColumn || !record.period) {
+          log(`Incomplete transaction record found for ID ${record.id}. Cannot undo.`, true);
           return false;
         }
 
-        const names = targetSheet
-          .getRange(getUserStartingRow(), getNamesColumn(), lastRow - getUserStartingRow() + 1, 1)
-          .getValues();
-        const studentRowOffset = names.findIndex(row => String(row[0]).trim() === String(record.individual).trim());
-        if (studentRowOffset < 0) {
-          log(`Student "${record.individual}" not found in Period ${record.period} for transaction ID ${record.id}.`, true);
+        const spreadsheet = getSS();
+        const targetSheet = getAllSheets().find(sheet =>
+          parseInt(sheet.getName().replace(/\D/g, ""), 10) === Number(record.period)
+        );
+        if (!targetSheet) {
+          log(`No sheet found for period ${record.period} and transaction ID ${record.id}.`, true);
           return false;
         }
-        targetRow = getUserStartingRow() + studentRowOffset;
-      }
 
-      const targetRange = targetSheet.getRange(targetRow, Number(record.modifiedColumn), 1, 1);
-      const initialCellAmount = Number(record.initialColumnAmount);
-      const currentValue = Number(targetRange.getValue());
-      if (!Number.isFinite(initialCellAmount)) {
-        log(`Transaction ID ${record.id} has no valid initial cell amount.`, true);
-        return false;
-      }
-      if (!Number.isFinite(currentValue)) {
-        log(`Target cell ${targetSheet.getName()}!${targetRange.getA1Notation()} is not numeric for transaction ID ${record.id}.`, true);
-        return false;
-      }
+        // The stored row is only a hint: rows move when names are sorted, so fall back to finding the student by name.
+        let targetRow = Number(record.row);
+        const storedRowIsValid = Number.isInteger(targetRow) && targetRow >= getUserStartingRow()
+          && String(targetSheet.getRange(targetRow, getNamesColumn()).getValue()).trim() === String(record.individual).trim();
+        if (!storedRowIsValid) {
+          const lastRow = targetSheet.getLastRow();
+          if (lastRow < getUserStartingRow()) {
+            log(`No student rows found in Period ${record.period} for transaction ID ${record.id}.`, true);
+            return false;
+          }
 
-      const originalOperation = record.operation || (
-        Number(record.newColumnAmount) >= initialCellAmount ? "ADD" : "SUBTRACT"
-      );
-      const inverseOperation = {
-        ADD: "SUBTRACT",
-        SUBTRACT: "ADD",
-        MULTIPLY: "DIVIDE",
-        DIVIDE: "MULTIPLY"
-      }[originalOperation];
-      const undoValue = Number(record.unitPrice) * Number(record.quantity);
-      if (!Number.isFinite(undoValue) || undoValue === 0) {
-        log(`Transaction ID ${record.id} has no valid operation value.`, true);
-        return false;
-      }
+          const names = targetSheet
+            .getRange(getUserStartingRow(), getNamesColumn(), lastRow - getUserStartingRow() + 1, 1)
+            .getValues();
+          const studentRowOffset = names.findIndex(row => String(row[0]).trim() === String(record.individual).trim());
+          if (studentRowOffset < 0) {
+            log(`Student "${record.individual}" not found in Period ${record.period} for transaction ID ${record.id}.`, true);
+            return false;
+          }
+          targetRow = getUserStartingRow() + studentRowOffset;
+        }
 
-      let restoredValue: number;
-      switch (inverseOperation) {
-        case "SUBTRACT":
-          restoredValue = Number((currentValue - undoValue).toFixed(2));
-          break;
-        case "ADD":
-          restoredValue = Number((currentValue + undoValue).toFixed(2));
-          break;
-        case "DIVIDE":
-          restoredValue = Number((currentValue / undoValue).toFixed(2));
-          break;
-        case "MULTIPLY":
-          restoredValue = Number((currentValue * undoValue).toFixed(2));
-          break;
-        default:
-          log(`Transaction ID ${record.id} has an unsupported operation.`, true);
+        const targetRange = targetSheet.getRange(targetRow, Number(record.modifiedColumn), 1, 1);
+        const initialCellAmount = Number(record.initialColumnAmount);
+        const currentValue = Number(targetRange.getValue());
+        if (!Number.isFinite(initialCellAmount)) {
+          log(`Transaction ID ${record.id} has no valid initial cell amount.`, true);
           return false;
+        }
+        if (!Number.isFinite(currentValue)) {
+          log(`Target cell ${targetSheet.getName()}!${targetRange.getA1Notation()} is not numeric for transaction ID ${record.id}.`, true);
+          return false;
+        }
+
+        const originalOperation = record.operation || (
+          Number(record.newColumnAmount) >= initialCellAmount ? "ADD" : "SUBTRACT"
+        );
+        const inverseOperation = {
+          ADD: "SUBTRACT",
+          SUBTRACT: "ADD",
+          MULTIPLY: "DIVIDE",
+          DIVIDE: "MULTIPLY"
+        }[originalOperation];
+        const undoValue = Number(record.unitPrice) * Number(record.quantity);
+        if (!Number.isFinite(undoValue) || undoValue === 0) {
+          log(`Transaction ID ${record.id} has no valid operation value.`, true);
+          return false;
+        }
+
+        let restoredValue: number;
+        switch (inverseOperation) {
+          case "SUBTRACT":
+            restoredValue = Number((currentValue - undoValue).toFixed(2));
+            break;
+          case "ADD":
+            restoredValue = Number((currentValue + undoValue).toFixed(2));
+            break;
+          case "DIVIDE":
+            restoredValue = Number((currentValue / undoValue).toFixed(2));
+            break;
+          case "MULTIPLY":
+            restoredValue = Number((currentValue * undoValue).toFixed(2));
+            break;
+          default:
+            log(`Transaction ID ${record.id} has an unsupported operation.`, true);
+            return false;
+        }
+
+        const balanceBeforeUndo = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
+        log(`Undoing transaction ID ${record.id} at ${targetSheet.getName()}!${targetRange.getA1Notation()} with ${inverseOperation} ${undoValue}.`, false);
+        targetRange.setValue(restoredValue);
+        SpreadsheetApp.flush();
+
+        const updatedBalance = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
+        undoRecords.push({
+          individual: record.individual,
+          period: Number(record.period),
+          row: targetRow,
+          type: record.type === "Investment" ? "Investment" : transactionTypeForChange(inverseOperation as Operation, Number(record.modifiedColumn)),
+          operation: inverseOperation as "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE",
+          serviceProvided: `Undo transaction ID ${record.id} - ${record.serviceProvided || "Not specified"}`,
+          unitPrice: Number(record.unitPrice),
+          quantity: Number(record.quantity),
+          modifiedColumn: Number(record.modifiedColumn),
+          tenderedMoney: undoValue,
+          initialColumnAmount: currentValue,
+          newColumnAmount: restoredValue,
+          initialBalance: Number.isFinite(balanceBeforeUndo) ? balanceBeforeUndo : Number(record.newBalance) || 0,
+          newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.initialBalance) || 0,
+          timestamp: new Date().toISOString()
+        });
       }
-
-      const balanceBeforeUndo = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
-      log(`Undoing transaction ID ${record.id} at ${targetSheet.getName()}!${targetRange.getA1Notation()} with ${inverseOperation} ${undoValue}.`, false);
-      targetRange.setValue(restoredValue);
-      SpreadsheetApp.flush();
-
-      const updatedBalance = Number(targetSheet.getRange(targetRow, getBalanceColumn()).getValue());
-      undoRecords.push({
-        individual: record.individual,
-        period: Number(record.period),
-        row: targetRow,
-        type: record.type === "Investment" ? "Investment" : transactionTypeForChange(inverseOperation as Operation, Number(record.modifiedColumn)),
-        operation: inverseOperation as "ADD" | "SUBTRACT" | "MULTIPLY" | "DIVIDE",
-        serviceProvided: `Undo transaction ID ${record.id} - ${record.serviceProvided || "Not specified"}`,
-        unitPrice: Number(record.unitPrice),
-        quantity: Number(record.quantity),
-        modifiedColumn: Number(record.modifiedColumn),
-        tenderedMoney: undoValue,
-        initialColumnAmount: currentValue,
-        newColumnAmount: restoredValue,
-        initialBalance: Number.isFinite(balanceBeforeUndo) ? balanceBeforeUndo : Number(record.newBalance) || 0,
-        newBalance: Number.isFinite(updatedBalance) ? updatedBalance : Number(record.initialBalance) || 0,
-        timestamp: new Date().toISOString()
-      });
-    }
     } finally {
       if (undoRecords.length > 0) addTransactionRecords(undoRecords);
       endNoteSyncBatch();
@@ -346,7 +346,7 @@ function findRecordsNoLongerInEffect(ids: number[], idColumn: any[][]): number[]
 
 /** Deletes every row of the transaction log from the first data row (getTransactionsRowStart) down and clears the transaction cache. Cannot be undone. Holds the transaction lock. Editors only. */
 function resetAllTransactionRecords(): boolean {
-    requireEditor_();
+  requireEditor_();
   // Money moves only while holding the transaction lock, see LockUtils.ts
   return runWithTransactionLock(() => resetAllTransactionRecordsInsideLock_(), false);
 }
@@ -363,7 +363,7 @@ function resetAllTransactionRecordsInsideLock_(): boolean {
     }
 
     const lastRowWithData = sheet.getLastRow();
-    
+
     if (lastRowWithData >= getTransactionsRowStart()) {
       sheet.deleteRows(getTransactionsRowStart(), lastRowWithData - getTransactionsRowStart() + 1);
     }

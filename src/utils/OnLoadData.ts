@@ -438,7 +438,7 @@ function recordDailyDataEntry_(): void {
         return;
     }
 
-        const sheetName = getHistoricalRecordsSheetName();
+    const sheetName = getHistoricalRecordsSheetName();
 
     const historySheet = getSheetNamed(sheetName);
     if (!historySheet) {

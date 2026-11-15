@@ -72,15 +72,16 @@
                     Cache</button>
                 <button class="btn btn-primary" id="refreshAllInvestments"
                     onclick="callServer('refreshAllInvestments')">Refresh All Investments Data</button>
-                <button class="btn btn-primary" id="enableWarmCacheBtn"
-                    onclick="setCacheWarming(true)">Enable Background Cache Warming</button>
-                <button class="btn btn-primary" id="disableWarmCacheBtn"
-                    onclick="setCacheWarming(false)">Disable Background Cache Warming</button>
+                <button class="btn btn-primary" id="enableWarmCacheBtn" onclick="setCacheWarming(true)">Enable
+                    Background Cache Warming</button>
+                <button class="btn btn-primary" id="disableWarmCacheBtn" onclick="setCacheWarming(false)">Disable
+                    Background Cache Warming</button>
                 <button class="btn btn-success" id="importStudentNames"
                     onclick="callServer('importStudentNames')">Import All Students</button>
 
                 <label class="label-normal"><strong>Student Portal</strong>
-                    <span class="experimental-badge display-none" title="The student portal is new and still being tested.">EXPERIMENTAL</span></label>
+                    <span class="experimental-badge display-none"
+                        title="The student portal is new and still being tested.">EXPERIMENTAL</span></label>
                 <div class="btn-group">
                     <button class="btn btn-primary" id="setPortalDomainBtn"
                         onclick="callServer('configurePortalDomain')">Set Portal Domain</button>
@@ -97,12 +98,18 @@
                 </div>
 
                 <label class="label-normal"><strong>Transaction Log Repair</strong></label>
-                <div class="repair-help">Finds log rows whose reported balance change does not match the cell that changed (wrong amount or flipped sign) and rebuilds them. Only the "balance after" of the log is rewritten, never a student's real balance, and every old value is saved on the "Transaction Repair Backup" tab.</div>
+                <div class="repair-help">Finds log rows whose reported balance change does not match the cell that
+                    changed (wrong amount or flipped sign) and rebuilds them. Only the "balance after" of the log is
+                    rewritten, never a student's real balance, and every old value is saved on the "Transaction Repair
+                    Backup" tab.</div>
                 <div class="btn-group">
-                    <button class="btn btn-primary" id="scanTransactionLogBtn" onclick="scanTransactionLogRows()">Scan Transaction Log</button>
-                    <button class="btn btn-success" id="repairTransactionLogBtn" disabled onclick="repairTransactionLogRows()">Repair Fixable Rows</button>
+                    <button class="btn btn-primary" id="scanTransactionLogBtn" onclick="scanTransactionLogRows()">Scan
+                        Transaction Log</button>
+                    <button class="btn btn-success" id="repairTransactionLogBtn" disabled
+                        onclick="repairTransactionLogRows()">Repair Fixable Rows</button>
                 </div>
-                <button class="btn btn-danger" id="undoTransactionRepairBtn" onclick="undoLastTransactionRepair()">Undo Last Repair</button>
+                <button class="btn btn-danger" id="undoTransactionRepairBtn" onclick="undoLastTransactionRepair()">Undo
+                    Last Repair</button>
                 <div id="repairReport" class="repair-report display-none"></div>
 
                 <label class="label-normal"><strong>Reset All</strong></label>

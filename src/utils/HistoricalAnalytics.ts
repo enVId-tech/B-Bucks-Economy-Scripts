@@ -101,7 +101,7 @@ function parseHistoricalHeaders(sheet: GoogleAppsScript.Spreadsheet.Sheet, lastC
 function computeLiveHistoricalPoint(
   spreadsheet: GoogleAppsScript.Spreadsheet.Spreadsheet, timeZone: string, liveSheetName: string, liveHeaderKeys: string[] | null
 ): { records: HistoricalRecord[]; liveIncluded: boolean; liveError?: string } {
-    requireEditor_();
+  requireEditor_();
   const records: HistoricalRecord[] = [];
   const liveSheet = getSheetNamed(liveSheetName);
   if (!liveSheet) {
@@ -142,7 +142,7 @@ function computeLiveHistoricalPoint(
  * asks for this to add the ◆ point. Returns { records, meta: { generatedAt, liveIncluded, liveError? } } as JSON.
  */
 function fetchLiveHistoricalPoint(): string {
-    requireEditor_();
+  requireEditor_();
   const spreadsheet = getSS();
   const timeZone = spreadsheet.getSpreadsheetTimeZone();
   const liveSheetName = getHistoricalRecordsSheetName();
@@ -174,7 +174,7 @@ function fetchLiveHistoricalPoint(): string {
  * @param data Optional JSON string: { includeLive?: boolean } (default true).
  */
 function fetchHistoricalRecordbookData(data?: string): string {
-    requireEditor_();
+  requireEditor_();
   let includeLive = true;
   try {
     if (data && typeof data === 'string') {

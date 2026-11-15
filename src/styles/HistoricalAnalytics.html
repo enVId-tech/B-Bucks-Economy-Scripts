@@ -27,7 +27,9 @@
         user-select: none;
     }
 
-    input, select, button {
+    input,
+    select,
+    button {
         user-select: text;
     }
 
@@ -130,7 +132,8 @@
         flex-direction: row;
         align-items: flex-end;
         gap: 12px;
-        overflow-x: auto; /* Gracefully scrolls if screen width is constrained */
+        overflow-x: auto;
+        /* Gracefully scrolls if screen width is constrained */
         white-space: nowrap;
     }
 
@@ -138,7 +141,8 @@
         display: inline-flex;
         flex-direction: column;
         gap: 4px;
-        flex: 0 0 auto; /* Keeps elements constrained strictly to content width */
+        flex: 0 0 auto;
+        /* Keeps elements constrained strictly to content width */
     }
 
     .control-group label {
@@ -169,7 +173,8 @@
     }
 
     /* Fit-to-text width for inputs & standard dropdowns */
-    input[type="date"], select:not([multiple]) {
+    input[type="date"],
+    select:not([multiple]) {
         width: auto;
         min-width: 130px;
         padding: 6px 10px;
@@ -181,7 +186,8 @@
         transition: all 0.15s ease;
     }
 
-    input:focus, select:focus {
+    input:focus,
+    select:focus {
         outline: none;
         border-color: var(--border-focus);
         box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.15);
@@ -235,7 +241,10 @@
     /* Loading Overlay */
     .loading-overlay {
         position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background: rgba(255, 255, 255, 0.88);
         backdrop-filter: blur(2px);
         display: flex;
@@ -259,8 +268,13 @@
     }
 
     @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
     }
 
     /* Live "now" toggle + data status notice */
