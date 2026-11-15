@@ -719,7 +719,7 @@ function buildPortalDashboard_(identity: PortalIdentity, profiles: PortalProfile
                 lockoutDaysLeft,
                 canWithdraw: hasActiveCod && student.netGain !== 0 && lockoutDaysLeft === 0,
                 canDeposit: !investingMessage && !(hasActiveCod && lockoutDaysLeft > 0),
-                depositBlockedReason: investingMessage ?? (hasActiveCod && lockoutDaysLeft > 0 ? `Your CoD is locked for ${lockoutDaysLeft} more day(s). You can invest again once it unlocks.` : ""),
+                depositBlockedReason: investingMessage ?? (hasActiveCod && lockoutDaysLeft > 0 ? `Your Certificate of Deposit (CoD) is locked for ${lockoutDaysLeft} more day(s). You can invest again once it unlocks.` : ""),
                 availableToInvest: Number((student.balance + (student.netGain > 0 && lockoutDaysLeft === 0 ? student.netGain : 0)).toFixed(2))
             },
             predictor: {
@@ -935,10 +935,10 @@ function portalWithdrawCore_(data: string): PortalActionResult {
 
         const student = findPortalStudent_(name, period);
         if (!student) return failure_("Your account was not found.");
-        if (student.netGain === 0) return failure_("You have no CoD to withdraw.");
+        if (student.netGain === 0) return failure_("You have no investment to withdraw.");
 
         const daysLeft = daysLeftInLockout_(student);
-        if (daysLeft > 0) return failure_(`Your CoD is locked for ${daysLeft} more day(s).`);
+        if (daysLeft > 0) return failure_(`Your investment is locked for ${daysLeft} more day(s).`);
 
         const { result, messages } = runCapturingMessages_(() => handleWithdraw(JSON.stringify({ amount: student.netGain, student: name, period, override: false })));
         if (result === true) {

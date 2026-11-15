@@ -532,8 +532,8 @@
       ]));
 
       panel.appendChild(makeElement('div', 'grid grid-4', null, [
-        tile('In your CoD', money(student.codPrincipal), 'tile-accent'),
-        tile('CoD value now', money(student.codNet), 'tile-good'),
+        tile('In your Certificate of Deposit (CoD)', money(student.codPrincipal), 'tile-accent'),
+        tile('Investment value now', money(student.codNet), 'tile-good'),
         tile('Total spent', money(student.expenditures), 'tile-warn'),
         tile('Quarter', portalState.dashboard.quarter, '')
       ]));
@@ -721,7 +721,7 @@
       const student = dashboard.student;
       const viewingAsAdmin = dashboard.viewingAsAdmin;
 
-      const codCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Your CoD')]);
+      const codCard = makeElement('div', 'card', null, [makeElement('h2', '', 'Your Current Deposit Records')]);
       codCard.appendChild(makeElement('div', 'grid grid-4', null, [
         tile('Invested', money(student.codPrincipal)),
         tile('Since', student.codDate ? formatDay(student.codDate) : '-'),
@@ -767,7 +767,7 @@
       const card = makeElement('div', 'card', null, [makeElement('h2', '', 'Earnings predictor')]);
 
       const modes = [
-        { id: 'currentCod', label: 'Current CoD' },
+        { id: 'currentCod', label: 'Current Deposit Value' },
         { id: 'custom', label: 'Custom amount' },
         { id: 'depositInput', label: 'From deposit' }
       ];
