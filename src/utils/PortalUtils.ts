@@ -1358,6 +1358,86 @@ function portalAdminSaveRequestNoteEntry_(data: string): PortalActionResult {
     }, failure_("The bank is busy right now. Please try again in a moment."));
 }
 
+/**
+ * Takes a DENIED or CANCELLED request back to Pending ("unmark denied" / "unmark cancelled"), so it can be approved or denied again.
+ * The price, caps and item are checked again first, because they may have changed since the request ended; the comment is kept unless
+ * a new one is sent. Nothing is charged. The student's own open-request limit is not applied: an admin is reopening it on purpose.
+ * @param data JSON string: { id: number, note?: string }
+ */
+function portalAdminReopenRequestEntry_(data: string): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try {
+            const identity = resolvePortalIdentity_();
+            if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
+            const tooFast = checkPortalRate_(identity.email, "action");
+            if (tooFast) return failure_(tooFast);
+
+            const request = JSON.parse(data);
+            const requestId = Number(request.id);
+            const commentGiven = typeof request.note === "string";
+            const comment = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
+
+            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            if (!record) return failure_("That request was not found.");
+            if (record.status !== "Denied" && record.status !== "Cancelled") return failure_("Only a denied or cancelled request can be unmarked.");
+
+            const student = findPortalStudent_(record.student, record.period);
+            if (!student) return failure_(`${record.student} was not found on ${record.period}.`);
+            const refusal = checkPortalPurchase_(student, record.period, record.itemName, record.quarter as QuarterId, record.quantity, record.id);
+            if (refusal) return failure_(`Can't unmark: ${refusal}`);
+
+            const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
+            const rowNumber = findPortalRequestRow_(requestId);
+            if (rowNumber < 0) return failure_("That request was not found.");
+
+            requestsSheet.getRange(rowNumber, 11, 1, 3).setValues([["Pending", "", ""]]);
+            requestsSheet.getRange(rowNumber, 19).setValue("");
+            if (commentGiven) requestsSheet.getRange(rowNumber, 14).setValue(comment);
+            log(`Portal: ${identity.email} unmarked the ${record.status.toLowerCase()} request ${requestId} (${record.itemName}) for ${record.student} (${record.period}); it is pending again.`, false);
+            return { ok: true, message: `Unmarked ${record.status.toLowerCase()}: ${record.quantity} x ${record.itemName} for ${record.student} is pending again.` };
+        } catch (error: any) {
+            log(`Error in portalAdminReopenRequest: ${error.message}`, false);
+            return failure_("The request could not be unmarked. Please try again.");
+        }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
+}
+
+/**
+ * Banking Settings -> Student Portal -> "Clear Denied & Cancelled Requests" (DESTRUCTIVE). Deletes every row of the Expenditure
+ * Requests tab whose status is Denied or Cancelled. Pending, Approved and Completed requests, the Transactions sheet and all balances
+ * are never touched. Rows are removed bottom-up in blocks so the row numbers stay valid.
+ * Returns JSON: { ok, message, deleted }.
+ */
+function clearClosedPortalRequests(): string {
+    requireEditor_();
+    return runWithTransactionLock(() => {
+        try {
+            const requestsSheet = getSheetNamed(PORTAL_REQUESTS_SHEET);
+            if (!requestsSheet || requestsSheet.getLastRow() < 2) return JSON.stringify({ ok: true, message: "There are no requests to clear.", deleted: 0 });
+
+            const statuses = requestsSheet.getRange(2, 11, requestsSheet.getLastRow() - 1, 1).getValues().map(row => String(row[0]));
+            const isClosed = (status: string): boolean => status === "Denied" || status === "Cancelled";
+
+            // Walk from the bottom: each run of closed rows is deleted in one call, and deleting below never shifts the rows still to do.
+            let deleted = 0;
+            let index = statuses.length - 1;
+            while (index >= 0) {
+                if (!isClosed(statuses[index])) { index--; continue; }
+                let first = index;
+                while (first - 1 >= 0 && isClosed(statuses[first - 1])) first--;
+                requestsSheet.deleteRows(first + 2, index - first + 1);
+                deleted += index - first + 1;
+                index = first - 1;
+            }
+            log(`Portal: cleared ${deleted} denied or cancelled request(s).`, false);
+            return JSON.stringify({ ok: true, message: deleted === 0 ? "There were no denied or cancelled requests." : `Deleted ${deleted} denied or cancelled request(s). Pending, approved and completed requests were not touched.`, deleted });
+        } catch (error: any) {
+            log(`Error in clearClosedPortalRequests: ${error.message}`, false);
+            return JSON.stringify({ ok: false, message: `The clear stopped: ${error.message}`, deleted: 0 });
+        }
+    }, JSON.stringify({ ok: false, message: "Another transaction is still running. Nothing was deleted, please try again.", deleted: 0 }));
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // Class history (the student's "History" tab)
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -1492,6 +1572,8 @@ function portalCancelRequest(data: string): PortalActionResult { return runTrust
 function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
 /** Browser entry (admins): mark an approved request as completed. Payload JSON { id, note }. */
 function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+/** Browser entry (admins): take a denied or cancelled request back to pending. Payload JSON { id, note }. */
+function portalAdminReopenRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminReopenRequestEntry_(data)); }
 /** Browser entry (admins): write or change the comment of any request, whatever its status. Payload JSON { id, note }. */
 function portalAdminSaveRequestNote(data: string): PortalActionResult { return runTrusted_(() => portalAdminSaveRequestNoteEntry_(data)); }
 /** Browser entry (admins): take a completed request back to approved by undoing its transaction. Payload JSON { id, note }. */

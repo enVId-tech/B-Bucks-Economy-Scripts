@@ -1531,6 +1531,10 @@
         const completeButton = actionButton('button', 'Mark completed');
         completeButton.onclick = () => completeRequest(request.id, noteInput.value, completeButton, card);
         actions.appendChild(completeButton);
+      } else if (request.status === 'Denied' || request.status === 'Cancelled') {
+        const reopenButton = actionButton('button button-secondary', 'Unmark ' + request.status.toLowerCase());
+        reopenButton.onclick = () => runRequestAction('portalAdminReopenRequest', { id: request.id, note: noteInput.value }, reopenButton, 'Reopening...', card);
+        actions.appendChild(reopenButton);
       } else if (request.status === 'Completed') {
         const unmarkButton = actionButton('button button-danger', 'Unmark completed');
         unmarkButton.onclick = () => uncompleteRequest(request.id, noteInput.value, unmarkButton, card);

@@ -704,6 +704,13 @@
                             <td>Sets every student's money columns back to zero.</td>
                         </tr>
                         <tr>
+                            <td>Clear Denied &amp; Cancelled Requests</td>
+                            <td><span class="pill-bad">destructive</span></td>
+                            <td>Under Student Portal. Permanently deletes every denied or cancelled row of the Expenditure
+                                Requests tab (after a confirmation). Pending, approved and completed requests, the
+                                Transactions sheet and all balances are never touched.</td>
+                        </tr>
+                        <tr>
                             <td>Clear All Transaction Records</td>
                             <td><span class="pill-bad">destructive</span></td>
                             <td>Deletes the entire transaction history (and its cached copy).</td>
@@ -842,6 +849,13 @@
                         were charged when they were approved, so unmarking them moves no money. You can also see the new
                         columns <em>Student Note</em>, <em>Completed By</em> and <em>Completed At</em> there; tabs made
                         by an older version get the headers added automatically.</p>
+                    <p><strong>Unmarking denied and cancelled requests.</strong> In the <em>Denied / cancelled</em> tab, each
+                        row has an <strong>Unmark denied</strong> or <strong>Unmark cancelled</strong> button. It puts the
+                        request back to <em>Pending</em> so it can be approved or denied again. The price and caps are
+                        checked again first (it is refused if the item is now sold out or over a cap), nothing is
+                        charged, and the comment is kept. To remove old denied and cancelled rows for good, use
+                        <strong>Banking Settings → Student Portal → Clear Denied &amp; Cancelled Requests</strong>
+                        (destructive, asks first; pending, approved and completed requests are kept).</p>
                     <p><strong>Teacher comment.</strong> Every request row has a <em>Comment for the student</em> box
                         that starts with the comment the student currently sees (up to 300 characters). Approve, Deny,
                         Mark completed and Unmark completed all save whatever is in the box, and <strong>Save
@@ -1171,14 +1185,15 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr>
                             <td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code>,
                                 <code>portalAdminCompleteRequest</code>, <code>portalAdminUncompleteRequest</code>,
-                                <code>portalAdminSaveRequestNote</code></td>
+                                <code>portalAdminSaveRequestNote</code>, <code>portalAdminReopenRequest</code></td>
                             <td>admin</td>
                             <td>Approve only checks and marks the request "Due". Complete charges through
                                 <code>chargeForRequest_</code> (<code>applyMathToSelection</code> on the Expenditures
                                 cell) and stores the new Transactions ids; Uncomplete calls
                                 <code>undoTransactions</code> with those ids. All inside the transaction lock. SaveRequestNote
                                 only writes the comment (Note column, <code>PORTAL_MAX_COMMENT_LENGTH</code> characters) on a
-                                request of any status.</td>
+                                request of any status. ReopenRequest takes a Denied or Cancelled request back to Pending
+                                (checks price and caps again, charges nothing).</td>
                         </tr>
                     </table>
 
@@ -1376,11 +1391,17 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                             <td>Charged and logged like any purchase.</td>
                         </tr>
                         <tr>
+                            <td>Pending (again)</td>
+                            <td>An admin unmarks a Denied or Cancelled request (<code>portalAdminReopenRequestEntry_</code>):
+                                price and caps are checked again, the decision (Resolved By / At) is cleared and the comment is
+                                kept. No money is involved.</td>
+                            <td>None.</td>
+                        </tr>
+                        <tr>
                             <td>Approved (again)</td>
                             <td>An admin unmarks a Completed request (<code>portalAdminUncompleteRequestEntry_</code>):
                                 <code>undoTransactions</code> reverses the saved ids, completion fields are cleared and
-                                <code>Payment</code> goes back to <code>Due</code>. The unmark is appended to the Note
-                                column.</td>
+                                <code>Payment</code> goes back to <code>Due</code>. Who unmarked it is in the script log.</td>
                             <td>Returned through an "Undo transaction ID" row.</td>
                         </tr>
                     </table>

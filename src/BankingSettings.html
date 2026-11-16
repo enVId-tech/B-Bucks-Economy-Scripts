@@ -88,6 +88,8 @@
                     <button class="btn btn-primary" id="createPortalTabsBtn"
                         onclick="callServer('createPortalSheets')">Create Portal Tabs</button>
                 </div>
+                <button class="btn btn-danger" id="clearClosedRequestsBtn" onclick="clearClosedPortalRequestRows()">Clear
+                    Denied &amp; Cancelled Requests</button>
 
                 <label class="label-normal"><strong>Historical Economic Records</strong></label>
                 <div class="btn-group">
@@ -213,6 +215,24 @@
                 alert(message);
             } catch (e) {
                 alert('Could not change cache warming: ' + (e && e.message ? e.message : e));
+            }
+        }
+
+        /**
+         * Student Portal -> Clear Denied & Cancelled Requests (DESTRUCTIVE). Asks first, then deletes every denied or cancelled row of the
+         * Expenditure Requests tab on the server. Pending, approved and completed requests and all money are untouched.
+         */
+        async function clearClosedPortalRequestRows() {
+            if (!confirm('Permanently delete ALL denied and cancelled requests from the Expenditure Requests tab?\n\nPending, approved and completed requests are kept. This cannot be undone.')) return;
+            const button = document.getElementById('clearClosedRequestsBtn');
+            button.disabled = true;
+            try {
+                const result = JSON.parse(await callServerAsync('clearClosedPortalRequests'));
+                alert(result.message);
+            } catch (error) {
+                alert('Could not clear the requests: ' + (error && error.message ? error.message : error));
+            } finally {
+                button.disabled = false;
             }
         }
 
