@@ -704,6 +704,14 @@
                             <td>Sets every student's money columns back to zero.</td>
                         </tr>
                         <tr>
+                            <td>Lock completed requests (checkbox)</td>
+                            <td><span class="pill-ok">safe</span></td>
+                            <td>Under Student Portal; saves as soon as you tick it. While on, a completed request cannot
+                                be unmarked (so its transaction can no longer be undone from the board, by one button or
+                                many); only the comment can change. Turn it off to allow unmarking again. Denied and
+                                cancelled requests can still be unmarked.</td>
+                        </tr>
+                        <tr>
                             <td>Clear Denied &amp; Cancelled Requests</td>
                             <td><span class="pill-bad">destructive</span></td>
                             <td>Under Student Portal. Permanently deletes every denied or cancelled row of the Expenditure
@@ -865,6 +873,18 @@
                             teacher</em> box on their Spend tab, and the newest three commented requests also appear on
                         Home under <em>Messages from your teacher</em>. The comment lives in the Note column of the
                         Expenditure Requests tab.</p>
+                    <p><strong>Select several at once.</strong> Every row has a tick box and the bar above the list has
+                        <em>Select all</em> (everything in the current tab, period and search). Tick requests and the
+                        bar shows the actions that fit every one of them (Pending: Approve or Deny; To do: Mark
+                        completed; Completed: Unmark completed, unless locked; Denied / Cancelled: Unmark). An optional
+                        comment box there is saved on every selected request; leave it empty to keep each request's own
+                        comment. Each request is handled on its own, exactly like its single button, so one that is
+                        refused (a cap, a sold-out item) is listed in the message and the rest still go through.</p>
+                    <p><strong>Speed.</strong> Rows move to their new tab the moment you click and show as saving; the
+                        server's answer carries the updated request, so the list is not reloaded, several rows can be
+                        saving at once, and nothing locks the page. If the server refuses, the row goes back and the
+                        reason is shown. Students can clear a message under <em>Messages from your teacher</em> with its
+                        Clear button; that only hides it on their device, and it shows again if you change the comment.</p>
                 </div>
             </div>
 
@@ -1185,7 +1205,11 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <tr>
                             <td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code>,
                                 <code>portalAdminCompleteRequest</code>, <code>portalAdminUncompleteRequest</code>,
-                                <code>portalAdminSaveRequestNote</code>, <code>portalAdminReopenRequest</code></td>
+                                <code>portalAdminSaveRequestNote</code>, <code>portalAdminReopenRequest</code>,
+                                <code>portalAdminBulk</code> (many at once; runs each request through the same code as its
+                                single endpoint, 100 ids at most). Every action endpoint returns the updated request(s)
+                                and the lock state. Editors-only settings: <code>getPortalLockCompleted</code>,
+                                <code>setPortalLockCompleted</code></td>
                             <td>admin</td>
                             <td>Approve only checks and marks the request "Due". Complete charges through
                                 <code>chargeForRequest_</code> (<code>applyMathToSelection</code> on the Expenditures

@@ -852,6 +852,51 @@
         align-items: flex-start;
     }
 
+    .row-select,
+    .bulk-all input {
+        width: 20px;
+        height: 20px;
+        margin: 4px 10px 0 0;
+        flex: 0 0 auto;
+        accent-color: var(--portal-accent);
+    }
+
+    .bulk-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0 8px;
+    }
+
+    .bulk-all {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+    }
+
+    .bulk-bar input[type="text"],
+    .bulk-bar input:not([type]) {
+        flex: 1 1 200px;
+        max-width: 320px;
+    }
+
+    .row-saving {
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+    .message-row {
+        position: relative;
+    }
+
+    .message-clear {
+        float: right;
+        padding: 4px 10px;
+        min-height: 0;
+    }
+
     .admin-row-text {
         flex: 1 1 auto;
         min-width: 0;

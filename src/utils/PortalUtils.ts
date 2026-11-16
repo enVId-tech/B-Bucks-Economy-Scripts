@@ -130,6 +130,8 @@ interface PortalRequestRecord {
     transactionIds: string;
     /** Whether the student still has to be charged: "Due" (approved, charged when it is marked completed), "Paid" (charged, transaction ids recorded) or "" (a request from before this column: it was charged when it was approved). */
     payment: "" | "Due" | "Paid";
+    /** The row of this request on the Expenditure Requests tab (1-based), so a write does not have to search for it again. */
+    rowNumber: number;
 }
 
 /** Header row of the "Expenditure Requests" tab. The ORDER is the column order: readPortalRequests_ and every write read columns by position, so never reorder, only append. */
@@ -963,8 +965,10 @@ function readPortalRequests_(): PortalRequestRecord[] {
     // A tab from an older version has fewer columns until the next request or completion extends it.
     const columnCount = Math.min(requestsSheet.getMaxColumns(), PORTAL_REQUEST_HEADERS.length);
     return requestsSheet.getRange(2, 1, requestsSheet.getLastRow() - 1, columnCount).getValues()
-        .filter(row => row[0] !== "" && row[0] !== null)
-        .map(row => ({
+        .map((row, index) => ({ row, rowNumber: index + 2 }))
+        .filter(entry => entry.row[0] !== "" && entry.row[0] !== null)
+        .map(({ row, rowNumber }) => ({
+            rowNumber,
             id: Number(row[0]),
             requestedAt: row[1] instanceof Date ? row[1].toISOString() : String(row[1]),
             email: String(row[2]),
@@ -1094,19 +1098,7 @@ function portalAdminListRequestsEntry_(): any {
 
         const requests = readPortalRequests_().slice().reverse();
         const shown = requests.slice(0, PORTAL_ADMIN_LIST_LIMIT);
-
-        // Each request still to be charged gets the student's balance right now, so the board can show "before -> after" and flag debt.
-        const periodRosters: { [period: string]: PortalStudentRow[] } = {};
-        const withBalances = shown.map(request => {
-            if (!requestReservesUnits_(request)) return request;
-            if (!(request.period in periodRosters)) {
-                const periodSheet = getSheetNamed(request.period);
-                periodRosters[request.period] = periodSheet ? readPortalPeriod_(periodSheet) : [];
-            }
-            const student = periodRosters[request.period].find(candidate => candidate.name === request.student);
-            return student ? { ...request, balanceNow: student.balance, balanceAfter: balanceAfterPurchase_(student.balance, request.total) } : request;
-        });
-        return { requests: withBalances, total: requests.length };
+        return { requests: decorateRequestsWithBalances_(shown), total: requests.length, lockCompleted: isPortalLockCompleted_() };
     } catch (error: any) {
         log(`Error in portalAdminListRequests: ${error.message}`, false);
         return { error: "The requests could not load." };
@@ -1160,25 +1152,23 @@ function chargeForRequest_(record: PortalRequestRecord, student: PortalStudentRo
  * @param data JSON string: { id: number, note?: string }
  */
 function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
+    return runAdminRequestAction_(() => {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
-            const tooFast = checkPortalRate_(identity.email, "action");
-            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const commentGiven = typeof request.note === "string";
             const completionNote = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
-            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            const record = loadRequestForAdmin_(requestId);
             if (!record) return failure_("That request was not found.");
             if (record.status === "Completed") return failure_("That request is already completed.");
             if (record.status !== "Approved") return failure_("Only an approved request can be marked completed.");
 
             const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
-            const rowNumber = findPortalRequestRow_(requestId);
+            const rowNumber = record.rowNumber;
             if (rowNumber < 0) return failure_("That request was not found.");
 
             let chargeMessage = "";
@@ -1209,7 +1199,7 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
             log(`Error in portalAdminCompleteRequest: ${error.message}`, false);
             return failure_("The request could not be marked completed. Please try again.");
         }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
+    });
 }
 
 /**
@@ -1219,24 +1209,23 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
  * @param data JSON string: { id: number, note?: string }
  */
 function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
+    return runAdminRequestAction_(() => {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
-            const tooFast = checkPortalRate_(identity.email, "action");
-            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const commentGiven = typeof request.note === "string";
             const reason = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
-            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            const record = loadRequestForAdmin_(requestId);
             if (!record) return failure_("That request was not found.");
             if (record.status !== "Completed") return failure_("Only a completed request can be unmarked.");
+            if (isPortalLockCompleted_()) return failure_("Completed requests are locked, so only the comment can be changed. An admin can turn the lock off in Banking Settings under Student Portal.");
 
             const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
-            const rowNumber = findPortalRequestRow_(requestId);
+            const rowNumber = record.rowNumber;
             if (rowNumber < 0) return failure_("That request was not found.");
 
             const transactionIds = record.transactionIds.split(",").map(id => Number(id.trim())).filter(id => Number.isFinite(id) && id > 0);
@@ -1271,7 +1260,7 @@ function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
             log(`Error in portalAdminUncompleteRequest: ${error.message}`, false);
             return failure_("The request could not be unmarked. Please try again.");
         }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
+    });
 }
 
 /**
@@ -1280,27 +1269,27 @@ function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
  * @param data JSON string: { id: number, approve: boolean, note?: string }
  */
 function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
+    return runAdminRequestAction_(() => {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
-            const tooFast = checkPortalRate_(identity.email, "action");
-            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const approve = request.approve === true;
+            const commentGiven = typeof request.note === "string";
             const note = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
-            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            const record = loadRequestForAdmin_(requestId);
             if (!record) return failure_("That request was not found.");
             if (record.status !== "Pending") return failure_(`That request is already ${record.status.toLowerCase()}.`);
 
             const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
-            const rowNumber = findPortalRequestRow_(requestId);
+            const rowNumber = record.rowNumber;
 
             if (!approve) {
-                requestsSheet.getRange(rowNumber, 11, 1, 4).setValues([["Denied", identity.email, new Date(), note]]);
+                requestsSheet.getRange(rowNumber, 11, 1, 3).setValues([["Denied", identity.email, new Date()]]);
+                if (commentGiven) requestsSheet.getRange(rowNumber, 14).setValue(note);
                 return { ok: true, message: "Request denied." };
             }
 
@@ -1314,14 +1303,15 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
             const currentItem = buildPortalCatalog_(record.quarter as QuarterId, record.student, record.period).find(candidate => candidate.itemName === record.itemName)!;
             const total = Number((currentItem.unitPrice * record.quantity).toFixed(2));
 
-            requestsSheet.getRange(rowNumber, 8, 1, 7).setValues([[currentItem.unitPrice, record.quantity, total, "Approved", identity.email, new Date(), note]]);
+            requestsSheet.getRange(rowNumber, 8, 1, 6).setValues([[currentItem.unitPrice, record.quantity, total, "Approved", identity.email, new Date()]]);
             requestsSheet.getRange(rowNumber, 19).setValue("Due");
+            if (commentGiven) requestsSheet.getRange(rowNumber, 14).setValue(note);
             return { ok: true, message: `Approved. ${record.student} is charged $${total.toFixed(2)} when you mark it completed.${debtNote_(student.balance, total, record.student)}` };
         } catch (error: any) {
             log(`Error in portalAdminResolveRequest: ${error.message}`, false);
             return failure_("The request could not be resolved. Please try again.");
         }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
+    });
 }
 
 /**
@@ -1331,21 +1321,19 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
  * @param data JSON string: { id: number, note: string }
  */
 function portalAdminSaveRequestNoteEntry_(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
+    return runAdminRequestAction_(() => {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
-            const tooFast = checkPortalRate_(identity.email, "action");
-            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const comment = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
-            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            const record = loadRequestForAdmin_(requestId);
             if (!record) return failure_("That request was not found.");
             const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
-            const rowNumber = findPortalRequestRow_(requestId);
+            const rowNumber = record.rowNumber;
             if (rowNumber < 0) return failure_("That request was not found.");
 
             requestsSheet.getRange(rowNumber, 14).setValue(comment);
@@ -1355,7 +1343,7 @@ function portalAdminSaveRequestNoteEntry_(data: string): PortalActionResult {
             log(`Error in portalAdminSaveRequestNote: ${error.message}`, false);
             return failure_("The comment could not be saved. Please try again.");
         }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
+    });
 }
 
 /**
@@ -1365,19 +1353,17 @@ function portalAdminSaveRequestNoteEntry_(data: string): PortalActionResult {
  * @param data JSON string: { id: number, note?: string }
  */
 function portalAdminReopenRequestEntry_(data: string): PortalActionResult {
-    return runWithTransactionLock(() => {
+    return runAdminRequestAction_(() => {
         try {
             const identity = resolvePortalIdentity_();
             if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
-            const tooFast = checkPortalRate_(identity.email, "action");
-            if (tooFast) return failure_(tooFast);
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const commentGiven = typeof request.note === "string";
             const comment = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
-            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            const record = loadRequestForAdmin_(requestId);
             if (!record) return failure_("That request was not found.");
             if (record.status !== "Denied" && record.status !== "Cancelled") return failure_("Only a denied or cancelled request can be unmarked.");
 
@@ -1387,7 +1373,7 @@ function portalAdminReopenRequestEntry_(data: string): PortalActionResult {
             if (refusal) return failure_(`Can't unmark: ${refusal}`);
 
             const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
-            const rowNumber = findPortalRequestRow_(requestId);
+            const rowNumber = record.rowNumber;
             if (rowNumber < 0) return failure_("That request was not found.");
 
             requestsSheet.getRange(rowNumber, 11, 1, 3).setValues([["Pending", "", ""]]);
@@ -1399,7 +1385,7 @@ function portalAdminReopenRequestEntry_(data: string): PortalActionResult {
             log(`Error in portalAdminReopenRequest: ${error.message}`, false);
             return failure_("The request could not be unmarked. Please try again.");
         }
-    }, failure_("The bank is busy right now. Please try again in a moment."));
+    });
 }
 
 /**
@@ -1436,6 +1422,122 @@ function clearClosedPortalRequests(): string {
             return JSON.stringify({ ok: false, message: `The clear stopped: ${error.message}`, deleted: 0 });
         }
     }, JSON.stringify({ ok: false, message: "Another transaction is still running. Nothing was deleted, please try again.", deleted: 0 }));
+}
+
+/** The request id inside an admin action payload, or NaN. */
+function adminRequestIdOf_(data: string): number {
+    try { return Number(JSON.parse(data).id); } catch (error) { return NaN; }
+}
+
+/** Largest number of requests one bulk action may carry (the page sends smaller batches and shows progress). */
+const PORTAL_BULK_MAX_IDS: number = 100;
+/** Script Property that holds the "lock completed requests" setting ("true" or absent). */
+const PORTAL_LOCK_COMPLETED_PROPERTY: string = "portalLockCompleted";
+
+/** True when completed requests are locked: they can no longer be unmarked (so their transactions are not undone); only the comment can change. */
+function isPortalLockCompleted_(): boolean {
+    try { return PropertiesService.getScriptProperties().getProperty(PORTAL_LOCK_COMPLETED_PROPERTY) === "true"; } catch (error) { return false; }
+}
+
+/** Banking Settings: is the "lock completed requests" setting on? Returns a boolean. */
+function getPortalLockCompleted(): boolean {
+    requireEditor_();
+    return isPortalLockCompleted_();
+}
+
+/** Banking Settings: turns "lock completed requests" on or off. While on, "Unmark completed" is refused and only comments can change. */
+function setPortalLockCompleted(enabled: boolean): boolean {
+    requireEditor_();
+    PropertiesService.getScriptProperties().setProperty(PORTAL_LOCK_COMPLETED_PROPERTY, enabled === true || String(enabled) === "true" ? "true" : "false");
+    log(`Portal: completed requests are now ${isPortalLockCompleted_() ? "locked" : "unlocked"}.`, false);
+    return isPortalLockCompleted_();
+}
+
+/**
+ * Runs one admin action on a request inside the transaction lock. The Expenditure Requests tab is read ONCE at the start
+ * (loadRequestForAdmin_) and that copy is reused by every check during the action; it is dropped when the action ends, so the next
+ * action reads fresh values.
+ */
+function runAdminRequestAction_(work: () => PortalActionResult): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try { return work(); } finally { portalRequestsMemo = null; }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
+}
+
+/** Reads the requests tab fresh, keeps that copy for the rest of this action (see runAdminRequestAction_) and returns one request, or undefined. */
+function loadRequestForAdmin_(requestId: number): PortalRequestRecord | undefined {
+    portalRequestsMemo = null;
+    portalRequestsMemo = readPortalRequests_();
+    return portalRequestsMemo.find(candidate => candidate.id === requestId);
+}
+
+/** Adds the student's balance now (balanceNow) and after paying (balanceAfter) to every request that will still be charged. One roster read per period. */
+function decorateRequestsWithBalances_(requests: PortalRequestRecord[]): any[] {
+    const periodRosters: { [period: string]: PortalStudentRow[] } = {};
+    return requests.map(request => {
+        if (!requestReservesUnits_(request)) return request;
+        if (!(request.period in periodRosters)) {
+            const periodSheet = getSheetNamed(request.period);
+            periodRosters[request.period] = periodSheet ? readPortalPeriod_(periodSheet) : [];
+        }
+        const student = periodRosters[request.period].find(candidate => candidate.name === request.student);
+        return student ? { ...request, balanceNow: student.balance, balanceAfter: balanceAfterPurchase_(student.balance, request.total) } : request;
+    });
+}
+
+/** The requests with these ids as they are right now (with balances), for the page to merge in without reloading the whole list. */
+function requestsSnapshot_(ids: number[]): any[] {
+    portalRequestsMemo = null;
+    const wanted = new Set(ids);
+    return decorateRequestsWithBalances_(readPortalRequests_().filter(request => wanted.has(request.id)));
+}
+
+/** Adds the up-to-date requests for `ids` to an action result, whether it worked or not, so the page always shows the truth after one call. */
+function withUpdatedRequests_(result: PortalActionResult, ids: number[]): PortalActionResult & { requests: any[]; lockCompleted: boolean } {
+    let requests: any[] = [];
+    try { requests = requestsSnapshot_(ids); } catch (error: any) { log(`Could not read the updated requests: ${error.message}`, false); }
+    return { ...result, requests, lockCompleted: isPortalLockCompleted_() };
+}
+
+/** What each bulk action runs. "approve" and "deny" are both the resolve endpoint with a flag. */
+const PORTAL_BULK_ACTIONS: { [action: string]: (payload: string) => PortalActionResult } = {
+    approve: payload => portalAdminResolveRequestEntry_(payload),
+    deny: payload => portalAdminResolveRequestEntry_(payload),
+    complete: payload => portalAdminCompleteRequestEntry_(payload),
+    uncomplete: payload => portalAdminUncompleteRequestEntry_(payload),
+    reopen: payload => portalAdminReopenRequestEntry_(payload)
+};
+
+/**
+ * Applies one action to many requests (the admin board's multi-select). Each request is handled on its own, exactly like the single
+ * button, so one that is refused (for example over a cap) does not stop the others.
+ * @param data JSON string: { action: "approve"|"deny"|"complete"|"uncomplete"|"reopen", ids: number[], note?: string }
+ *   `note`, when present, becomes the comment of every request in the batch; when absent each keeps its comment.
+ * Returns { ok, message, results: {id, ok, message}[], requests, lockCompleted }.
+ */
+function portalAdminBulkEntry_(data: string): any {
+    const identity = resolvePortalIdentity_();
+    if (identity.status !== "ok" || !identity.isAdmin) return { ok: false, message: "Admins only.", results: [], requests: [] };
+    let request: any;
+    try { request = JSON.parse(data); } catch (error) { return { ok: false, message: "That request could not be read.", results: [], requests: [] }; }
+
+    const handler = PORTAL_BULK_ACTIONS[String(request.action)];
+    if (!handler) return { ok: false, message: "Unknown action.", results: [], requests: [] };
+    const ids: number[] = (Array.isArray(request.ids) ? request.ids : []).map(Number).filter((id: number) => Number.isFinite(id)).slice(0, PORTAL_BULK_MAX_IDS);
+    if (ids.length === 0) return { ok: false, message: "Nothing was selected.", results: [], requests: [] };
+
+    const results = ids.map(id => {
+        const payload: any = { id };
+        if (request.action === "approve") payload.approve = true;
+        if (request.action === "deny") payload.approve = false;
+        if (typeof request.note === "string") payload.note = request.note;
+        const outcome = handler(JSON.stringify(payload));
+        return { id, ok: outcome.ok, message: outcome.message };
+    });
+    const done = results.filter(result => result.ok).length;
+    const failed = results.filter(result => !result.ok);
+    const message = `Done: ${done} of ${results.length}.` + (failed.length > 0 ? ` ${failed.length} not changed: ${failed.slice(0, 3).map(result => `#${result.id} ${result.message}`).join(" | ")}${failed.length > 3 ? " ..." : ""}` : "");
+    return { ...withUpdatedRequests_({ ok: done > 0, message }, ids), results };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -1571,12 +1673,14 @@ function portalCancelRequest(data: string): PortalActionResult { return runTrust
 /** Browser entry (admins): every request, newest first. */
 function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
 /** Browser entry (admins): mark an approved request as completed. Payload JSON { id, note }. */
-function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+function portalAdminCompleteRequest(data: string): any { return runTrusted_(() => withUpdatedRequests_(portalAdminCompleteRequestEntry_(data), [adminRequestIdOf_(data)])); }
+/** Browser entry (admins): one action on many requests at once (the board's multi-select). Payload JSON { action, ids, note? }. */
+function portalAdminBulk(data: string): any { return runTrusted_(() => portalAdminBulkEntry_(data)); }
 /** Browser entry (admins): take a denied or cancelled request back to pending. Payload JSON { id, note }. */
-function portalAdminReopenRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminReopenRequestEntry_(data)); }
+function portalAdminReopenRequest(data: string): any { return runTrusted_(() => withUpdatedRequests_(portalAdminReopenRequestEntry_(data), [adminRequestIdOf_(data)])); }
 /** Browser entry (admins): write or change the comment of any request, whatever its status. Payload JSON { id, note }. */
-function portalAdminSaveRequestNote(data: string): PortalActionResult { return runTrusted_(() => portalAdminSaveRequestNoteEntry_(data)); }
+function portalAdminSaveRequestNote(data: string): any { return runTrusted_(() => withUpdatedRequests_(portalAdminSaveRequestNoteEntry_(data), [adminRequestIdOf_(data)])); }
 /** Browser entry (admins): take a completed request back to approved by undoing its transaction. Payload JSON { id, note }. */
-function portalAdminUncompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminUncompleteRequestEntry_(data)); }
+function portalAdminUncompleteRequest(data: string): any { return runTrusted_(() => withUpdatedRequests_(portalAdminUncompleteRequestEntry_(data), [adminRequestIdOf_(data)])); }
 /** Browser entry (admins): approve or deny a pending request. Payload JSON { id, approve, note }. */
-function portalAdminResolveRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminResolveRequestEntry_(data)); }
+function portalAdminResolveRequest(data: string): any { return runTrusted_(() => withUpdatedRequests_(portalAdminResolveRequestEntry_(data), [adminRequestIdOf_(data)])); }

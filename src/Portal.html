@@ -184,15 +184,46 @@
      * and its status. Returns null when there are none, so Home shows nothing extra.
      */
     function buildTeacherMessagesCard() {
-      const commented = portalState.dashboard.requests.filter(request => request.note).sort((a, b) => b.id - a.id).slice(0, 3);
+      const dismissed = readDismissedMessages();
+      const commented = portalState.dashboard.requests.filter(request => request.note && !dismissed[messageKey(request)]).sort((a, b) => b.id - a.id).slice(0, 3);
       if (commented.length === 0) return null;
       const card = makeElement('div', 'card card-highlight', null, [makeElement('h2', '', 'Messages from your teacher')]);
-      commented.forEach(request => card.appendChild(makeElement('div', 'message-row', null, [
-        makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' ', null),
-        makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status),
-        teacherCommentBox(request.note)
-      ])));
+      commented.forEach(request => {
+        const clearButton = makeElement('button', 'button button-secondary message-clear', 'Clear');
+        clearButton.type = 'button';
+        clearButton.setAttribute('aria-label', 'Clear this message');
+        clearButton.onclick = () => { dismissMessage(request); renderPortal(); };
+        card.appendChild(makeElement('div', 'message-row', null, [
+          makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' ', null),
+          makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status),
+          clearButton,
+          teacherCommentBox(request.note)
+        ]));
+      });
       return card;
+    }
+
+    /**
+     * Clearing a message hides it from Home on this device only (the comment stays on the Spend tab, and nothing is stored on the
+     * server). The key includes the comment text, so if the teacher edits the comment it shows again as new.
+     */
+    function messageKey(request) { return request.id + ':' + request.note; }
+    /** Cleared messages of this visit; kept in memory too because some browsers block storage inside the page frame. */
+    const clearedThisVisit = {};
+    function readDismissedMessages() {
+      let stored = {};
+      try { stored = JSON.parse(localStorage.getItem('dismissedTeacherMessages') || '{}'); } catch (error) { /* storage blocked or empty */ }
+      return { ...stored, ...clearedThisVisit };
+    }
+    function dismissMessage(request) {
+      clearedThisVisit[messageKey(request)] = 1;
+      try {
+        const dismissed = readDismissedMessages();
+        // keep the saved list short: only the newest 100 keys
+        const keys = Object.keys(dismissed);
+        if (keys.length > 100) keys.slice(0, keys.length - 100).forEach(key => delete dismissed[key]);
+        localStorage.setItem('dismissedTeacherMessages', JSON.stringify(dismissed));
+      } catch (error) { /* storage can be unavailable; the message stays cleared until the page is reloaded */ }
     }
 
     /**
@@ -1382,7 +1413,12 @@
      * What the request board is showing. `requests` is everything the server sent (fetched once per action, filtered locally so switching
      * tabs, searching and sorting cost nothing). `tab` is one of ADMIN_TABS[].id.
      */
-    const adminState = { requests: [], total: 0, tab: null, search: '', period: '', sort: 'newest', visibleCount: 40, loaded: false };
+    const adminState = { requests: [], total: 0, tab: null, search: '', period: '', sort: 'newest', visibleCount: 40, loaded: false,
+      /** Ids ticked for a bulk action, and ids whose change is on its way to the server (their rows are dimmed and ignore clicks). */
+      selected: new Set(), saving: new Set(), lockCompleted: false };
+
+    /** The status a request takes once each admin action has worked; used to move the row at once, before the server has answered. */
+    const EXPECTED_STATUS = { portalAdminCompleteRequest: 'Completed', portalAdminUncompleteRequest: 'Approved', portalAdminReopenRequest: 'Pending' };
 
     /** The status groups of the board. `statuses` are the request statuses each tab shows; "To do" is approved work that is not done (and not charged) yet. */
     const ADMIN_TABS = [
@@ -1425,6 +1461,7 @@
       const toolbar = makeElement('div', 'admin-toolbar');
       const summary = makeElement('div', 'row-sub admin-summary');
       const list = makeElement('div', 'admin-list');
+      const bulkBar = makeElement('div', 'bulk-bar');
 
       const searchInput = makeElement('input');
       searchInput.type = 'search';
@@ -1455,6 +1492,7 @@
       card.appendChild(tabBar);
       card.appendChild(toolbar);
       card.appendChild(summary);
+      card.appendChild(bulkBar);
       card.appendChild(list);
 
       /** The period dropdown lists the periods that appear in the requests. */
@@ -1478,7 +1516,43 @@
         });
       }
 
+      /** The multi-select bar: select all (in this tab, under the current search), and one button per action that fits the tab. */
+      function drawBulk() {
+        bulkBar.replaceChildren();
+        const tab = adminTabById(adminState.tab);
+        const visibleIds = visibleAdminRequests().map(request => request.id);
+        // Only requests that still exist and are in this tab stay ticked.
+        adminState.selected.forEach(id => { if (visibleIds.indexOf(id) < 0) adminState.selected.delete(id); });
+        const chosen = visibleAdminRequests().filter(request => adminState.selected.has(request.id));
+        const all = makeElement('input'); all.type = 'checkbox';
+        all.checked = visibleIds.length > 0 && chosen.length === visibleIds.length;
+        all.setAttribute('aria-label', 'Select all requests in this list');
+        all.onchange = () => { visibleIds.forEach(id => { if (all.checked) adminState.selected.add(id); else adminState.selected.delete(id); }); drawList(); };
+        bulkBar.appendChild(makeElement('label', 'bulk-all', null, [all, makeElement('span', '', chosen.length > 0 ? chosen.length + ' selected' : 'Select all')]));
+        if (chosen.length === 0) return;
+
+        const comment = makeElement('input');
+        comment.maxLength = MAX_COMMENT_LENGTH;
+        comment.placeholder = 'Comment for all selected (optional)';
+        comment.setAttribute('aria-label', 'Comment for all selected requests');
+        bulkBar.appendChild(comment);
+
+        const kinds = { Pending: ['approve', 'deny'], Approved: ['complete'], Completed: adminState.lockCompleted ? [] : ['uncomplete'], Denied: ['reopen'], Cancelled: ['reopen'] };
+        const labels = { approve: 'Approve', deny: 'Deny', complete: 'Mark completed', uncomplete: 'Unmark completed', reopen: 'Unmark denied / cancelled' };
+        const expected = { approve: 'Approved', deny: 'Denied', complete: 'Completed', uncomplete: 'Approved', reopen: 'Pending' };
+        // An action is offered when it fits EVERY ticked request; otherwise the bar says what is mixed.
+        ['approve', 'deny', 'complete', 'uncomplete', 'reopen'].forEach(action => {
+          if (!chosen.every(request => (kinds[request.status] || []).indexOf(action) >= 0)) return;
+          const button = actionButton('button' + (action === 'deny' || action === 'uncomplete' ? ' button-danger' : ''), labels[action] + ' (' + chosen.length + ')');
+          button.onclick = () => runBulkAction(action, chosen.map(request => request.id), expected[action], comment.value, card);
+          bulkBar.appendChild(button);
+        });
+        if (bulkBar.querySelectorAll('button').length === 0) bulkBar.appendChild(makeElement('span', 'row-sub', adminState.lockCompleted && chosen.every(request => request.status === 'Completed') ? 'Completed requests are locked.' : 'The selected requests need different actions. Select ones with the same status.'));
+      }
+      card.drawBulk = drawBulk;
+
       function drawList() {
+        drawBulk();
         const tab = adminTabById(adminState.tab);
         const rows = visibleAdminRequests();
         const shown = rows.slice(0, adminState.visibleCount);
@@ -1535,6 +1609,8 @@
         const reopenButton = actionButton('button button-secondary', 'Unmark ' + request.status.toLowerCase());
         reopenButton.onclick = () => runRequestAction('portalAdminReopenRequest', { id: request.id, note: noteInput.value }, reopenButton, 'Reopening...', card);
         actions.appendChild(reopenButton);
+      } else if (request.status === 'Completed' && adminState.lockCompleted) {
+        actions.appendChild(makeElement('span', 'row-sub', 'Locked: only the comment can change'));
       } else if (request.status === 'Completed') {
         const unmarkButton = actionButton('button button-danger', 'Unmark completed');
         unmarkButton.onclick = () => uncompleteRequest(request.id, noteInput.value, unmarkButton, card);
@@ -1568,7 +1644,15 @@
       rowText.appendChild(details);
       const commentRow = makeElement('div', 'comment-edit', null, [noteInput, saveCommentButton]);
       rowText.appendChild(commentRow);
-      return makeElement('div', 'list-row admin-row', null, [rowText, actions]);
+      const tick = makeElement('input', 'row-select');
+      tick.type = 'checkbox';
+      tick.checked = adminState.selected.has(request.id);
+      tick.setAttribute('aria-label', 'Select request ' + request.id);
+      tick.onchange = () => { if (tick.checked) adminState.selected.add(request.id); else adminState.selected.delete(request.id); card.drawBulk(); };
+      const saving = adminState.saving.has(request.id);
+      const row = makeElement('div', 'list-row admin-row' + (saving ? ' row-saving' : ''), null, [tick, rowText, actions]);
+      if (saving) { tick.disabled = true; row.querySelectorAll('button, input').forEach(control => { control.disabled = true; }); }
+      return row;
     }
 
     /** (Admins) Fetches every expenditure request into adminState and redraws the board. */
@@ -1578,6 +1662,7 @@
         if (!response || response.error) { showBoardError(card, (response && response.error) || 'The requests could not load.'); return; }
         adminState.requests = response.requests || [];
         adminState.total = response.total || adminState.requests.length;
+        adminState.lockCompleted = response.lockCompleted === true;
         card.redraw();
         // The refresh button was busy: the board redraw replaced nothing, so give it back.
         card.querySelectorAll('button.is-busy').forEach(button => { delete button.dataset.busy; button.disabled = false; button.classList.remove('is-busy'); if (button.textContent === 'Refreshing...') button.textContent = 'Refresh'; });
@@ -1593,25 +1678,93 @@
       card.querySelectorAll('button.is-busy').forEach(button => { delete button.dataset.busy; button.disabled = false; button.classList.remove('is-busy'); if (button.textContent === 'Refreshing...') button.textContent = 'Refresh'; });
     }
 
+    /** Puts the server's up-to-date copies of requests into the board (replacing the old ones by id) without reloading the list. */
+    function mergeRequests(updated, lockCompleted) {
+      (updated || []).forEach(fresh => {
+        const index = adminState.requests.findIndex(request => request.id === fresh.id);
+        if (index >= 0) adminState.requests[index] = fresh;
+      });
+      if (typeof lockCompleted === 'boolean') adminState.lockCompleted = lockCompleted;
+    }
+
+    /** The status a request moves to when the action works, or null when it depends on the server (approve / deny are chosen by the payload). */
+    function expectedStatusFor(endpoint, payload) {
+      if (endpoint === 'portalAdminResolveRequest') return payload.approve ? 'Approved' : 'Denied';
+      return EXPECTED_STATUS[endpoint] || null;
+    }
+
     /**
-     * Runs one admin request action: locks the page like any action, shows the server's message, then reloads the board.
-     * @param endpoint server function to call, @param payload what to send, @param busyLabel what the clicked button says meanwhile.
+     * Runs one admin action on one request. The row moves to its new tab AT ONCE (optimistic) and shows as saving; the server's answer
+     * carries the updated request, which replaces it, or, if the action was refused, the old copy is put back and the reason is shown.
+     * Several rows can be saving at the same time: nothing locks the page and there is no cool-down (the server has its own limits).
      */
     async function runRequestAction(endpoint, payload, button, busyLabel, card) {
-      if (portalState.busy) { showNotice('bad', 'One moment, the last request is still being handled.'); return; }
-      portalState.busy = true;
-      setWorking(true);
-      markButtonBusy(button, busyLabel);
+      const id = payload.id;
+      if (adminState.saving.has(id)) return;
+      const index = adminState.requests.findIndex(request => request.id === id);
+      const before = index >= 0 ? adminState.requests[index] : null;
+      const moveTo = expectedStatusFor(endpoint, payload);
+      adminState.saving.add(id);
+      adminState.selected.delete(id);
+      if (before && moveTo) adminState.requests[index] = { ...before, status: moveTo, note: typeof payload.note === 'string' ? payload.note : before.note };
+      card.redraw();
       try {
         const result = await portalCall(endpoint, JSON.stringify(payload));
+        if (result && result.requests && result.requests.length > 0) mergeRequests(result.requests, result.lockCompleted);
+        else if (before && !(result && result.ok)) { const at = adminState.requests.findIndex(request => request.id === id); if (at >= 0) adminState.requests[at] = before; }
         showNotice(result && result.ok ? 'good' : 'bad', (result && result.message) || 'Something went wrong.');
       } catch (error) {
         console.error(error);
+        if (before) { const at = adminState.requests.findIndex(request => request.id === id); if (at >= 0) adminState.requests[at] = before; }
         showNotice('bad', 'The bank could not be reached. Please try again.');
       } finally {
-        setTimeout(() => { portalState.busy = false; setWorking(false); markDataFresh(); }, ACTION_COOLDOWN_MS);
+        adminState.saving.delete(id);
+        card.redraw();
       }
-      await loadAdminRequests(card);
+    }
+
+    /** Requests per server call for a bulk action: small enough that the rows update as it goes and one slow call cannot time out. */
+    const BULK_BATCH_SIZE = 10;
+
+    /**
+     * (Admins) Applies one action to every ticked request. The rows move at once; the server works through them in batches of
+     * BULK_BATCH_SIZE and each answer updates its rows. Refused ones are put back and listed in the message.
+     */
+    async function runBulkAction(action, ids, moveTo, comment, card) {
+      const note = comment.trim();
+      const originals = new Map();
+      ids.forEach(id => {
+        const index = adminState.requests.findIndex(request => request.id === id);
+        if (index < 0) return;
+        originals.set(id, adminState.requests[index]);
+        adminState.requests[index] = { ...adminState.requests[index], status: moveTo, note: note ? note : adminState.requests[index].note };
+        adminState.saving.add(id);
+        adminState.selected.delete(id);
+      });
+      card.redraw();
+      let done = 0;
+      const problems = [];
+      for (let start = 0; start < ids.length; start += BULK_BATCH_SIZE) {
+        const batch = ids.slice(start, start + BULK_BATCH_SIZE);
+        try {
+          const payload = { action, ids: batch };
+          if (note) payload.note = note;
+          const result = await portalCall('portalAdminBulk', JSON.stringify(payload));
+          const answered = new Set((result && result.requests || []).map(request => request.id));
+          mergeRequests(result && result.requests, result && result.lockCompleted);
+          (result && result.results || []).forEach(item => { if (item.ok) done++; else problems.push('#' + item.id + ' ' + item.message); });
+          // Anything the server did not answer for goes back to how it was.
+          batch.forEach(id => { if (!answered.has(id) && originals.has(id)) { const at = adminState.requests.findIndex(request => request.id === id); if (at >= 0) adminState.requests[at] = originals.get(id); } });
+          if (!result || (!result.results && !result.ok)) problems.push((result && result.message) || 'A batch failed.');
+        } catch (error) {
+          console.error(error);
+          batch.forEach(id => { if (originals.has(id)) { const at = adminState.requests.findIndex(request => request.id === id); if (at >= 0) adminState.requests[at] = originals.get(id); } });
+          problems.push('The bank could not be reached for ' + batch.length + ' request(s).');
+        }
+        batch.forEach(id => adminState.saving.delete(id));
+        card.redraw();
+      }
+      showNotice(problems.length === 0 ? 'good' : 'bad', 'Done: ' + done + ' of ' + ids.length + '.' + (problems.length ? ' Not changed: ' + problems.slice(0, 3).join(' | ') + (problems.length > 3 ? ' ...' : '') : ''));
     }
 
     /** (Admins) Marks an APPROVED request as completed: the student is charged and a Transactions row is written. */

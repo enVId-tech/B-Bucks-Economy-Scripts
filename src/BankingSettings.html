@@ -88,6 +88,9 @@
                     <button class="btn btn-primary" id="createPortalTabsBtn"
                         onclick="callServer('createPortalSheets')">Create Portal Tabs</button>
                 </div>
+                <label class="label-normal" for="lockCompletedToggle" title="While on, an admin can still edit the comment on a completed request, but cannot unmark it (which would undo its transaction).">
+                    <input type="checkbox" id="lockCompletedToggle" disabled onchange="saveLockCompleted(this)">
+                    Lock completed requests (comment only, no cancelling)</label>
                 <button class="btn btn-danger" id="clearClosedRequestsBtn" onclick="clearClosedPortalRequestRows()">Clear
                     Denied &amp; Cancelled Requests</button>
 
@@ -236,6 +239,27 @@
             }
         }
 
+        /** Student Portal -> "Lock completed requests": shows the saved value, and saves a change straight away. */
+        async function loadLockCompleted() {
+            const box = document.getElementById('lockCompletedToggle');
+            try {
+                box.checked = (await callServerAsync('getPortalLockCompleted')) === true;
+                box.disabled = false;
+            } catch (error) { /* stays disabled: the setting could not be read */ }
+        }
+
+        async function saveLockCompleted(box) {
+            box.disabled = true;
+            try {
+                box.checked = (await callServerAsync('setPortalLockCompleted', box.checked)) === true;
+            } catch (error) {
+                box.checked = !box.checked;
+                alert('Could not change the lock: ' + (error && error.message ? error.message : error));
+            } finally {
+                box.disabled = false;
+            }
+        }
+
         // ------------------------------------------------------------------ Transaction Log Repair
         // Three buttons: scan (read only) -> repair (rewrites "balance after" of the fixable rows, with a backup) -> undo last repair.
         // The server work is in utils/TransactionRepair.ts; this only shows what it reports.
@@ -323,6 +347,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             // Initialize the page by fetching current settings from the server and populating the form fields
             showExperimentalLabels();
+            loadLockCompleted();
             await initializeBankingSettings(false);
             // After data is loaded, run the function again to load any new data
             await initializeBankingSettings(true);
