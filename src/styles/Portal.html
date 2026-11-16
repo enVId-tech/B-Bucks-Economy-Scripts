@@ -790,6 +790,60 @@
         min-width: 0;
     }
 
+    .admin-row-text .comment-edit {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .admin-row-text .comment-edit input {
+        flex: 1 1 220px;
+        min-width: 0;
+        margin-top: 0;
+        max-width: none;
+        width: auto;
+    }
+
+    /* Teacher comment on a request: a highlighted box so students notice it. */
+    .teacher-comment {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--portal-accent-soft);
+        border-left: 4px solid var(--portal-accent);
+    }
+
+    .teacher-comment-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--portal-accent-strong);
+        margin-bottom: 2px;
+    }
+
+    .teacher-comment-text {
+        font-size: 14px;
+        color: var(--portal-text);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .message-row {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--portal-border);
+    }
+
+    .message-row:last-child {
+        border-bottom: 0;
+    }
+
+    .card-highlight {
+        border-color: var(--portal-accent);
+    }
+
     .admin-summary {
         margin: 4px 0 8px;
     }

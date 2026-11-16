@@ -842,6 +842,15 @@
                         were charged when they were approved, so unmarking them moves no money. You can also see the new
                         columns <em>Student Note</em>, <em>Completed By</em> and <em>Completed At</em> there; tabs made
                         by an older version get the headers added automatically.</p>
+                    <p><strong>Teacher comment.</strong> Every request row has a <em>Comment for the student</em> box
+                        that starts with the comment the student currently sees (up to 300 characters). Approve, Deny,
+                        Mark completed and Unmark completed all save whatever is in the box, and <strong>Save
+                            comment</strong> saves it on its own, so you can still write or change the comment after a
+                        request is completed, denied or cancelled (it never changes the status or any money). Clearing
+                        the box removes the comment. Students see it in a highlighted <em>Comment from your
+                            teacher</em> box on their Spend tab, and the newest three commented requests also appear on
+                        Home under <em>Messages from your teacher</em>. The comment lives in the Note column of the
+                        Expenditure Requests tab.</p>
                 </div>
             </div>
 
@@ -1161,12 +1170,15 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         </tr>
                         <tr>
                             <td><code>portalAdminListRequests</code>, <code>portalAdminResolveRequest</code>,
-                                <code>portalAdminCompleteRequest</code>, <code>portalAdminUncompleteRequest</code></td>
+                                <code>portalAdminCompleteRequest</code>, <code>portalAdminUncompleteRequest</code>,
+                                <code>portalAdminSaveRequestNote</code></td>
                             <td>admin</td>
                             <td>Approve only checks and marks the request "Due". Complete charges through
                                 <code>chargeForRequest_</code> (<code>applyMathToSelection</code> on the Expenditures
                                 cell) and stores the new Transactions ids; Uncomplete calls
-                                <code>undoTransactions</code> with those ids. All inside the transaction lock.</td>
+                                <code>undoTransactions</code> with those ids. All inside the transaction lock. SaveRequestNote
+                                only writes the comment (Note column, <code>PORTAL_MAX_COMMENT_LENGTH</code> characters) on a
+                                request of any status.</td>
                         </tr>
                     </table>
 
@@ -1932,6 +1944,13 @@ npx clasp clone &lt;SCRIPT_ID&gt;     # or create .clasp.json by hand</code></pr
                         <li>New field on a request: add the column (see "A sheet column moved or was added"), then show
                             it in <code>buildRequestRow</code>. The list endpoint sends whole records, so nothing else
                             changes.</li>
+                        <li>The teacher comment: it is the Note column. The row's comment box (<code>noteInput</code> in
+                            <code>buildRequestRow</code>) is prefilled, and the server writes whatever arrives in
+                            <code>note</code> (a string, even an empty one) when approving, denying, completing or
+                            unmarking; <code>portalAdminSaveRequestNote</code> writes it alone. Students see it through
+                            <code>teacherCommentBox</code> (Spend tab) and <code>buildTeacherMessagesCard</code> (Home).
+                            Keep <code>MAX_COMMENT_LENGTH</code> in <code>Portal.html</code> equal to
+                            <code>PORTAL_MAX_COMMENT_LENGTH</code>.</li>
                         <li>How many requests the page receives: <code>PORTAL_ADMIN_LIST_LIMIT</code> in
                             <code>PortalUtils.ts</code> (the newest ones; the board says when older ones are left out).
                         </li>

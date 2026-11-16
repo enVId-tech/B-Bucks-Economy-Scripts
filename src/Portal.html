@@ -88,6 +88,8 @@
     /** Most units per request and most open requests per student. Keep equal to PORTAL_MAX_REQUEST_QUANTITY / PORTAL_MAX_OPEN_REQUESTS in PortalUtils.ts (the server decides). */
     const MAX_REQUEST_QUANTITY = 10;
     const MAX_OPEN_REQUESTS = 5;
+    /** Longest teacher comment (keep equal to PORTAL_MAX_COMMENT_LENGTH in PortalUtils.ts). */
+    const MAX_COMMENT_LENGTH = 300;
     const MIN_GAP_BETWEEN_CALLS_MS = 120;   // least time between two server calls
     const ACTION_COOLDOWN_MS = 1500;        // buttons stay locked this long after an action finishes
     const SEARCH_TYPING_DELAY_MS = 150;     // the history search waits until typing stops (it only filters what the page already has)
@@ -167,6 +169,30 @@
       if (!isoText) return '';
       const date = new Date(isoText);
       return isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    /**
+     * The teacher's comment on a request, as a highlighted box with a label, so it cannot be missed on the Spend tab or on Home.
+     * @param comment the text the admin wrote (request.note).
+     */
+    function teacherCommentBox(comment) {
+      return makeElement('div', 'teacher-comment', null, [makeElement('div', 'teacher-comment-label', 'Comment from your teacher'), makeElement('div', 'teacher-comment-text', comment)]);
+    }
+
+    /**
+     * "Messages from your teacher" card for Home: the newest requests that have a teacher comment (at most 3), each with what it was for
+     * and its status. Returns null when there are none, so Home shows nothing extra.
+     */
+    function buildTeacherMessagesCard() {
+      const commented = portalState.dashboard.requests.filter(request => request.note).sort((a, b) => b.id - a.id).slice(0, 3);
+      if (commented.length === 0) return null;
+      const card = makeElement('div', 'card card-highlight', null, [makeElement('h2', '', 'Messages from your teacher')]);
+      commented.forEach(request => card.appendChild(makeElement('div', 'message-row', null, [
+        makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' ', null),
+        makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status),
+        teacherCommentBox(request.note)
+      ])));
+      return card;
     }
 
     /**
@@ -537,6 +563,8 @@
         tile('Quarter', portalState.dashboard.quarter, '')
       ]));
 
+      const teacherMessages = buildTeacherMessagesCard();
+      if (teacherMessages) panel.appendChild(teacherMessages);
       panel.appendChild(buildActivityCard());
     }
 
@@ -985,7 +1013,8 @@
         requestsCard.appendChild(makeElement('div', 'list-row', null, [
           makeElement('div', '', null, [
             makeElement('div', 'row-title', request.quantity + ' x ' + request.itemName + ' - ' + money(request.total)),
-            makeElement('div', 'row-sub', formatDate(request.requestedAt) + (request.note ? ' - ' + request.note : '')),
+            makeElement('div', 'row-sub', formatDate(request.requestedAt)),
+            request.note ? teacherCommentBox(request.note) : null,
             isOpen(request) ? balanceChangeLine(student.balance, request.total, 'you') : null,
             request.studentNote ? makeElement('details', 'request-details', null, [makeElement('summary', '', 'Your note'), makeElement('p', 'note-text', request.studentNote)]) : null
           ]),
@@ -1477,9 +1506,15 @@
 
     /** One request: the headline (who, what, how much), the badge, the facts (dates, who decided, transaction) and the buttons that fit its status. */
     function buildRequestRow(request, card) {
+      // The comment box always starts with the comment the student currently sees. Every button on the row saves what is in it, and
+      // "Save comment" saves it alone (this works for completed, denied and cancelled requests too).
       const noteInput = makeElement('input');
-      noteInput.placeholder = request.status === 'Approved' ? 'Completion note (optional)' : request.status === 'Completed' ? 'Why unmark? (optional)' : 'Note (optional)';
-      noteInput.setAttribute('aria-label', 'Note for request ' + request.id);
+      noteInput.value = request.note || '';
+      noteInput.maxLength = MAX_COMMENT_LENGTH;
+      noteInput.placeholder = 'Comment for the student (optional)';
+      noteInput.setAttribute('aria-label', 'Comment for request ' + request.id);
+      const saveCommentButton = actionButton('button button-secondary', 'Save comment');
+      saveCommentButton.onclick = () => runRequestAction('portalAdminSaveRequestNote', { id: request.id, note: noteInput.value }, saveCommentButton, 'Saving...', card);
 
       const actions = makeElement('div', 'row-actions', null, [makeElement('span', 'badge badge-' + request.status.toLowerCase(), request.status)]);
       const openButton = actionButton('button button-secondary', 'Open account');
@@ -1518,7 +1553,6 @@
         makeElement('summary', '', request.studentNote ? 'Details and student note' : 'Details'),
         makeElement('p', 'note-text', request.studentNote || 'The student did not write a note.'),
         makeElement('div', 'row-sub', 'Requested by ' + (request.email || 'unknown') + ' on ' + formatDate(request.requestedAt) + ' (' + request.quarter + ', ' + money(request.unitPrice) + ' each).'),
-        request.note ? makeElement('div', 'row-sub', 'Teacher notes: ' + request.note) : null,
         request.resolvedBy ? makeElement('div', 'row-sub', (request.status === 'Denied' || request.status === 'Cancelled' ? request.status : 'Decided') + ' by ' + request.resolvedBy + (request.resolvedAt ? ' on ' + formatDate(request.resolvedAt) : '')) : null,
         request.completedBy ? makeElement('div', 'row-sub', 'Completed by ' + request.completedBy + ' on ' + formatDate(request.completedAt)) : null,
         request.transactionIds ? makeElement('div', 'row-sub', 'Transactions sheet row id(s): ' + request.transactionIds + ' (undo from Transaction Records, or use Unmark completed).') : null
@@ -1528,7 +1562,8 @@
       // Balance before and after for requests that are still to be charged; red when it would put the student in debt.
       if (typeof request.balanceNow === 'number') rowText.appendChild(balanceChangeLine(request.balanceNow, request.total, request.student));
       rowText.appendChild(details);
-      if (request.status === 'Pending' || request.status === 'Approved' || request.status === 'Completed') rowText.appendChild(noteInput);
+      const commentRow = makeElement('div', 'comment-edit', null, [noteInput, saveCommentButton]);
+      rowText.appendChild(commentRow);
       return makeElement('div', 'list-row admin-row', null, [rowText, actions]);
     }
 

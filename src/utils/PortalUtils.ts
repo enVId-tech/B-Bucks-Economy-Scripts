@@ -142,6 +142,8 @@ const PORTAL_ADMIN_CACHE_KEY: string = "portalAdminEmails";
 const PORTAL_MAX_REQUEST_QUANTITY: number = 10;
 /** Most requests one student can have open (Pending) at the same time. Once an admin decides on some, the student can ask again. Stops the request list being spammed. */
 const PORTAL_MAX_OPEN_REQUESTS: number = 5;
+/** Longest teacher comment on a request (the Note column). The student sees it, so it is kept short; the page limits the box to the same number. */
+const PORTAL_MAX_COMMENT_LENGTH: number = 300;
 /** Longest note (characters) a student can attach to a request; longer text is cut. Keep equal to MAX_STUDENT_NOTE_LENGTH in Portal.html. */
 const PORTAL_MAX_STUDENT_NOTE_LENGTH: number = 1000;
 
@@ -1167,7 +1169,8 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
-            const completionNote = String(request.note ?? "").trim().slice(0, 200);
+            const commentGiven = typeof request.note === "string";
+            const completionNote = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
             const record = readPortalRequests_().find(candidate => candidate.id === requestId);
             if (!record) return failure_("That request was not found.");
@@ -1198,7 +1201,8 @@ function portalAdminCompleteRequestEntry_(data: string): PortalActionResult {
 
             requestsSheet.getRange(rowNumber, 11).setValue("Completed");
             requestsSheet.getRange(rowNumber, 16, 1, 4).setValues([[identity.email, new Date(), transactionIds.join(", ") || record.transactionIds, payment]]);
-            if (completionNote) requestsSheet.getRange(rowNumber, 14).setValue(record.note ? `${record.note} - Completed: ${completionNote}` : `Completed: ${completionNote}`);
+            // The comment box on the page starts with the current comment, so what arrives is the comment the teacher wants the student to see.
+            if (commentGiven) requestsSheet.getRange(rowNumber, 14).setValue(completionNote);
             log(`Portal: ${identity.email} marked request ${requestId} (${record.itemName}) for ${record.student} (${record.period}) as completed.`, false);
             return { ok: true, message: `Marked as completed: ${record.quantity} x ${record.itemName} for ${record.student}.${chargeMessage}` };
         } catch (error: any) {
@@ -1224,7 +1228,8 @@ function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
 
             const request = JSON.parse(data);
             const requestId = Number(request.id);
-            const reason = String(request.note ?? "").trim().slice(0, 200);
+            const commentGiven = typeof request.note === "string";
+            const reason = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
             const record = readPortalRequests_().find(candidate => candidate.id === requestId);
             if (!record) return failure_("That request was not found.");
@@ -1257,11 +1262,10 @@ function portalAdminUncompleteRequestEntry_(data: string): PortalActionResult {
                 undoMessage = " This request was charged before completions were tracked, so no money moved; undo its purchase in Transaction Records if needed.";
             }
 
-            const history = `Unmarked by ${identity.email}${reason ? ": " + reason : ""}${transactionIds.length > 0 && record.payment === "Paid" ? ` (undid transaction ${transactionIds.join(", ")})` : ""}`;
             requestsSheet.getRange(rowNumber, 11).setValue("Approved");
-            requestsSheet.getRange(rowNumber, 14).setValue(record.note ? `${record.note} - ${history}` : history);
+            if (commentGiven) requestsSheet.getRange(rowNumber, 14).setValue(reason);
             requestsSheet.getRange(rowNumber, 16, 1, 4).setValues([["", "", "", nextPayment]]);
-            log(`Portal: ${identity.email} unmarked request ${requestId} (${record.itemName}) for ${record.student} (${record.period}).`, false);
+            log(`Portal: ${identity.email} unmarked request ${requestId} (${record.itemName}) for ${record.student} (${record.period})${reason ? `: ${reason}` : ""}${transactionIds.length > 0 && record.payment === "Paid" ? `; undid transaction ${transactionIds.join(", ")}` : ""}.`, false);
             return { ok: true, message: `Unmarked: ${record.quantity} x ${record.itemName} for ${record.student} is approved again.${undoMessage}` };
         } catch (error: any) {
             log(`Error in portalAdminUncompleteRequest: ${error.message}`, false);
@@ -1286,7 +1290,7 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
             const request = JSON.parse(data);
             const requestId = Number(request.id);
             const approve = request.approve === true;
-            const note = String(request.note ?? "").slice(0, 200);
+            const note = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
 
             const record = readPortalRequests_().find(candidate => candidate.id === requestId);
             if (!record) return failure_("That request was not found.");
@@ -1316,6 +1320,40 @@ function portalAdminResolveRequestEntry_(data: string): PortalActionResult {
         } catch (error: any) {
             log(`Error in portalAdminResolveRequest: ${error.message}`, false);
             return failure_("The request could not be resolved. Please try again.");
+        }
+    }, failure_("The bank is busy right now. Please try again in a moment."));
+}
+
+/**
+ * Writes or changes the teacher comment of ANY request, whatever its status (Pending, Approved, Completed, Denied or Cancelled), so a
+ * comment can still be corrected after the decision. Only the comment changes: never the status, the money or the transaction.
+ * An empty comment clears it. The student sees the comment on the Spend tab and on Home.
+ * @param data JSON string: { id: number, note: string }
+ */
+function portalAdminSaveRequestNoteEntry_(data: string): PortalActionResult {
+    return runWithTransactionLock(() => {
+        try {
+            const identity = resolvePortalIdentity_();
+            if (identity.status !== "ok" || !identity.isAdmin) return failure_("Admins only.");
+            const tooFast = checkPortalRate_(identity.email, "action");
+            if (tooFast) return failure_(tooFast);
+
+            const request = JSON.parse(data);
+            const requestId = Number(request.id);
+            const comment = String(request.note ?? "").trim().slice(0, PORTAL_MAX_COMMENT_LENGTH);
+
+            const record = readPortalRequests_().find(candidate => candidate.id === requestId);
+            if (!record) return failure_("That request was not found.");
+            const requestsSheet = ensurePortalSheet_(PORTAL_REQUESTS_SHEET, PORTAL_REQUEST_HEADERS);
+            const rowNumber = findPortalRequestRow_(requestId);
+            if (rowNumber < 0) return failure_("That request was not found.");
+
+            requestsSheet.getRange(rowNumber, 14).setValue(comment);
+            log(`Portal: ${identity.email} ${comment ? "set" : "cleared"} the comment on request ${requestId} (${record.status}) for ${record.student} (${record.period}).`, false);
+            return { ok: true, message: comment ? `Comment saved for ${record.student}.` : `Comment removed for ${record.student}.` };
+        } catch (error: any) {
+            log(`Error in portalAdminSaveRequestNote: ${error.message}`, false);
+            return failure_("The comment could not be saved. Please try again.");
         }
     }, failure_("The bank is busy right now. Please try again in a moment."));
 }
@@ -1454,6 +1492,8 @@ function portalCancelRequest(data: string): PortalActionResult { return runTrust
 function portalAdminListRequests(): any { return runTrusted_(() => portalAdminListRequestsEntry_()); }
 /** Browser entry (admins): mark an approved request as completed. Payload JSON { id, note }. */
 function portalAdminCompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminCompleteRequestEntry_(data)); }
+/** Browser entry (admins): write or change the comment of any request, whatever its status. Payload JSON { id, note }. */
+function portalAdminSaveRequestNote(data: string): PortalActionResult { return runTrusted_(() => portalAdminSaveRequestNoteEntry_(data)); }
 /** Browser entry (admins): take a completed request back to approved by undoing its transaction. Payload JSON { id, note }. */
 function portalAdminUncompleteRequest(data: string): PortalActionResult { return runTrusted_(() => portalAdminUncompleteRequestEntry_(data)); }
 /** Browser entry (admins): approve or deny a pending request. Payload JSON { id, approve, note }. */
