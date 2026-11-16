@@ -91,6 +91,26 @@
         white-space: nowrap;
     }
 
+    /* Two-line brand: the bank name with the developer credit under it, small and muted so it never competes with the name. */
+    .brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+    }
+
+    .brand-credit {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--portal-muted);
+    }
+
+    @media (max-width: 420px) {
+        .brand-credit {
+            display: none;
+        }
+    }
+
     .experimental-badge {
         padding: 2px 8px;
         border-radius: 999px;
